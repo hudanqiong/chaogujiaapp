@@ -55,10 +55,19 @@ fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
             val wickTop = bodyTop - upWick[i] * u         // 上针尖
             val wickBottom = baseY + 0f * u               // 下针尖
 
-            // 1) 上下影线（贯穿的细针）
+            // 1) 上下影线：只画在柱体两端，不穿过柱体
+            //    上影线：柱体顶 → 上针尖
             drawLine(
                 color = main,
-                start = Offset(c, wickTop),
+                start = Offset(c, bodyTop),
+                end = Offset(c, wickTop),
+                strokeWidth = 1.3f * u,
+                cap = StrokeCap.Round
+            )
+            //    下影线：柱体底 → 下针尖
+            drawLine(
+                color = main,
+                start = Offset(c, bodyBottom),
                 end = Offset(c, wickBottom),
                 strokeWidth = 1.3f * u,
                 cap = StrokeCap.Round
@@ -118,54 +127,60 @@ fun IconQuote(selected: Boolean, modifier: Modifier = Modifier) {
     }
 }
 
-/** 自选：人像剪影（头 + 肩，无外框）+ 胸前对勾 */
+/** 自选：人像证件照剪影（头 + 脖子 + 肩膀）+ 脖子下向下展开的勾（领口） */
 @Composable
 fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
     val main = if (selected) RED else BLACK
     val tick = if (selected) WHITE else BLACK
     Canvas(modifier.size(24.dp)) {
         val u = size.width / 24f
-        val strokeW = 1.8f * u
+        val strokeW = 1.6f * u
 
-        // ---- 人像（头 + 肩），作为一个连通路径 ----
-        val person = Path().apply {
-            // 头（圆）
-            addOval(
-                Rect(
-                    left = 8.4f * u,
-                    top = 4.4f * u,
-                    right = 15.6f * u,
-                    bottom = 11.6f * u
-                )
-            )
-            // 肩（一个圆润的梯形/半圆状）
-            moveTo(4.5f * u, 20.5f * u)
+        // ---- 用「头(圆) + 脖子 + 肩」三段拼成真剪影（像证件照）----
+        // 1) 肩膀（含脖子根）：上窄下宽的圆润梯形
+        val shoulders = Path().apply {
+            moveTo(4.0f * u, 20.8f * u)             // 左下角
+            lineTo(4.0f * u, 17.8f * u)             // 左侧往上
             cubicTo(
-                4.5f * u, 15.5f * u,
-                8f * u, 13.5f * u,
-                12f * u, 13.5f * u
-            )
+                4.0f * u, 14.8f * u,
+                7.6f * u, 13.2f * u,
+                9.9f * u, 13.2f * u
+            )                                       // 左肩弧 → 颈肩左
+            lineTo(9.9f * u, 11.2f * u)             // 颈左竖线往上（脖子）
+            lineTo(14.1f * u, 11.2f * u)            // 颈右
+            lineTo(14.1f * u, 13.2f * u)            // 颈右竖线往下
             cubicTo(
-                16f * u, 13.5f * u,
-                19.5f * u, 15.5f * u,
-                19.5f * u, 20.5f * u
-            )
+                16.4f * u, 13.2f * u,
+                20.0f * u, 14.8f * u,
+                20.0f * u, 17.8f * u
+            )                                       // 颈肩右 → 右肩弧
+            lineTo(20.0f * u, 20.8f * u)            // 右下角
             close()
         }
+        // 2) 头：圆
+        val head = Rect(
+            left = 7.8f * u,
+            top = 3.2f * u,
+            right = 16.2f * u,
+            bottom = 11.6f * u
+        )
+
         if (selected) {
-            drawPath(person, color = main)                     // 实心红
+            drawPath(shoulders, color = main)
+            drawOval(color = main, topLeft = head.topLeft, size = head.size)
         } else {
-            drawPath(person, color = main, style = Stroke(strokeW))
+            drawPath(shoulders, color = main, style = Stroke(strokeW))
+            drawOval(color = main, topLeft = head.topLeft, size = head.size, style = Stroke(strokeW))
         }
 
-        // ---- 胸前对勾 ----
-        val check = Path().apply {
-            moveTo(9.2f * u, 18.6f * u)
-            lineTo(11.2f * u, 20.5f * u)
-            lineTo(15.2f * u, 16.2f * u)
+        // 3) 脖子下、向下展开的勾（V 形领口，人字形）
+        val collar = Path().apply {
+            moveTo(9.6f * u, 15.4f * u)             // 左上
+            lineTo(12.0f * u, 17.8f * u)            // 下尖
+            lineTo(14.4f * u, 15.4f * u)            // 右上
         }
         drawPath(
-            path = check,
+            path = collar,
             color = tick,
             style = Stroke(width = strokeW, cap = StrokeCap.Round)
         )
@@ -181,12 +196,12 @@ fun IconTrade(selected: Boolean, modifier: Modifier = Modifier) {
         val u = size.width / 24f
         val strokeW = 1.8f * u
 
-        // 圆
+        // 圆（放大：撑满画布，留白更少）
         val circle = Rect(
-            left = 3.5f * u,
-            top = 3.5f * u,
-            right = 20.5f * u,
-            bottom = 20.5f * u
+            left = 2.5f * u,
+            top = 2.5f * u,
+            right = 21.5f * u,
+            bottom = 21.5f * u
         )
         if (selected) {
             drawOval(color = main, topLeft = circle.topLeft, size = circle.size)
@@ -194,18 +209,18 @@ fun IconTrade(selected: Boolean, modifier: Modifier = Modifier) {
             drawOval(color = main, topLeft = circle.topLeft, size = circle.size, style = Stroke(strokeW))
         }
 
-        // ¥ 符号：两斜线 + 两横
-        val yTop = 7.6f * u
-        val yMid = 13.2f * u
-        val yBot = 16.4f * u
+        // ¥ 符号：两斜线 + 两横（加宽、压矮，居中）
+        val yTop = 8.6f * u
+        val yMid = 13.0f * u
+        val yBot = 15.8f * u
         // 左斜线
         val left = Path().apply {
-            moveTo(9.2f * u, yTop)
+            moveTo(8.0f * u, yTop)
             lineTo(12f * u, yMid)
         }
         // 右斜线
         val right = Path().apply {
-            moveTo(14.8f * u, yTop)
+            moveTo(16.0f * u, yTop)
             lineTo(12f * u, yMid)
         }
         // 竖线
@@ -213,14 +228,14 @@ fun IconTrade(selected: Boolean, modifier: Modifier = Modifier) {
             moveTo(12f * u, yMid)
             lineTo(12f * u, yBot)
         }
-        // 两横
+        // 两横（加宽）
         val bar1 = Path().apply {
-            moveTo(9.4f * u, yMid + 0.6f * u)
-            lineTo(14.6f * u, yMid + 0.6f * u)
+            moveTo(8.4f * u, yMid + 0.2f * u)
+            lineTo(15.6f * u, yMid + 0.2f * u)
         }
         val bar2 = Path().apply {
-            moveTo(9.4f * u, yBot + 0.2f * u)
-            lineTo(14.6f * u, yBot + 0.2f * u)
+            moveTo(8.4f * u, yMid + 2.6f * u)
+            lineTo(15.6f * u, yMid + 2.6f * u)
         }
         val s = Stroke(width = strokeW, cap = StrokeCap.Round)
         drawPath(left, sym, style = s)
@@ -251,11 +266,11 @@ fun IconNews(selected: Boolean, modifier: Modifier = Modifier) {
             drawRect(color = main, topLeft = Offset(left, top), size = Size(w, h), style = Stroke(strokeW))
         }
 
-        // 三横线（左对齐）：上两横长，下横短
-        val lineStroke = Stroke(width = strokeW, cap = StrokeCap.Round)
-        val xStart = left + 2.2f * u
-        val longEnd = left + w - 2.2f * u
-        val shortEnd = left + w * 0.55f
+        // 三横线（左对齐）：比外框细一些、短一些，不要顶到边框
+        val lineStroke = Stroke(width = 1.2f * u, cap = StrokeCap.Round)
+        val xStart = left + 2.6f * u
+        val longEnd = left + w - 4.5f * u
+        val shortEnd = left + w * 0.45f
         // 第一横
         val l1 = Path().apply { moveTo(xStart, top + 4.2f * u); lineTo(longEnd, top + 4.2f * u) }
         // 第二横

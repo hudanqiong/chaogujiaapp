@@ -50,6 +50,14 @@ fun ChaoGuJiaApp() {
                         selected = selected,
                         onClick = { current = t.key },
                         icon = { t.drawIcon(selected) },
+                        // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color.Unspecified,
+                            selectedTextColor = Color.Unspecified,
+                            indicatorColor = Color.Transparent,
+                            unselectedIconColor = Color.Unspecified,
+                            unselectedTextColor = Color.Unspecified
+                        ),
                         label = {
                             Text(
                                 text = if (selected && t.key == "index") "刷新" else t.label,
