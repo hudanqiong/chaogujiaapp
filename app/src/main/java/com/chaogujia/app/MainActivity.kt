@@ -14,11 +14,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -51,27 +53,47 @@ fun ChaoGuJiaApp() {
 
     // 启动默认进"行情"页
     var current by remember { mutableStateOf("quote") }
-    // token / 用户名：启动时从本地读回（免重复登录）
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
-    // 登录弹层开关 + 登录成功后要跳转的目标 Tab
     var showLogin by remember { mutableStateOf(false) }
     var targetTab by remember { mutableStateOf("index") }
 
+    // 会员信息（5 页共用，由 MainActivity 统一拉）
+    var member by remember { mutableStateOf(MemberInfo()) }
+
+    // token 变化时重新拉会员信息（登录后立刻刷新）
+    LaunchedEffect(token) {
+        if (token.isNotEmpty()) {
+            try {
+                member = withContext(Dispatchers.IO) { Api.member(token) }
+            } catch (e: Exception) {
+                member = MemberInfo()
+            }
+        } else {
+            member = MemberInfo()
+        }
+    }
+
+    // 退出登录
+    fun doLogout() {
+        token = ""
+        uname = ""
+        prefs.edit().remove("token").remove("username").apply()
+        current = "quote"
+        member = MemberInfo()
+    }
+
     Scaffold(
         topBar = {
-            // 顶部红色区域（5 个页面共用）：从屏幕最顶铺下来，含状态栏，内容区 60dp
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(Config.COLOR_PRIMARY))
-                    .statusBarsPadding()
-            ) {
-                Spacer(Modifier.height(60.dp))
-            }
+            // 共用红色会员顶栏：5 个页面统一（高度一致）
+            MemberHeaderBar(
+                username = uname,
+                isMember = member.isMember,
+                levelName = member.levelName,
+                expireAt = member.expireAt
+            )
         },
         bottomBar = {
-            // 自定义底部导航：clickable(indication = null) 彻底去掉水波
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -88,7 +110,6 @@ fun ChaoGuJiaApp() {
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                                 onClick = {
-                                    // 只有"行情"不需要登录，其他点击都要登录
                                     if (t.key != "quote" && token.isEmpty()) {
                                         targetTab = t.key
                                         showLogin = true
@@ -121,14 +142,18 @@ fun ChaoGuJiaApp() {
                 .background(Color.White)
         ) {
             when (current) {
-                "index" -> HomeScreen(token, uname)
+                "index" -> HomeScreen(
+                    token = token,
+                    username = uname,
+                    onLogout = { doLogout() },
+                    onMemberChanged = { member = it }
+                )
                 "quote" -> EmptyScreen()
                 "watch" -> EmptyScreen()
                 "trade" -> EmptyScreen()
                 "news" -> EmptyScreen()
             }
 
-            // 登录弹层（覆盖在内容之上）
             if (showLogin) {
                 LoginScreen(
                     onSuccess = { tk, un ->
@@ -136,7 +161,7 @@ fun ChaoGuJiaApp() {
                         uname = un
                         prefs.edit().putString("token", tk).putString("username", un).apply()
                         showLogin = false
-                        current = targetTab        // 登录成功 → 进入目标页
+                        current = targetTab
                     },
                     onClose = { showLogin = false }
                 )
@@ -155,7 +180,7 @@ fun EmptyScreen() {
     )
 }
 
-// 底部导航图标：选中显示点亮版，未选中显示普通版（图片来自 res/drawable）
+// 底部导航图标
 @Composable
 fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
     Image(
