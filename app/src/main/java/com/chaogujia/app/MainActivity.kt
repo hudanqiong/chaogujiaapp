@@ -11,11 +11,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.runtime.CompositionLocalProvider
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,6 +65,8 @@ fun ChaoGuJiaApp() {
                 tabs.forEach { t ->
                     val selected = current == t.key
                     val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
+                    // 关闭点击水波涟漪
+                    CompositionLocalProvider(LocalIndication provides NoIndication) {
                     NavigationBarItem(
                         selected = selected,
                         onClick = { current = t.key },
@@ -82,6 +88,7 @@ fun ChaoGuJiaApp() {
                             )
                         }
                     )
+                    }
                 }
             }
         }
@@ -127,4 +134,13 @@ fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
         modifier = Modifier.size(24.dp),
         contentScale = ContentScale.Fit
     )
+}
+
+// 空指示器：点击时不做任何涟漪/水波效果
+private object NoIndication : androidx.compose.foundation.Indication {
+    @Composable
+    override fun rememberUpdatedInstance(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.foundation.IndicationInstance =
+        object : androidx.compose.foundation.IndicationInstance {
+            override fun DrawScope.drawIndication() { /* 什么都不画 */ }
+        }
 }
