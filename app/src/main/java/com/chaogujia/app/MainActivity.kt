@@ -16,7 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.runtime.CompositionLocalProvider
 
@@ -32,18 +31,18 @@ class MainActivity : ComponentActivity() {
 private data class TabItem(
     val key: String,
     val label: String,
-    val drawIcon: @Composable (Boolean) -> Unit
+    val normalRes: Int,
+    val checkedRes: Int
 )
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChaoGuJiaApp() {
     val tabs = listOf(
-        TabItem("index", "首页", { sel -> TabIcon(sel, R.drawable.tab_home, R.drawable.tab_home_checked) }),
-        TabItem("quote", "行情", { sel -> TabIcon(sel, R.drawable.tab_quote, R.drawable.tab_quote_checked) }),
-        TabItem("watch", "自选", { sel -> TabIcon(sel, R.drawable.tab_watch, R.drawable.tab_watch_checked) }),
-        TabItem("trade", "交易", { sel -> TabIcon(sel, R.drawable.tab_trade, R.drawable.tab_trade_checked) }),
-        TabItem("news", "资讯", { sel -> TabIcon(sel, R.drawable.tab_news, R.drawable.tab_news_checked) })
+        TabItem("index", "首页", R.drawable.tab_home, R.drawable.tab_home_checked),
+        TabItem("quote", "行情", R.drawable.tab_quote, R.drawable.tab_quote_checked),
+        TabItem("watch", "自选", R.drawable.tab_watch, R.drawable.tab_watch_checked),
+        TabItem("trade", "交易", R.drawable.tab_trade, R.drawable.tab_trade_checked),
+        TabItem("news", "资讯", R.drawable.tab_news, R.drawable.tab_news_checked)
     )
     var current by remember { mutableStateOf("index") }
 
@@ -71,7 +70,7 @@ fun ChaoGuJiaApp() {
                         NavigationBarItem(
                             selected = selected,
                             onClick = { current = t.key },
-                            icon = { t.drawIcon(selected) },
+                            icon = { TabIcon(selected, t.normalRes, t.checkedRes) },
                             // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Color.Unspecified,
