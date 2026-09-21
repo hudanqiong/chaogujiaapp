@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -59,34 +60,38 @@ fun ChaoGuJiaApp() {
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color(0xFFF5F5F5)) {
+            // 自定义底部导航：不用 Material3 的 NavigationBar/NavigationBarItem，
+            // 因为它们的点击水波(ripple)无法关闭。改用 clickable(indication = null) 彻底去掉水波。
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF5F5F5))
+                    .navigationBarsPadding()
+            ) {
                 tabs.forEach { t ->
                     val selected = current == t.key
                     val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { current = t.key },
-                        // 关闭点击时的水波指示（Compose 1.6 正规写法，替代已废弃的 LocalIndication）
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                        icon = { TabIcon(selected, t.normalRes, t.checkedRes) },
-                        // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color.Unspecified,
-                            selectedTextColor = Color.Unspecified,
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Unspecified,
-                            unselectedTextColor = Color.Unspecified
-                        ),
-                        label = {
-                            Text(
-                                text = t.label,
-                                color = color,
-                                fontSize = 11.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { current = t.key }
                             )
-                        }
-                    )
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        TabIcon(selected, t.normalRes, t.checkedRes)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = t.label,
+                            color = color,
+                            fontSize = 11.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
             }
         }
