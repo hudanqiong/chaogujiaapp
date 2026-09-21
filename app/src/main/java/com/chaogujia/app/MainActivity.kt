@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -65,6 +66,9 @@ fun ChaoGuJiaApp() {
                     NavigationBarItem(
                         selected = selected,
                         onClick = { current = t.key },
+                        // 关闭点击时的水波指示（Compose 1.6 正规写法，替代已废弃的 LocalIndication）
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
                         icon = { TabIcon(selected, t.normalRes, t.checkedRes) },
                         // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
                         colors = NavigationBarItemDefaults.colors(
