@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.sp
  * 红条固定总高度：所有页面（首页/自选/行情/交易/资讯）统一使用。
  * 红条高度写死，不再由内容撑高 —— 这样图标怎么调都不影响整体高度。
  */
-private val BarHeight = 110.dp
+private val BarHeight = 74.dp
 
 /**
  * 共用红色顶栏（5 个 Tab 页面共用，高度固定一致）
@@ -143,7 +143,7 @@ private fun MemberInfoRow(
  * - 红条总高度由 BarHeight 写死，不受图标大小影响
  * - 图标仅展示，不绑定点击
  */
-private val ICON_BIG = 92.dp      // 图1、图3
+private val ICON_BIG = 56.dp      // 图1、图3
 private val ICON_SMALL = 24.dp    // 图2
 
 @Composable
@@ -160,15 +160,14 @@ private fun WatchHeaderRow() {
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .size(ICON_BIG)
-                .background(Color.Yellow),   // ★临时调试：看它实际占多大
-            contentScale = ContentScale.FillBounds   // ★对照：拉伸填满
+                .size(ICON_BIG),
+            contentScale = ContentScale.FillBounds
         )
 
         // 居中文字
         Text(
-            text = "同花顺自选 v29B",
-            color = Color.Yellow,
+            text = "同花顺自选",
+            color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Center)
@@ -189,8 +188,8 @@ private fun WatchHeaderRow() {
             Image(
                 painter = painterResource(R.drawable.ic_watch_right),
                 contentDescription = null,
-                modifier = Modifier.height(ICON_BIG),
-                contentScale = ContentScale.Fit
+                modifier = Modifier.size(ICON_BIG),
+                contentScale = ContentScale.FillBounds
             )
         }
     }
