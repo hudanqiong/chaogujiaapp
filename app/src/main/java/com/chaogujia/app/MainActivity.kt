@@ -60,7 +60,7 @@ fun ChaoGuJiaApp() {
                         ),
                         label = {
                             Text(
-                                text = if (selected && t.key == "index") "刷新" else t.label,
+                                text = t.label,
                                 color = color,
                                 fontSize = 11.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
@@ -83,6 +83,37 @@ fun ChaoGuJiaApp() {
                 "watch" -> PlaceholderScreen("自选", "自选股列表")
                 "trade" -> PlaceholderScreen("交易", "持仓列表 + 买入卖出")
                 "news" -> PlaceholderScreen("资讯", "分类 + 话题 + 资讯流")
+            }
+            // 首页顶部红色区域：从屏幕最顶铺下来，含状态栏，总高约 3 个状态栏（≈72dp）
+            if (current == "index") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .background(Color(Config.COLOR_PRIMARY))   // 红色打底，铺到最顶
+                        .statusBarsPadding()                       // 状态栏区域也保持红色
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(72.dp)                         // 内容区高度 ≈ 3 个状态栏
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        Text(
+                            text = "炒股家",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            text = "🔍 搜索",
+                            color = Color.White,
+                            fontSize = 14.sp
+                        )
+                    }
+                }
             }
         }
     }

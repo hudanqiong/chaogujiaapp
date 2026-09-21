@@ -27,10 +27,10 @@ private val WHITE = Color.White
 
 /**
  * 首页：三根带上下影线的行情柱，从左到右一根比一根高
- * 排列规律：空 → 实 → 空（第1根空心、第2根实心、第3根空心）
- * 每根 = 上下贯穿的细影线 + 中间一段"偏胖"的柱体；
- * 点亮=红色（实心柱用红填充/空心柱用红描边）+ 红针；
- * 不点亮=黑色（实心柱用黑填充/空心柱用黑描边）+ 黑针。
+ * 排列规律：未点亮 → 三根全部空心（描边）；点亮 → 三根全部实心（填充）
+ * 每根 = 上下两端的细影线 + 中间一段"偏胖"的柱体；
+ * 点亮=红色（实心柱用红填充）+ 红针；
+ * 不点亮=黑色（空心柱用黑描边）+ 黑针。
  */
 @Composable
 fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
@@ -46,7 +46,7 @@ fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
         val bodyH = listOf(5.5f, 10f, 14.5f)   // 越高越靠右
         val upWick = listOf(2.5f, 3.5f, 4.5f)  // 上影线（针尖向上）
         val downWick = listOf(1.8f, 2.2f, 2.6f) // 下影线（针尖向下）
-        val filled = listOf(false, true, false) // 空 → 实 → 空
+        val filled = listOf(selected, selected, selected) // 未点亮=全空心；点亮=全实心
 
         centers.forEachIndexed { i, cx ->
             val c = cx * u
