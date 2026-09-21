@@ -86,7 +86,9 @@ fun ChaoGuJiaApp() {
     Scaffold(
         topBar = {
             // 红色会员顶栏：5 个 Tab 页面统一渲染，高度一致
+            // 内容按页面切换：首页=会员信息，自选页=同花顺自选+三图标，其他=空占位
             MemberHeaderBar(
+                current = current,
                 username = uname,
                 isMember = member.isMember,
                 levelName = member.levelName,
