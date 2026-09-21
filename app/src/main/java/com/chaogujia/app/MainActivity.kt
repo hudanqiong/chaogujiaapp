@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.runtime.CompositionLocalProvider
 
@@ -34,6 +35,7 @@ private data class TabItem(
     val drawIcon: @Composable (Boolean) -> Unit
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChaoGuJiaApp() {
     val tabs = listOf(
