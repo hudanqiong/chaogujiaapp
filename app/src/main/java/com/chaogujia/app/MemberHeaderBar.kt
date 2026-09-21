@@ -151,7 +151,7 @@ private fun WatchHeaderRow() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp, top = 8.dp),   // ★整体下移(缩小下边距)
+            .padding(start = 12.dp, end = 12.dp, top = 13.dp),   // ★整体下移(缩小下边距)
         contentAlignment = Alignment.Center
     ) {
         // 图标1：靠最左侧
