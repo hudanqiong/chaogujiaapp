@@ -26,28 +26,61 @@ private val RED = Color(Config.COLOR_PRIMARY)      // 点亮主色
 private val BLACK = Color(Config.COLOR_TEXT_MAIN)  // 未选主色
 private val WHITE = Color.White
 
-/** 首页：三根成交量柱，左低右高 */
+/**
+ * 首页：三根带上下影线的行情柱，从左到右一根比一根高
+ * 排列规律：空 → 实 → 空（第1根空心、第2根实心、第3根空心）
+ * 每根 = 上下贯穿的细影线 + 中间一段"偏胖"的柱体；
+ * 点亮=红色（实心柱用红填充/空心柱用红描边）+ 红针；
+ * 不点亮=黑色（实心柱用黑填充/空心柱用黑描边）+ 黑针。
+ */
 @Composable
 fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
     val main = if (selected) RED else BLACK
-    val inner = if (selected) WHITE else BLACK
     Canvas(modifier.size(24.dp)) {
         val u = size.width / 24f            // 归一化单位
-        val strokeW = 1.8f * u
-        // 三个柱子：从左到右越来越高
-        // 柱宽 3u，间距 2u
-        val barW = 3.2f * u
-        val baseY = 20f * u                 // 共同底线
-        val hs = listOf(6f, 10f, 14f)       // 三根柱高度
-        val xs = listOf(4.5f, 10.4f, 16.3f) // 三根柱左边界 x
-        hs.forEachIndexed { i, h ->
-            val x = xs[i] * u
-            val top = baseY - h * u
-            val r = Rect(Offset(x, top), Size(barW, h * u))
-            if (selected) {
-                drawRect(color = main, topLeft = r.topLeft, size = r.size)     // 实心
+        val bodyStroke = 1.4f * u           // 空心柱：细边框（不要太粗）
+        val barW = 4.6f * u                 // 柱体宽（偏胖）
+        val baseY = 20.5f * u               // 所有柱子的下端参考线
+        // 三根的 x 中心
+        val centers = listOf(5.0f, 12f, 19f)
+        // 每根：柱体高度（从下往上）、上影线长度、下影线长度
+        val bodyH = listOf(5.5f, 10f, 14.5f)   // 越高越靠右
+        val upWick = listOf(2.5f, 3.5f, 4.5f)  // 上影线（针尖向上）
+        val downWick = listOf(1.8f, 2.2f, 2.6f) // 下影线（针尖向下）
+        val filled = listOf(false, true, false) // 空 → 实 → 空
+
+        centers.forEachIndexed { i, cx ->
+            val c = cx * u
+            val bodyBottom = baseY - downWick[i] * u      // 柱体底
+            val bodyTop = bodyBottom - bodyH[i] * u       // 柱体顶
+            val wickTop = bodyTop - upWick[i] * u         // 上针尖
+            val wickBottom = baseY + 0f * u               // 下针尖
+
+            // 1) 上下影线（贯穿的细针）
+            drawLine(
+                color = main,
+                start = Offset(c, wickTop),
+                end = Offset(c, wickBottom),
+                strokeWidth = 1.3f * u,
+                cap = StrokeCap.Round
+            )
+
+            // 2) 柱体
+            val r = Rect(
+                topLeft = Offset(c - barW / 2f, bodyTop),
+                size = Size(barW, bodyBottom - bodyTop)
+            )
+            if (filled[i]) {
+                // 实心（无论点亮与否，实心柱都用主色填充）
+                drawRect(color = main, topLeft = r.topLeft, size = r.size)
             } else {
-                drawRect(color = main, topLeft = r.topLeft, size = r.size, style = Stroke(strokeW))
+                // 空心柱：细边框
+                drawRect(
+                    color = main,
+                    topLeft = r.topLeft,
+                    size = r.size,
+                    style = Stroke(bodyStroke)
+                )
             }
         }
     }
