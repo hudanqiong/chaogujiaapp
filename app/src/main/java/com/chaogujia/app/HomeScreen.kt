@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.text.DecimalFormat
 
 /** 首页 = 会员中心。顶部红色由共用 MemberHeaderBar 负责，这里全是白区卡片 */
 @Composable
@@ -31,11 +30,9 @@ fun HomeScreen(
     var account by remember { mutableStateOf(AccountInfo()) }
     var member by remember { mutableStateOf(MemberInfo()) }
     var points by remember { mutableStateOf(0) }
-    var loading by remember { mutableStateOf(true) }
     var subPage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(token) {
-        loading = true
         try {
             val a = withContext(Dispatchers.IO) { Api.account(token) }
             val m = withContext(Dispatchers.IO) { Api.member(token) }
@@ -46,7 +43,6 @@ fun HomeScreen(
             onMemberChanged(m)
         } catch (e: Exception) {
         }
-        loading = false
     }
 
     if (subPage != null) {
@@ -64,8 +60,6 @@ fun HomeScreen(
         return
     }
 
-    val money = remember { DecimalFormat("#,##0.00") }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -73,7 +67,7 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(12.dp)
     ) {
-        HomeAssetCard(account, loading, money) { subPage = "initial" }
+        HomeAssetCard { subPage = "initial" }
         Spacer(Modifier.height(12.dp))
         HomePointCard(points) { subPage = it }
         Spacer(Modifier.height(12.dp))
@@ -158,28 +152,14 @@ fun HDivider() {
 
 // ===== 首页卡片 =====
 @Composable
-private fun HomeAssetCard(account: AccountInfo, loading: Boolean, money: DecimalFormat, onSetInitial: () -> Unit) {
+private fun HomeAssetCard(onSetInitial: () -> Unit) {
     CardBox {
-        Column {
-            Text("总资产（元）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = if (loading) "--" else money.format(account.total),
-                color = Color(Config.COLOR_TEXT_MAIN), fontSize = 28.sp, fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(10.dp))
-            Row {
-                LabelValue("可用资金", money.format(account.cash))
-                Spacer(Modifier.width(20.dp))
-                LabelValue("持仓市值", money.format(account.marketValue))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("资金设置", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text("设置你的初始资金", color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp)
             }
-            Spacer(Modifier.height(8.dp))
-            Row {
-                LabelValue("初始资金", money.format(account.initial))
-                Spacer(Modifier.width(20.dp))
-                LabelValue("总盈亏", money.format(account.totalPn))
-            }
-            Spacer(Modifier.height(10.dp))
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
