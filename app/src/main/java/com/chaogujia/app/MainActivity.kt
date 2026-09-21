@@ -16,8 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.LocalIndication
-import androidx.compose.runtime.CompositionLocalProvider
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,34 +59,30 @@ fun ChaoGuJiaApp() {
         },
         bottomBar = {
             NavigationBar(containerColor = Color(0xFFF5F5F5)) {
-                // 关闭点击时的涟漪水波：把 LocalIndication 置为 null，
-                // Compose 1.6 的 clickable 在 indication 为 null 时不绘制任何按压反馈
-                CompositionLocalProvider(LocalIndication provides null) {
-                    tabs.forEach { t ->
-                        val selected = current == t.key
-                        val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { current = t.key },
-                            icon = { TabIcon(selected, t.normalRes, t.checkedRes) },
-                            // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Color.Unspecified,
-                                selectedTextColor = Color.Unspecified,
-                                indicatorColor = Color.Transparent,
-                                unselectedIconColor = Color.Unspecified,
-                                unselectedTextColor = Color.Unspecified
-                            ),
-                            label = {
-                                Text(
-                                    text = t.label,
-                                    color = color,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        )
-                    }
+                tabs.forEach { t ->
+                    val selected = current == t.key
+                    val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
+                    NavigationBarItem(
+                        selected = selected,
+                        onClick = { current = t.key },
+                        icon = { TabIcon(selected, t.normalRes, t.checkedRes) },
+                        // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Color.Unspecified,
+                            selectedTextColor = Color.Unspecified,
+                            indicatorColor = Color.Transparent,
+                            unselectedIconColor = Color.Unspecified,
+                            unselectedTextColor = Color.Unspecified
+                        ),
+                        label = {
+                            Text(
+                                text = t.label,
+                                color = color,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    )
                 }
             }
         }
