@@ -148,27 +148,27 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
         // 画法：从颈左上行 → 绕头顶 → 下行到颈右 → 转肩 → 绕回来闭合。
         // 头部只有顶部圆角 + 两侧竖边，底部（下巴）不画横线，直接向下接脖子。
         val body = Path().apply {
-            // 1) 颈部左线往上：从肩颈点往上到「下巴左角」
-            moveTo(9.85f * u, 13.0f * u)
-            lineTo(9.85f * u, 9.4f * u)             // 脖子左侧 → 下巴左角
-            // 2) 头的左轮廓：从下巴左角往上到脸颊，圆角绕头顶，再对称下来
+            // 1) 颈部左线往上：从肩颈点往上到「下巴左角」（脖子已缩短）
+            moveTo(9.9f * u, 13.0f * u)
+            lineTo(9.9f * u, 10.3f * u)             // 脖子左侧 → 下巴左角
+            // 2) 头的左轮廓：从下巴左角往上到脸颊，圆角绕头顶，再对称下来（头已加大）
             cubicTo(
-                9.3f * u, 8.4f * u,                 // 下颚左弧起（向外扩）
-                9.2f * u, 6.6f * u,                 // 左脸颊
-                10.0f * u, 4.9f * u                  // 左上额
+                8.9f * u, 9.5f * u,                 // 下颚左弧起（向外扩）
+                8.6f * u, 6.2f * u,                 // 左脸颊（最宽）
+                9.9f * u, 3.4f * u                  // 左上额
             )
             cubicTo(
-                10.8f * u, 3.2f * u,
-                13.2f * u, 3.2f * u,
-                14.0f * u, 4.9f * u
+                11.0f * u, 0.7f * u,
+                13.0f * u, 0.7f * u,
+                14.1f * u, 3.4f * u
             )                                       // 绕头顶
             cubicTo(
-                14.8f * u, 6.6f * u,                 // 右脸颊
-                14.7f * u, 8.4f * u,                 // 下颚右弧
-                14.15f * u, 9.4f * u                 // 下巴右角
+                15.4f * u, 6.2f * u,                 // 右脸颊（最宽）
+                15.1f * u, 9.5f * u,                 // 下颚右弧
+                14.1f * u, 10.3f * u                 // 下巴右角
             )
             // 3) 颈部右线往下：从下巴右角直下到肩颈点
-            lineTo(14.15f * u, 13.0f * u)
+            lineTo(14.1f * u, 13.0f * u)
             // 4) 右肩：从颈肩点向外弧到右肩，再下到右底（方肩）
             cubicTo(
                 17.2f * u, 13.0f * u,
@@ -182,7 +182,7 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             cubicTo(
                 4.0f * u, 13.2f * u,
                 6.8f * u, 13.0f * u,
-                9.85f * u, 13.0f * u
+                9.9f * u, 13.0f * u
             )
             close()
         }
@@ -195,24 +195,24 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             return Offset((x - dx / len * e) * u, (y - dy / len * e) * u)
         }
         val bodyStrokePath = Path().apply {
-            moveTo(inset(9.85f, 13.0f).x, inset(9.85f, 13.0f).y)
-            lineTo(inset(9.85f, 9.4f).x, inset(9.85f, 9.4f).y)
+            moveTo(inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y)
+            lineTo(inset(9.9f, 10.3f).x, inset(9.9f, 10.3f).y)
             cubicTo(
-                inset(9.3f, 8.4f).x, inset(9.3f, 8.4f).y,
-                inset(9.2f, 6.6f).x, inset(9.2f, 6.6f).y,
-                inset(10.0f, 4.9f).x, inset(10.0f, 4.9f).y
+                inset(8.9f, 9.5f).x, inset(8.9f, 9.5f).y,
+                inset(8.6f, 6.2f).x, inset(8.6f, 6.2f).y,
+                inset(9.9f, 3.4f).x, inset(9.9f, 3.4f).y
             )
             cubicTo(
-                inset(10.8f, 3.2f).x, inset(10.8f, 3.2f).y,
-                inset(13.2f, 3.2f).x, inset(13.2f, 3.2f).y,
-                inset(14.0f, 4.9f).x, inset(14.0f, 4.9f).y
+                inset(11.0f, 0.7f).x, inset(11.0f, 0.7f).y,
+                inset(13.0f, 0.7f).x, inset(13.0f, 0.7f).y,
+                inset(14.1f, 3.4f).x, inset(14.1f, 3.4f).y
             )
             cubicTo(
-                inset(14.8f, 6.6f).x, inset(14.8f, 6.6f).y,
-                inset(14.7f, 8.4f).x, inset(14.7f, 8.4f).y,
-                inset(14.15f, 9.4f).x, inset(14.15f, 9.4f).y
+                inset(15.4f, 6.2f).x, inset(15.4f, 6.2f).y,
+                inset(15.1f, 9.5f).x, inset(15.1f, 9.5f).y,
+                inset(14.1f, 10.3f).x, inset(14.1f, 10.3f).y
             )
-            lineTo(inset(14.15f, 13.0f).x, inset(14.15f, 13.0f).y)
+            lineTo(inset(14.1f, 13.0f).x, inset(14.1f, 13.0f).y)
             cubicTo(
                 inset(17.2f, 13.0f).x, inset(17.2f, 13.0f).y,
                 inset(20.0f, 13.2f).x, inset(20.0f, 13.2f).y,
@@ -224,7 +224,7 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             cubicTo(
                 inset(4.0f, 13.2f).x, inset(4.0f, 13.2f).y,
                 inset(6.8f, 13.0f).x, inset(6.8f, 13.0f).y,
-                inset(9.85f, 13.0f).x, inset(9.85f, 13.0f).y
+                inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y
             )
             close()
         }
