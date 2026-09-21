@@ -160,14 +160,15 @@ private fun WatchHeaderRow() {
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .height(ICON_BIG),
+                .height(ICON_BIG)
+                .background(Color.Yellow),   // ★临时调试：看它实际占多大
             contentScale = ContentScale.Fit
         )
 
         // 居中文字
         Text(
-            text = "同花顺自选",
-            color = Color.White,
+            text = "同花顺自选 v29B",
+            color = Color.Yellow,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Center)
