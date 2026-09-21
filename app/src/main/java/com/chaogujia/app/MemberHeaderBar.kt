@@ -137,17 +137,17 @@ private fun WatchHeaderRow() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 6.dp, end = 6.dp, bottom = 6.dp)
+            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
             .padding(top = 14.dp),
         contentAlignment = Alignment.BottomCenter
     ) {
-        // 图标1：靠最左侧（统一高度 24dp）
+        // 图标1：靠最左侧（放大到 48dp）
         Image(
             painter = painterResource(R.drawable.ic_watch_left),
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .height(24.dp),
+                .height(48.dp),
             contentScale = ContentScale.Fit
         )
 
@@ -162,10 +162,10 @@ private fun WatchHeaderRow() {
                 .padding(bottom = 2.dp)
         )
 
-        // 图标2、3：靠右，挨着（统一高度 24dp）
+        // 图标2(24dp，不变)、3(放大到48dp)：靠右
         Row(
             modifier = Modifier.align(Alignment.BottomEnd),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Bottom
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_watch_mid),
@@ -173,11 +173,11 @@ private fun WatchHeaderRow() {
                 modifier = Modifier.height(24.dp),
                 contentScale = ContentScale.Fit
             )
-            Spacer(Modifier.width(2.dp))
+            Spacer(Modifier.width(6.dp))
             Image(
                 painter = painterResource(R.drawable.ic_watch_right),
                 contentDescription = null,
-                modifier = Modifier.height(24.dp),
+                modifier = Modifier.height(48.dp),
                 contentScale = ContentScale.Fit
             )
         }
