@@ -160,9 +160,9 @@ private fun WatchHeaderRow() {
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .height(ICON_BIG)
+                .size(ICON_BIG)
                 .background(Color.Yellow),   // ★临时调试：看它实际占多大
-            contentScale = ContentScale.Fit
+            contentScale = ContentScale.FillBounds   // ★对照：拉伸填满
         )
 
         // 居中文字
