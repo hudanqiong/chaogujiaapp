@@ -19,6 +19,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
+ * 红条固定总高度：所有页面（首页/自选/行情/交易/资讯）统一使用。
+ * 红条高度写死，不再由内容撑高 —— 这样图标怎么调都不影响整体高度。
+ */
+private val BarHeight = 74.dp
+
+/**
  * 共用红色顶栏（5 个 Tab 页面共用，高度固定一致）
  *
  * 内容按当前页面切换：
@@ -37,12 +43,14 @@ fun MemberHeaderBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .height(BarHeight)                 // ★ 高度写死，5 页统一
             .background(
                 Brush.verticalGradient(
                     listOf(Color(Config.COLOR_PRIMARY), Color(0xFFD0202A))
                 )
             )
-            .statusBarsPadding()
+            .statusBarsPadding(),
+        contentAlignment = Alignment.Center             // 内容整体在红条内居中
     ) {
         when (current) {
             // 首页：会员信息
@@ -51,8 +59,8 @@ fun MemberHeaderBar(
             // 自选页：同花顺自选 + 三图标
             "watch" -> WatchHeaderRow()
 
-            // 其他页面：空占位，保证红条高度一致
-            else -> Spacer(Modifier.height(74.dp))
+            // 其他页面：什么都不放（红条高度已写死，依然与其他页一致）
+            else -> Unit
         }
     }
 }
@@ -68,7 +76,7 @@ private fun MemberInfoRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 头像：用户名首字圆形
@@ -128,26 +136,31 @@ private fun MemberInfoRow(
 }
 
 /**
- * 自选页顶栏：图标1(最左) + "同花顺自选"(居中) + 图标2、3(靠右挨着)
- * 内容整体靠底部，下方间距留小。
- * 图标不缩放（原图大小），仅展示、不绑定点击。
+ * 自选页顶栏：图标1(最左) + "同花顺自选"(居中) + 图标2、3(靠右)
+ *
+ * - 三个图标 **中线对齐**（排在同一条水平线上）
+ * - 图标尺寸在这里单独调（ICON_BIG / ICON_SMALL）
+ * - 红条总高度由 BarHeight 写死，不受图标大小影响
+ * - 图标仅展示，不绑定点击
  */
+private val ICON_BIG = 46.dp      // 图1、图3
+private val ICON_SMALL = 24.dp    // 图2
+
 @Composable
 private fun WatchHeaderRow() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp, bottom = 6.dp)
-            .padding(top = 14.dp),
-        contentAlignment = Alignment.BottomCenter
+            .padding(start = 12.dp, end = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
-        // 图标1：靠最左侧（放大到 48dp）
+        // 图标1：靠最左侧
         Image(
             painter = painterResource(R.drawable.ic_watch_left),
             contentDescription = null,
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .height(48.dp),
+                .align(Alignment.CenterStart)
+                .height(ICON_BIG),
             contentScale = ContentScale.Fit
         )
 
@@ -157,27 +170,25 @@ private fun WatchHeaderRow() {
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 2.dp)
+            modifier = Modifier.align(Alignment.Center)
         )
 
-        // 图标2(24dp，不变)、3(放大到48dp)：靠右
+        // 图标2、3：靠右
         Row(
-            modifier = Modifier.align(Alignment.BottomEnd),
-            verticalAlignment = Alignment.Bottom
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically   // ★ 中线对齐
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_watch_mid),
                 contentDescription = null,
-                modifier = Modifier.height(24.dp),
+                modifier = Modifier.height(ICON_SMALL),
                 contentScale = ContentScale.Fit
             )
             Spacer(Modifier.width(6.dp))
             Image(
                 painter = painterResource(R.drawable.ic_watch_right),
                 contentDescription = null,
-                modifier = Modifier.height(48.dp),
+                modifier = Modifier.height(ICON_BIG),
                 contentScale = ContentScale.Fit
             )
         }
