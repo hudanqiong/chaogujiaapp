@@ -179,16 +179,16 @@ object Api {
             cash = d.optDouble("cash", 0.0),
             marketValue = d.optDouble("marketValue", 0.0),
             total = d.optDouble("total", 0.0),
-            floatPn = d.optDouble("floatPn", 0.0),
-            totalPn = d.optDouble("totalPn", 0.0),
-            totalPnPct = d.optDouble("totalPnPct", 0.0),
+            floatPn = d.optDouble("floatPnl", 0.0),
+            totalPn = d.optDouble("totalPnl", 0.0),
+            totalPnPct = d.optDouble("totalPnlPct", 0.0),
             initial = d.optDouble("initial", 0.0)
         )
     }
 
     /** 设置初始资金 */
     fun setInitial(token: String?, amount: Double): Res =
-        post("account.php", token, "action" to "set_initial", "initial" to amount)
+        post("account.php", token, "action" to "set_balance", "initial" to amount)
 
     /** 拉取会员信息 */
     fun member(token: String?): MemberInfo {

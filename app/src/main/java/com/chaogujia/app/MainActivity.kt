@@ -85,15 +85,13 @@ fun ChaoGuJiaApp() {
 
     Scaffold(
         topBar = {
-            // 红色会员顶栏：仅在"首页"显示，其他 Tab 不渲染
-            if (current == "index") {
-                MemberHeaderBar(
-                    username = uname,
-                    isMember = member.isMember,
-                    levelName = member.levelName,
-                    expireAt = member.expireAt
-                )
-            }
+            // 红色会员顶栏：5 个 Tab 页面统一渲染，高度一致
+            MemberHeaderBar(
+                username = uname,
+                isMember = member.isMember,
+                levelName = member.levelName,
+                expireAt = member.expireAt
+            )
         },
         bottomBar = {
             Row(
