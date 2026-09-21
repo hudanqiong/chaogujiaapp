@@ -3,6 +3,7 @@ package com.chaogujia.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -10,9 +11,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,11 +35,11 @@ private data class TabItem(
 @Composable
 fun ChaoGuJiaApp() {
     val tabs = listOf(
-        TabItem("index", "首页", { sel -> IconHome(sel, Modifier.size(24.dp)) }),
-        TabItem("quote", "行情", { sel -> IconQuote(sel, Modifier.size(24.dp)) }),
-        TabItem("watch", "自选", { sel -> IconWatch(sel, Modifier.size(24.dp)) }),
-        TabItem("trade", "交易", { sel -> IconTrade(sel, Modifier.size(24.dp)) }),
-        TabItem("news", "资讯", { sel -> IconNews(sel, Modifier.size(24.dp)) })
+        TabItem("index", "首页", { sel -> TabIcon(sel, R.drawable.tab_home, R.drawable.tab_home_checked) }),
+        TabItem("quote", "行情", { sel -> TabIcon(sel, R.drawable.tab_quote, R.drawable.tab_quote_checked) }),
+        TabItem("watch", "自选", { sel -> TabIcon(sel, R.drawable.tab_watch, R.drawable.tab_watch_checked) }),
+        TabItem("trade", "交易", { sel -> TabIcon(sel, R.drawable.tab_trade, R.drawable.tab_trade_checked) }),
+        TabItem("news", "资讯", { sel -> TabIcon(sel, R.drawable.tab_news, R.drawable.tab_news_checked) })
     )
     var current by remember { mutableStateOf("index") }
 
@@ -113,4 +116,15 @@ fun PlaceholderScreen(title: String, subtitle: String) {
         Spacer(Modifier.height(24.dp))
         Text("炒股家 v1.0 · 骨架版本", fontSize = 12.sp, color = Color(Config.COLOR_TEXT_SUB))
     }
+}
+
+// 底部导航图标：选中显示点亮版，未选中显示普通版（图片来自 res/drawable）
+@Composable
+fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
+    Image(
+        painter = painterResource(if (selected) checkedRes else normalRes),
+        contentDescription = null,
+        modifier = Modifier.size(24.dp),
+        contentScale = ContentScale.Fit
+    )
 }
