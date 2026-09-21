@@ -166,19 +166,19 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             lineTo(14.1f * u, 8.6f * u)             // 头右下 → 开口右角
             // 3) 颈部右线往下：从开口右角直下到肩颈点
             lineTo(14.1f * u, 13.0f * u)
-            // 4) 右肩：从颈肩点向外弧到右肩，再下到右底
+            // 4) 右肩：从颈肩点向外弧到右肩，再下到右底（肩线更平、方一点）
             cubicTo(
-                16.4f * u, 13.0f * u,
-                20.0f * u, 15.0f * u,
-                20.0f * u, 17.8f * u
+                16.8f * u, 13.0f * u,
+                20.0f * u, 13.6f * u,
+                20.0f * u, 16.2f * u
             )
             lineTo(20.0f * u, 20.8f * u)            // 右底角
             lineTo(4.0f * u, 20.8f * u)             // 底边
-            lineTo(4.0f * u, 17.8f * u)             // 左底角
-            // 5) 左肩：从肩膀弧回颈肩点
+            lineTo(4.0f * u, 16.2f * u)             // 左底角
+            // 5) 左肩：从肩膀弧回颈肩点（对称）
             cubicTo(
-                4.0f * u, 15.0f * u,
-                7.6f * u, 13.0f * u,
+                4.0f * u, 13.6f * u,
+                7.2f * u, 13.0f * u,
                 9.9f * u, 13.0f * u
             )
             close()
@@ -208,16 +208,16 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             lineTo(inset(14.1f, 8.6f).x, inset(14.1f, 8.6f).y)
             lineTo(inset(14.1f, 13.0f).x, inset(14.1f, 13.0f).y)
             cubicTo(
-                inset(16.4f, 13.0f).x, inset(16.4f, 13.0f).y,
-                inset(20.0f, 15.0f).x, inset(20.0f, 15.0f).y,
-                inset(20.0f, 17.8f).x, inset(20.0f, 17.8f).y
+                inset(16.8f, 13.0f).x, inset(16.8f, 13.0f).y,
+                inset(20.0f, 13.6f).x, inset(20.0f, 13.6f).y,
+                inset(20.0f, 16.2f).x, inset(20.0f, 16.2f).y
             )
             lineTo(inset(20.0f, 20.8f).x, inset(20.0f, 20.8f).y)
             lineTo(inset(4.0f, 20.8f).x, inset(4.0f, 20.8f).y)
-            lineTo(inset(4.0f, 17.8f).x, inset(4.0f, 17.8f).y)
+            lineTo(inset(4.0f, 16.2f).x, inset(4.0f, 16.2f).y)
             cubicTo(
-                inset(4.0f, 15.0f).x, inset(4.0f, 15.0f).y,
-                inset(7.6f, 13.0f).x, inset(7.6f, 13.0f).y,
+                inset(4.0f, 13.6f).x, inset(4.0f, 13.6f).y,
+                inset(7.2f, 13.0f).x, inset(7.2f, 13.0f).y,
                 inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y
             )
             close()
