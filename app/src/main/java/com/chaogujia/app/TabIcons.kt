@@ -43,9 +43,9 @@ fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
         // 三根的 x 中心
         val centers = listOf(5.0f, 12f, 19f)
         // 每根：柱体高度（从下往上）、上影线长度、下影线长度
-        val bodyH = listOf(5.5f, 10f, 14.5f)   // 越高越靠右
-        val upWick = listOf(2.5f, 3.5f, 4.5f)  // 上影线（针尖向上）
-        val downWick = listOf(1.8f, 2.2f, 2.6f) // 下影线（针尖向下）
+        val bodyH = listOf(5.5f, 8.5f, 12.5f)   // 越高越靠右（右两根略矮）
+        val upWick = listOf(2.5f, 3.0f, 3.8f)   // 上影线（针尖向上）
+        val downWick = listOf(1.8f, 3.4f, 4.0f) // 下影线（针尖向下，右两根整体上移）
         val filled = listOf(selected, selected, selected) // 未点亮=全空心；点亮=全实心
 
         centers.forEachIndexed { i, cx ->
@@ -80,11 +80,12 @@ fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
                 // 实心（无论点亮与否，实心柱都用主色填充）
                 drawRect(color = main, topLeft = bodyTopLeft, size = bodySize)
             } else {
-                // 空心柱：细边框
+                // 空心柱：细边框（内收半宽，使外沿与实心完全一致 → 点亮不跳大）
+                val hb = bodyStroke / 2f
                 drawRect(
                     color = main,
-                    topLeft = bodyTopLeft,
-                    size = bodySize,
+                    topLeft = Offset(bodyTopLeft.x + hb, bodyTopLeft.y + hb),
+                    size = Size(bodySize.width - bodyStroke, bodySize.height - bodyStroke),
                     style = Stroke(bodyStroke)
                 )
             }
@@ -110,7 +111,14 @@ fun IconQuote(selected: Boolean, modifier: Modifier = Modifier) {
         if (selected) {
             drawRect(color = main, topLeft = Offset(left, top), size = Size(w, h))
         } else {
-            drawRect(color = main, topLeft = Offset(left, top), size = Size(w, h), style = Stroke(strokeW))
+            // 内收半宽，使外沿与实心一致 → 点亮不跳大
+            val hb = strokeW / 2f
+            drawRect(
+                color = main,
+                topLeft = Offset(left + hb, top + hb),
+                size = Size(w - strokeW, h - strokeW),
+                style = Stroke(strokeW)
+            )
         }
         // 中间折线（左低右高、带起伏）
         val p = Path().apply {
@@ -136,47 +144,95 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
         val u = size.width / 24f
         val strokeW = 1.6f * u
 
-        // ---- 用「头(圆) + 脖子 + 肩」三段拼成真剪影（像证件照）----
-        // 1) 肩膀（含脖子根）：上窄下宽的圆润梯形
-        val shoulders = Path().apply {
-            moveTo(4.0f * u, 20.8f * u)             // 左下角
-            lineTo(4.0f * u, 17.8f * u)             // 左侧往上
+        // ---- 头(不封底) + 脖子 + 肩 连成一条完整外轮廓 ----
+        // 画法：从颈左上行 → 绕头顶 → 下行到颈右 → 转肩 → 绕回来闭合。
+        // 头部只有顶部圆角 + 两侧竖边，底部（下巴）不画横线，直接向下接脖子。
+        val body = Path().apply {
+            // 1) 颈部左线往上：脖子左边，从肩颈点往上到头左下的「开口左角」
+            moveTo(9.9f * u, 13.0f * u)
+            lineTo(9.9f * u, 8.6f * u)              // 脖子左侧 → 头左下开口角
+            // 2) 头的左轮廓：左竖边往上，再圆角绕到头顶，再下到右竖边
+            lineTo(9.9f * u, 6.6f * u)              // 头左下竖边
             cubicTo(
-                4.0f * u, 14.8f * u,
-                7.6f * u, 13.2f * u,
-                9.9f * u, 13.2f * u
-            )                                       // 左肩弧 → 颈肩左
-            lineTo(9.9f * u, 11.2f * u)             // 颈左竖线往上（脖子）
-            lineTo(14.1f * u, 11.2f * u)            // 颈右
-            lineTo(14.1f * u, 13.2f * u)            // 颈右竖线往下
+                9.9f * u, 4.4f * u,                 // 左肩角 → 头顶（用较小弧度，头顶更平）
+                11.0f * u, 3.8f * u,
+                12.0f * u, 3.8f * u
+            )
             cubicTo(
-                16.4f * u, 13.2f * u,
-                20.0f * u, 14.8f * u,
+                13.0f * u, 3.8f * u,
+                14.1f * u, 4.4f * u,
+                14.1f * u, 6.6f * u
+            )                                       // 头顶 → 头右竖边
+            lineTo(14.1f * u, 8.6f * u)             // 头右下 → 开口右角
+            // 3) 颈部右线往下：从开口右角直下到肩颈点
+            lineTo(14.1f * u, 13.0f * u)
+            // 4) 右肩：从颈肩点向外弧到右肩，再下到右底
+            cubicTo(
+                16.4f * u, 13.0f * u,
+                20.0f * u, 15.0f * u,
                 20.0f * u, 17.8f * u
-            )                                       // 颈肩右 → 右肩弧
-            lineTo(20.0f * u, 20.8f * u)            // 右下角
+            )
+            lineTo(20.0f * u, 20.8f * u)            // 右底角
+            lineTo(4.0f * u, 20.8f * u)             // 底边
+            lineTo(4.0f * u, 17.8f * u)             // 左底角
+            // 5) 左肩：从肩膀弧回颈肩点
+            cubicTo(
+                4.0f * u, 15.0f * u,
+                7.6f * u, 13.0f * u,
+                9.9f * u, 13.0f * u
+            )
             close()
         }
-        // 2) 头：圆
-        val head = Rect(
-            left = 7.8f * u,
-            top = 3.2f * u,
-            right = 16.2f * u,
-            bottom = 11.6f * u
-        )
 
-        if (selected) {
-            drawPath(shoulders, color = main)
-            drawOval(color = main, topLeft = head.topLeft, size = head.size)
-        } else {
-            drawPath(shoulders, color = main, style = Stroke(strokeW))
-            drawOval(color = main, topLeft = head.topLeft, size = head.size, style = Stroke(strokeW))
+        // 描边用「内缩 0.8u」的同一轮廓，使未选中的外沿与选中实心完全一致（点亮不跳大）
+        fun inset(x: Float, y: Float): Offset {
+            val cx = 12.0f; val cy = 12.3f; val e = 0.8f
+            val dx = x - cx; val dy = y - cy
+            val len = kotlin.math.sqrt(dx * dx + dy * dy).coerceAtLeast(0.0001f)
+            return Offset((x - dx / len * e) * u, (y - dy / len * e) * u)
+        }
+        val bodyStrokePath = Path().apply {
+            moveTo(inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y)
+            lineTo(inset(9.9f, 8.6f).x, inset(9.9f, 8.6f).y)
+            lineTo(inset(9.9f, 6.6f).x, inset(9.9f, 6.6f).y)
+            cubicTo(
+                inset(9.9f, 4.4f).x, inset(9.9f, 4.4f).y,
+                inset(11.0f, 3.8f).x, inset(11.0f, 3.8f).y,
+                inset(12.0f, 3.8f).x, inset(12.0f, 3.8f).y
+            )
+            cubicTo(
+                inset(13.0f, 3.8f).x, inset(13.0f, 3.8f).y,
+                inset(14.1f, 4.4f).x, inset(14.1f, 4.4f).y,
+                inset(14.1f, 6.6f).x, inset(14.1f, 6.6f).y
+            )
+            lineTo(inset(14.1f, 8.6f).x, inset(14.1f, 8.6f).y)
+            lineTo(inset(14.1f, 13.0f).x, inset(14.1f, 13.0f).y)
+            cubicTo(
+                inset(16.4f, 13.0f).x, inset(16.4f, 13.0f).y,
+                inset(20.0f, 15.0f).x, inset(20.0f, 15.0f).y,
+                inset(20.0f, 17.8f).x, inset(20.0f, 17.8f).y
+            )
+            lineTo(inset(20.0f, 20.8f).x, inset(20.0f, 20.8f).y)
+            lineTo(inset(4.0f, 20.8f).x, inset(4.0f, 20.8f).y)
+            lineTo(inset(4.0f, 17.8f).x, inset(4.0f, 17.8f).y)
+            cubicTo(
+                inset(4.0f, 15.0f).x, inset(4.0f, 15.0f).y,
+                inset(7.6f, 13.0f).x, inset(7.6f, 13.0f).y,
+                inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y
+            )
+            close()
         }
 
-        // 3) 脖子下、向下展开的勾（V 形领口，人字形）
+        if (selected) {
+            drawPath(body, color = main)
+        } else {
+            drawPath(bodyStrokePath, color = main, style = Stroke(strokeW))
+        }
+
+        // 脖子下、向下展开的勾（V 形领口，人字形）
         val collar = Path().apply {
             moveTo(9.6f * u, 15.4f * u)             // 左上
-            lineTo(12.0f * u, 17.8f * u)            // 下尖
+            lineTo(12.0f * u, 17.6f * u)            // 下尖
             lineTo(14.4f * u, 15.4f * u)            // 右上
         }
         drawPath(
@@ -206,7 +262,14 @@ fun IconTrade(selected: Boolean, modifier: Modifier = Modifier) {
         if (selected) {
             drawOval(color = main, topLeft = circle.topLeft, size = circle.size)
         } else {
-            drawOval(color = main, topLeft = circle.topLeft, size = circle.size, style = Stroke(strokeW))
+            // 内收半宽，使外沿与实心一致 → 点亮不跳大
+            val hb = strokeW / 2f
+            drawOval(
+                color = main,
+                topLeft = Offset(circle.left + hb, circle.top + hb),
+                size = Size(circle.width - strokeW, circle.height - strokeW),
+                style = Stroke(strokeW)
+            )
         }
 
         // ¥ 符号：两斜线 + 两横（加宽、压矮，居中）
@@ -263,9 +326,15 @@ fun IconNews(selected: Boolean, modifier: Modifier = Modifier) {
         if (selected) {
             drawRect(color = main, topLeft = Offset(left, top), size = Size(w, h))
         } else {
-            drawRect(color = main, topLeft = Offset(left, top), size = Size(w, h), style = Stroke(strokeW))
+            // 内收半宽，使外沿与实心一致 → 点亮不跳大
+            val hb = strokeW / 2f
+            drawRect(
+                color = main,
+                topLeft = Offset(left + hb, top + hb),
+                size = Size(w - strokeW, h - strokeW),
+                style = Stroke(strokeW)
+            )
         }
-
         // 三横线（左对齐）：比外框细一些、短一些，不要顶到边框
         val lineStroke = Stroke(width = 1.2f * u, cap = StrokeCap.Round)
         val xStart = left + 2.6f * u
