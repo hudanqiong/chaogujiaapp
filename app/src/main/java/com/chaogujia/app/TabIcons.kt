@@ -148,38 +148,41 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
         // 画法：从颈左上行 → 绕头顶 → 下行到颈右 → 转肩 → 绕回来闭合。
         // 头部只有顶部圆角 + 两侧竖边，底部（下巴）不画横线，直接向下接脖子。
         val body = Path().apply {
-            // 1) 颈部左线往上：脖子左边，从肩颈点往上到头左下的「开口左角」
-            moveTo(9.9f * u, 13.0f * u)
-            lineTo(9.9f * u, 8.6f * u)              // 脖子左侧 → 头左下开口角
-            // 2) 头的左轮廓：左竖边往上，再圆角绕到头顶，再下到右竖边
-            lineTo(9.9f * u, 5.4f * u)              // 头左下竖边
+            // 1) 颈部左线往上：从肩颈点往上到「下巴左角」
+            moveTo(9.85f * u, 13.0f * u)
+            lineTo(9.85f * u, 9.4f * u)             // 脖子左侧 → 下巴左角
+            // 2) 头的左轮廓：从下巴左角往上到脸颊，圆角绕头顶，再对称下来
             cubicTo(
-                9.9f * u, 3.2f * u,                 // 左肩角 → 头顶
-                11.0f * u, 2.6f * u,
-                12.0f * u, 2.6f * u
+                9.3f * u, 8.4f * u,                 // 下颚左弧起（向外扩）
+                9.2f * u, 6.6f * u,                 // 左脸颊
+                10.0f * u, 4.9f * u                  // 左上额
             )
             cubicTo(
-                13.0f * u, 2.6f * u,
-                14.1f * u, 3.2f * u,
-                14.1f * u, 5.4f * u
-            )                                       // 头顶 → 头右竖边
-            lineTo(14.1f * u, 8.6f * u)             // 头右下 → 开口右角
-            // 3) 颈部右线往下：从开口右角直下到肩颈点
-            lineTo(14.1f * u, 13.0f * u)
-            // 4) 右肩：从颈肩点向外弧到右肩，再下到右底（肩线更平、方一点）
+                10.8f * u, 3.2f * u,
+                13.2f * u, 3.2f * u,
+                14.0f * u, 4.9f * u
+            )                                       // 绕头顶
             cubicTo(
-                16.8f * u, 13.0f * u,
-                20.0f * u, 13.6f * u,
-                20.0f * u, 16.2f * u
+                14.8f * u, 6.6f * u,                 // 右脸颊
+                14.7f * u, 8.4f * u,                 // 下颚右弧
+                14.15f * u, 9.4f * u                 // 下巴右角
+            )
+            // 3) 颈部右线往下：从下巴右角直下到肩颈点
+            lineTo(14.15f * u, 13.0f * u)
+            // 4) 右肩：从颈肩点向外弧到右肩，再下到右底（方肩）
+            cubicTo(
+                17.2f * u, 13.0f * u,
+                20.0f * u, 13.2f * u,
+                20.0f * u, 15.4f * u
             )
             lineTo(20.0f * u, 20.8f * u)            // 右底角
             lineTo(4.0f * u, 20.8f * u)             // 底边
-            lineTo(4.0f * u, 16.2f * u)             // 左底角
-            // 5) 左肩：从肩膀弧回颈肩点（对称）
+            lineTo(4.0f * u, 15.4f * u)             // 左底角
+            // 5) 左肩：从肩膀回颈肩点（对称）
             cubicTo(
-                4.0f * u, 13.6f * u,
-                7.2f * u, 13.0f * u,
-                9.9f * u, 13.0f * u
+                4.0f * u, 13.2f * u,
+                6.8f * u, 13.0f * u,
+                9.85f * u, 13.0f * u
             )
             close()
         }
@@ -192,33 +195,36 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             return Offset((x - dx / len * e) * u, (y - dy / len * e) * u)
         }
         val bodyStrokePath = Path().apply {
-            moveTo(inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y)
-            lineTo(inset(9.9f, 8.6f).x, inset(9.9f, 8.6f).y)
-            lineTo(inset(9.9f, 5.4f).x, inset(9.9f, 5.4f).y)
+            moveTo(inset(9.85f, 13.0f).x, inset(9.85f, 13.0f).y)
+            lineTo(inset(9.85f, 9.4f).x, inset(9.85f, 9.4f).y)
             cubicTo(
-                inset(9.9f, 3.2f).x, inset(9.9f, 3.2f).y,
-                inset(11.0f, 2.6f).x, inset(11.0f, 2.6f).y,
-                inset(12.0f, 2.6f).x, inset(12.0f, 2.6f).y
+                inset(9.3f, 8.4f).x, inset(9.3f, 8.4f).y,
+                inset(9.2f, 6.6f).x, inset(9.2f, 6.6f).y,
+                inset(10.0f, 4.9f).x, inset(10.0f, 4.9f).y
             )
             cubicTo(
-                inset(13.0f, 2.6f).x, inset(13.0f, 2.6f).y,
-                inset(14.1f, 3.2f).x, inset(14.1f, 3.2f).y,
-                inset(14.1f, 5.4f).x, inset(14.1f, 5.4f).y
+                inset(10.8f, 3.2f).x, inset(10.8f, 3.2f).y,
+                inset(13.2f, 3.2f).x, inset(13.2f, 3.2f).y,
+                inset(14.0f, 4.9f).x, inset(14.0f, 4.9f).y
             )
-            lineTo(inset(14.1f, 8.6f).x, inset(14.1f, 8.6f).y)
-            lineTo(inset(14.1f, 13.0f).x, inset(14.1f, 13.0f).y)
             cubicTo(
-                inset(16.8f, 13.0f).x, inset(16.8f, 13.0f).y,
-                inset(20.0f, 13.6f).x, inset(20.0f, 13.6f).y,
-                inset(20.0f, 16.2f).x, inset(20.0f, 16.2f).y
+                inset(14.8f, 6.6f).x, inset(14.8f, 6.6f).y,
+                inset(14.7f, 8.4f).x, inset(14.7f, 8.4f).y,
+                inset(14.15f, 9.4f).x, inset(14.15f, 9.4f).y
+            )
+            lineTo(inset(14.15f, 13.0f).x, inset(14.15f, 13.0f).y)
+            cubicTo(
+                inset(17.2f, 13.0f).x, inset(17.2f, 13.0f).y,
+                inset(20.0f, 13.2f).x, inset(20.0f, 13.2f).y,
+                inset(20.0f, 15.4f).x, inset(20.0f, 15.4f).y
             )
             lineTo(inset(20.0f, 20.8f).x, inset(20.0f, 20.8f).y)
             lineTo(inset(4.0f, 20.8f).x, inset(4.0f, 20.8f).y)
-            lineTo(inset(4.0f, 16.2f).x, inset(4.0f, 16.2f).y)
+            lineTo(inset(4.0f, 15.4f).x, inset(4.0f, 15.4f).y)
             cubicTo(
-                inset(4.0f, 13.6f).x, inset(4.0f, 13.6f).y,
-                inset(7.2f, 13.0f).x, inset(7.2f, 13.0f).y,
-                inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y
+                inset(4.0f, 13.2f).x, inset(4.0f, 13.2f).y,
+                inset(6.8f, 13.0f).x, inset(6.8f, 13.0f).y,
+                inset(9.85f, 13.0f).x, inset(9.85f, 13.0f).y
             )
             close()
         }
