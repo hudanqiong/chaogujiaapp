@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.sp
  * 红条固定总高度：所有页面（首页/自选/行情/交易/资讯）统一使用。
  * 红条高度写死，不再由内容撑高 —— 这样图标怎么调都不影响整体高度。
  */
-private val BarHeight = 74.dp
+private val BarHeight = 110.dp
 
 /**
  * 共用红色顶栏（5 个 Tab 页面共用，高度固定一致）
