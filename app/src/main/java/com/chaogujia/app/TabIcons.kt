@@ -9,7 +9,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
@@ -66,19 +65,17 @@ fun IconHome(selected: Boolean, modifier: Modifier = Modifier) {
             )
 
             // 2) 柱体
-            val r = Rect(
-                topLeft = Offset(c - barW / 2f, bodyTop),
-                size = Size(barW, bodyBottom - bodyTop)
-            )
+            val bodyTopLeft = Offset(c - barW / 2f, bodyTop)
+            val bodySize = Size(barW, bodyBottom - bodyTop)
             if (filled[i]) {
                 // 实心（无论点亮与否，实心柱都用主色填充）
-                drawRect(color = main, topLeft = r.topLeft, size = r.size)
+                drawRect(color = main, topLeft = bodyTopLeft, size = bodySize)
             } else {
                 // 空心柱：细边框
                 drawRect(
                     color = main,
-                    topLeft = r.topLeft,
-                    size = r.size,
+                    topLeft = bodyTopLeft,
+                    size = bodySize,
                     style = Stroke(bodyStroke)
                 )
             }
@@ -135,8 +132,10 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             // 头（圆）
             addOval(
                 Rect(
-                    center = Offset(12f * u, 8f * u),
-                    radius = 3.6f * u
+                    left = 8.4f * u,
+                    top = 4.4f * u,
+                    right = 15.6f * u,
+                    bottom = 11.6f * u
                 )
             )
             // 肩（一个圆润的梯形/半圆状）
@@ -183,7 +182,12 @@ fun IconTrade(selected: Boolean, modifier: Modifier = Modifier) {
         val strokeW = 1.8f * u
 
         // 圆
-        val circle = Rect(center = Offset(12f * u, 12f * u), radius = 8.5f * u)
+        val circle = Rect(
+            left = 3.5f * u,
+            top = 3.5f * u,
+            right = 20.5f * u,
+            bottom = 20.5f * u
+        )
         if (selected) {
             drawOval(color = main, topLeft = circle.topLeft, size = circle.size)
         } else {
