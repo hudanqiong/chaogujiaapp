@@ -152,16 +152,16 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
             moveTo(9.9f * u, 13.0f * u)
             lineTo(9.9f * u, 8.6f * u)              // 脖子左侧 → 头左下开口角
             // 2) 头的左轮廓：左竖边往上，再圆角绕到头顶，再下到右竖边
-            lineTo(9.9f * u, 6.6f * u)              // 头左下竖边
+            lineTo(9.9f * u, 5.4f * u)              // 头左下竖边
             cubicTo(
-                9.9f * u, 4.4f * u,                 // 左肩角 → 头顶（用较小弧度，头顶更平）
-                11.0f * u, 3.8f * u,
-                12.0f * u, 3.8f * u
+                9.9f * u, 3.2f * u,                 // 左肩角 → 头顶
+                11.0f * u, 2.6f * u,
+                12.0f * u, 2.6f * u
             )
             cubicTo(
-                13.0f * u, 3.8f * u,
-                14.1f * u, 4.4f * u,
-                14.1f * u, 6.6f * u
+                13.0f * u, 2.6f * u,
+                14.1f * u, 3.2f * u,
+                14.1f * u, 5.4f * u
             )                                       // 头顶 → 头右竖边
             lineTo(14.1f * u, 8.6f * u)             // 头右下 → 开口右角
             // 3) 颈部右线往下：从开口右角直下到肩颈点
@@ -194,16 +194,16 @@ fun IconWatch(selected: Boolean, modifier: Modifier = Modifier) {
         val bodyStrokePath = Path().apply {
             moveTo(inset(9.9f, 13.0f).x, inset(9.9f, 13.0f).y)
             lineTo(inset(9.9f, 8.6f).x, inset(9.9f, 8.6f).y)
-            lineTo(inset(9.9f, 6.6f).x, inset(9.9f, 6.6f).y)
+            lineTo(inset(9.9f, 5.4f).x, inset(9.9f, 5.4f).y)
             cubicTo(
-                inset(9.9f, 4.4f).x, inset(9.9f, 4.4f).y,
-                inset(11.0f, 3.8f).x, inset(11.0f, 3.8f).y,
-                inset(12.0f, 3.8f).x, inset(12.0f, 3.8f).y
+                inset(9.9f, 3.2f).x, inset(9.9f, 3.2f).y,
+                inset(11.0f, 2.6f).x, inset(11.0f, 2.6f).y,
+                inset(12.0f, 2.6f).x, inset(12.0f, 2.6f).y
             )
             cubicTo(
-                inset(13.0f, 3.8f).x, inset(13.0f, 3.8f).y,
-                inset(14.1f, 4.4f).x, inset(14.1f, 4.4f).y,
-                inset(14.1f, 6.6f).x, inset(14.1f, 6.6f).y
+                inset(13.0f, 2.6f).x, inset(13.0f, 2.6f).y,
+                inset(14.1f, 3.2f).x, inset(14.1f, 3.2f).y,
+                inset(14.1f, 5.4f).x, inset(14.1f, 5.4f).y
             )
             lineTo(inset(14.1f, 8.6f).x, inset(14.1f, 8.6f).y)
             lineTo(inset(14.1f, 13.0f).x, inset(14.1f, 13.0f).y)
