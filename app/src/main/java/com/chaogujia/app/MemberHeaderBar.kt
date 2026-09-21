@@ -143,7 +143,7 @@ private fun MemberInfoRow(
  * - 红条总高度由 BarHeight 写死，不受图标大小影响
  * - 图标仅展示，不绑定点击
  */
-private val ICON_BIG = 56.dp      // 图1、图3
+private val ICON_BIG = 19.dp      // 图1、图3
 private val ICON_SMALL = 24.dp    // 图2
 
 @Composable
