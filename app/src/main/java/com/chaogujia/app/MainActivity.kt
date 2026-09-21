@@ -41,8 +41,38 @@ fun ChaoGuJiaApp() {
     var current by remember { mutableStateOf("index") }
 
     Scaffold(
+        topBar = {
+            // 顶部红色区域（5 个页面共用）：从屏幕最顶铺下来，含状态栏，内容区约 3 倍状态栏高
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(Config.COLOR_PRIMARY))
+                    .statusBarsPadding()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(60.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Text(
+                        text = "炒股家",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = "🔍 搜索",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        },
         bottomBar = {
-            NavigationBar(containerColor = Color.White) {
+            NavigationBar(containerColor = Color(0xFFF5F5F5)) {
                 tabs.forEach { t ->
                     val selected = current == t.key
                     val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
@@ -75,7 +105,7 @@ fun ChaoGuJiaApp() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFFF5F5F5))
+                .background(Color.White)
         ) {
             when (current) {
                 "index" -> PlaceholderScreen("首页 · 我的账户", "总资产 / 可用资金 / 持仓市值 / 会员信息")
@@ -83,37 +113,6 @@ fun ChaoGuJiaApp() {
                 "watch" -> PlaceholderScreen("自选", "自选股列表")
                 "trade" -> PlaceholderScreen("交易", "持仓列表 + 买入卖出")
                 "news" -> PlaceholderScreen("资讯", "分类 + 话题 + 资讯流")
-            }
-            // 首页顶部红色区域：从屏幕最顶铺下来，含状态栏，总高约 3 个状态栏（≈72dp）
-            if (current == "index") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .background(Color(Config.COLOR_PRIMARY))   // 红色打底，铺到最顶
-                        .statusBarsPadding()                       // 状态栏区域也保持红色
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(72.dp)                         // 内容区高度 ≈ 3 个状态栏
-                            .padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        Text(
-                            text = "炒股家",
-                            color = Color.White,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            text = "🔍 搜索",
-                            color = Color.White,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
             }
         }
     }
