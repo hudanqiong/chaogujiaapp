@@ -6,13 +6,10 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,16 +23,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private data class TabItem(val key: String, val label: String, val icon: ImageVector)
+private data class TabItem(
+    val key: String,
+    val label: String,
+    val drawIcon: @Composable (Boolean) -> Unit
+)
 
 @Composable
 fun ChaoGuJiaApp() {
     val tabs = listOf(
-        TabItem("index", "首页", Icons.Filled.Home),
-        TabItem("quote", "行情", Icons.Filled.ShowChart),
-        TabItem("watch", "自选", Icons.Filled.Star),
-        TabItem("trade", "交易", Icons.Filled.SwapHoriz),
-        TabItem("news", "资讯", Icons.Filled.Article)
+        TabItem("index", "首页", { sel -> IconHome(sel, Modifier.size(24.dp)) }),
+        TabItem("quote", "行情", { sel -> IconQuote(sel, Modifier.size(24.dp)) }),
+        TabItem("watch", "自选", { sel -> IconWatch(sel, Modifier.size(24.dp)) }),
+        TabItem("trade", "交易", { sel -> IconTrade(sel, Modifier.size(24.dp)) }),
+        TabItem("news", "资讯", { sel -> IconNews(sel, Modifier.size(24.dp)) })
     )
     var current by remember { mutableStateOf("index") }
 
@@ -48,7 +49,7 @@ fun ChaoGuJiaApp() {
                     NavigationBarItem(
                         selected = selected,
                         onClick = { current = t.key },
-                        icon = { Icon(t.icon, contentDescription = t.label, tint = color) },
+                        icon = { t.drawIcon(selected) },
                         label = {
                             Text(
                                 text = if (selected && t.key == "index") "刷新" else t.label,
