@@ -11,13 +11,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.runtime.CompositionLocalProvider
 
@@ -62,32 +60,33 @@ fun ChaoGuJiaApp() {
         },
         bottomBar = {
             NavigationBar(containerColor = Color(0xFFF5F5F5)) {
-                tabs.forEach { t ->
-                    val selected = current == t.key
-                    val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
-                    // 关闭点击水波涟漪
-                    CompositionLocalProvider(LocalIndication provides NoIndication) {
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { current = t.key },
-                        icon = { t.drawIcon(selected) },
-                        // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color.Unspecified,
-                            selectedTextColor = Color.Unspecified,
-                            indicatorColor = Color.Transparent,
-                            unselectedIconColor = Color.Unspecified,
-                            unselectedTextColor = Color.Unspecified
-                        ),
-                        label = {
-                            Text(
-                                text = t.label,
-                                color = color,
-                                fontSize = 11.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    )
+                // 关闭点击时的涟漪水波：把 LocalIndication 置为 null，
+                // Compose 1.6 的 clickable 在 indication 为 null 时不绘制任何按压反馈
+                CompositionLocalProvider(LocalIndication provides null) {
+                    tabs.forEach { t ->
+                        val selected = current == t.key
+                        val color = if (selected) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN)
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { current = t.key },
+                            icon = { t.drawIcon(selected) },
+                            // 去掉选中时图标背后的胶囊/圆圈指示器，点亮只改图标和文字颜色
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color.Unspecified,
+                                selectedTextColor = Color.Unspecified,
+                                indicatorColor = Color.Transparent,
+                                unselectedIconColor = Color.Unspecified,
+                                unselectedTextColor = Color.Unspecified
+                            ),
+                            label = {
+                                Text(
+                                    text = t.label,
+                                    color = color,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -100,29 +99,24 @@ fun ChaoGuJiaApp() {
                 .background(Color.White)
         ) {
             when (current) {
-                "index" -> PlaceholderScreen("首页 · 我的账户", "总资产 / 可用资金 / 持仓市值 / 会员信息")
-                "quote" -> PlaceholderScreen("行情", "大盘 / A股 / 港股 / 美股 / 基金")
-                "watch" -> PlaceholderScreen("自选", "自选股列表")
-                "trade" -> PlaceholderScreen("交易", "持仓列表 + 买入卖出")
-                "news" -> PlaceholderScreen("资讯", "分类 + 话题 + 资讯流")
+                "index" -> EmptyScreen()
+                "quote" -> EmptyScreen()
+                "watch" -> EmptyScreen()
+                "trade" -> EmptyScreen()
+                "news" -> EmptyScreen()
             }
         }
     }
 }
 
+// 页面内容区：暂时留空，等后续接入真实接口后再填充
 @Composable
-fun PlaceholderScreen(title: String, subtitle: String) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(Config.COLOR_TEXT_MAIN))
-        Spacer(Modifier.height(8.dp))
-        Text(subtitle, fontSize = 14.sp, color = Color(Config.COLOR_TEXT_SUB))
-        Spacer(Modifier.height(24.dp))
-        Text("炒股家 v1.0 · 骨架版本", fontSize = 12.sp, color = Color(Config.COLOR_TEXT_SUB))
-    }
+fun EmptyScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    )
 }
 
 // 底部导航图标：选中显示点亮版，未选中显示普通版（图片来自 res/drawable）
@@ -134,13 +128,4 @@ fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
         modifier = Modifier.size(24.dp),
         contentScale = ContentScale.Fit
     )
-}
-
-// 空指示器：点击时不做任何涟漪/水波效果
-private object NoIndication : androidx.compose.foundation.Indication {
-    @Composable
-    override fun rememberUpdatedInstance(interactionSource: androidx.compose.foundation.interaction.InteractionSource): androidx.compose.foundation.IndicationInstance =
-        object : androidx.compose.foundation.IndicationInstance {
-            override fun DrawScope.drawIndication() { /* 什么都不画 */ }
-        }
 }
