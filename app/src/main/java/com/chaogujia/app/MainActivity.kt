@@ -1,5 +1,6 @@
 package com.chaogujia.app
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -44,12 +45,22 @@ fun ChaoGuJiaApp() {
         TabItem("trade", "交易", R.drawable.tab_trade, R.drawable.tab_trade_checked),
         TabItem("news", "资讯", R.drawable.tab_news, R.drawable.tab_news_checked)
     )
-    var current by remember { mutableStateOf("index") }
+
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE) }
+
+    // 启动默认进"行情"页
+    var current by remember { mutableStateOf("quote") }
+    // token / 用户名：启动时从本地读回（免重复登录）
+    var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
+    var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
+    // 登录弹层开关 + 登录成功后要跳转的目标 Tab
+    var showLogin by remember { mutableStateOf(false) }
+    var targetTab by remember { mutableStateOf("index") }
 
     Scaffold(
         topBar = {
             // 顶部红色区域（5 个页面共用）：从屏幕最顶铺下来，含状态栏，内容区 60dp
-            // 内容已清空，待重新布局
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -60,8 +71,7 @@ fun ChaoGuJiaApp() {
             }
         },
         bottomBar = {
-            // 自定义底部导航：不用 Material3 的 NavigationBar/NavigationBarItem，
-            // 因为它们的点击水波(ripple)无法关闭。改用 clickable(indication = null) 彻底去掉水波。
+            // 自定义底部导航：clickable(indication = null) 彻底去掉水波
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -77,7 +87,15 @@ fun ChaoGuJiaApp() {
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = { current = t.key }
+                                onClick = {
+                                    // 只有"行情"不需要登录，其他点击都要登录
+                                    if (t.key != "quote" && token.isEmpty()) {
+                                        targetTab = t.key
+                                        showLogin = true
+                                    } else {
+                                        current = t.key
+                                    }
+                                }
                             )
                             .padding(vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -103,11 +121,25 @@ fun ChaoGuJiaApp() {
                 .background(Color.White)
         ) {
             when (current) {
-                "index" -> EmptyScreen()
+                "index" -> HomeScreen(token, uname)
                 "quote" -> EmptyScreen()
                 "watch" -> EmptyScreen()
                 "trade" -> EmptyScreen()
                 "news" -> EmptyScreen()
+            }
+
+            // 登录弹层（覆盖在内容之上）
+            if (showLogin) {
+                LoginScreen(
+                    onSuccess = { tk, un ->
+                        token = tk
+                        uname = un
+                        prefs.edit().putString("token", tk).putString("username", un).apply()
+                        showLogin = false
+                        current = targetTab        // 登录成功 → 进入目标页
+                    },
+                    onClose = { showLogin = false }
+                )
             }
         }
     }
