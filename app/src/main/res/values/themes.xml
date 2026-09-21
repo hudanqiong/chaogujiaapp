@@ -1,6 +1,8 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.ChaoGuJia" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">#F03036</item>
+        <item name="android:navigationBarColor">#F5F5F5</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowBackground">#F5F5F5</item>
     </style>
 </resources>

@@ -42,33 +42,15 @@ fun ChaoGuJiaApp() {
 
     Scaffold(
         topBar = {
-            // 顶部红色区域（5 个页面共用）：从屏幕最顶铺下来，含状态栏，内容区约 3 倍状态栏高
+            // 顶部红色区域（5 个页面共用）：从屏幕最顶铺下来，含状态栏，内容区 60dp
+            // 内容已清空，待重新布局
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(Config.COLOR_PRIMARY))
                     .statusBarsPadding()
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(60.dp)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    Text(
-                        text = "炒股家",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = "🔍 搜索",
-                        color = Color.White,
-                        fontSize = 14.sp
-                    )
-                }
+                Spacer(Modifier.height(60.dp))
             }
         },
         bottomBar = {
