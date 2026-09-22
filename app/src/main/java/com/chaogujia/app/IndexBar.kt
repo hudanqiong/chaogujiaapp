@@ -3,6 +3,7 @@ package com.chaogujia.app
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -113,9 +115,13 @@ fun IndexBar() {
         }
     }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
-        Column(Modifier.fillMaxWidth().background(Color.White)) {
+    // 顶部固定区（红条 + 下移加粗的分割线）的高度：两排约 54dp + 空白 8dp + 线 3dp
+    val topHeight = 65.dp
 
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+
+        // ---------- 上层：顶部固定区（红条 + 分割线），始终贴在顶部 ----------
+        Column(Modifier.fillMaxWidth().background(Color.White)) {
             // ================= 顶部两排版工具条（红条）=================
             TopBar(
                 quote = quote,
@@ -123,15 +129,24 @@ fun IndexBar() {
                 onToggle = { expanded = !expanded }
             )
 
-            // 红条与下方内容区之间的分割线（明显的一条横线）
+            // 红条与下方内容区之间的分割线
+            // 先留一段空白，让分割线整体下移
+            Spacer(Modifier.height(8.dp))
+            // 加粗的分割线（3dp）
             HorizontalDivider(
-                thickness = 1.dp,
+                thickness = 3.dp,
                 color = Color(0xFFDDDDDD)
             )
+        }
 
-            // ================= 展开：详情大面板 =================
-            // 面板顶部紧贴红条底部的分割线，从该处向下展开
-            if (expanded) {
+        // ---------- 下层：面板从红条底部向下延伸，其余区域为关闭遮罩 ----------
+        if (expanded) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(top = topHeight)
+            ) {
+                // 面板本体（从红条下边缘向下展开）
                 IndexDetailPanel(
                     secid = secid,
                     list = list,
@@ -140,6 +155,16 @@ fun IndexBar() {
                         secid = sid
                         expanded = false
                     }
+                )
+                // 面板以下的剩余区域：透明遮罩，点击即关闭面板
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { expanded = false }
                 )
             }
         }
@@ -192,7 +217,8 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
                 Text(
                     text = if (expanded) "▲" else "▼",
                     color = Color(0xFF111111),
-                    fontSize = 12.sp
+                    fontSize = 12.sp,
+                    modifier = Modifier.scale(1f, 0.6f)
                 )
             }
         }
