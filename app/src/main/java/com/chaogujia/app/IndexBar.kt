@@ -552,9 +552,23 @@ internal const val WATCH_NAME_TEXT_W = 80f
  * maxLines=1 + TextOverflow.Ellipsis 以省略号「…」截断。
  */
 internal fun watchNameFontSize(name: String): Float {
-    // 固定字号：超长名称不再等比缩小，统一 15sp，由后续 maxLines=1 + TextOverflow.Ellipsis 截断为省略号
-    return 15f
+    // 分段策略：
+    //  · ≤6 字：完整显示，字号随字数适度缩小（15sp → 最大 6 字时约 13.3sp），保证 6 字能放进名称列
+    //  · >6 字：字号固定在「刚好放下 6 字」的大小，不再继续缩小；
+    //          超出 6 个字的部分由使用处 maxLines=1 + TextOverflow.Ellipsis 以「…」截断
+    val n = name.length
+    if (n <= 0) return MAX_NAME_FONT_SP
+    val displayChars = if (n > NAME_ELLIPSIS_CHARS) NAME_ELLIPSIS_CHARS else n
+    val fit = WATCH_NAME_TEXT_W / displayChars
+    return fit.coerceIn(NAME_MIN_FONT_SP, MAX_NAME_FONT_SP)
 }
+
+/** 名称正常最大字号（≤6 字时放不下则等比缩到此值以内） */
+private const val MAX_NAME_FONT_SP = 15f
+/** 超过该字数后不再继续缩小字号，改为省略号截断 */
+private const val NAME_ELLIPSIS_CHARS = 6
+/** 名称允许的最小字号（保证 6 字可读） */
+private const val NAME_MIN_FONT_SP = 13f
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
