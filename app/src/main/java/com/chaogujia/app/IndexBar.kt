@@ -537,7 +537,7 @@ private fun TopActionButton(
 /* ---------------- 自选股票列表行 ---------------- */
 
 /** 列表左侧「名称/代码」固定列宽度（dp），表头与数据行共用 */ 
-internal val WATCH_FIXED_W = 110
+internal val WATCH_FIXED_W = 96
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
@@ -694,19 +694,19 @@ private fun StockRow(
             }
             // 最上层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
             // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡
+            // 分时图：左右与名称列/涨幅列之间等距（各 8dp）；上下对齐右侧涨幅色块顶与实时价底
             Box(
                 Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
-                    .padding(start = WATCH_FIXED_W.dp, end = WATCH_PCT_COL_W.dp)
-                    .padding(horizontal = 4.dp)
+                    .padding(start = (WATCH_FIXED_W + 8).dp, end = (WATCH_PCT_COL_W + 8).dp)
             ) {
                 MiniMinuteChart(
                     trends = trend?.first ?: emptyList(),
                     preClose = trend?.second ?: 0.0,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(30.dp)
+                        .height(40.dp)
                 )
             }
         }
