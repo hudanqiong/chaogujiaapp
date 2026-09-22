@@ -125,6 +125,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
     // 列表是否加载中
     var loadingStocks by remember { mutableStateOf(false) }
 
+    // 自选列表分时走势缓存： code -> (trends, preClose)
+    var watchTrendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
+
     // ===== 股票列表「列配置」=====
     // 当前显示哪些统计列（默认：最新价 + 涨跌幅；以后可由用户自定义）
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -186,6 +189,33 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 if (m.isNotEmpty()) boxQuotes = m
             } catch (e: Exception) { /* 忽略 */ }
             delay(8000)
+        }
+    }
+
+    // 自选列表分时走势：跟随 stocks 拉取每只股票的分时（并发，失败跳过），3 秒刷新
+    LaunchedEffect(stocks) {
+        while (true) {
+            try {
+                val codes = stocks.map { it.code }.filter { it.isNotBlank() }
+                if (codes.isNotEmpty()) {
+                    val m = HashMap<String, Pair<List<DetailTrend>, Double>>()
+                    val results = withContext(Dispatchers.IO) {
+                        codes.map { code ->
+                            async {
+                                try {
+                                    val d = Api.detail(code)
+                                    if (d != null && d.trends.isNotEmpty())
+                                        code to (d.trends to d.base.preClose)
+                                    else null
+                                } catch (e: Exception) { null }
+                            }
+                        }.awaitAll()
+                    }
+                    for (r in results) if (r != null) m[r.first] = r.second
+                    if (m.isNotEmpty()) watchTrendMap = m
+                }
+            } catch (e: Exception) { /* 忽略 */ }
+            kotlinx.coroutines.delay(3000)
         }
     }
 // 顶部红条高度由内容自适应，面板紧贴其底部，无需硬编码
@@ -372,6 +402,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                 s = s,
                                 cols = activeCols,
                                 hScroll = hScroll,
+                                trend = watchTrendMap[s.code],
                                 onOpen = {
                                     detailIdx = stocks.indexOfFirst { it.code == s.code }
                                 }
@@ -523,6 +554,7 @@ private fun StockRow(
     s: StockItem,
     cols: List<WatchColumn>,
     hScroll: androidx.compose.foundation.ScrollState,
+    trend: Pair<List<DetailTrend>, Double>?,
     onOpen: () -> Unit
 ) {
     val c = colorOf(s.changePct)
@@ -590,6 +622,17 @@ private fun StockRow(
                     }
                 }
             }
+            // 中层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
+            MiniMinuteChart(
+                trends = trend?.first ?: emptyList(),
+                preClose = trend?.second ?: 0.0,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = WATCH_FIXED_W.dp, end = WATCH_PCT_COL_W.dp)
+                    .padding(horizontal = 6.dp)
+                    .height(30.dp)
+                    .align(Alignment.Center)
+            )
             // 上层：固定列「名称 + 代码」，带白底（点击进详情页），盖住滑过来的统计列
             Column(
                 Modifier
