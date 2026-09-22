@@ -694,15 +694,21 @@ private fun StockRow(
             }
             // 最上层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
             // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡
-            MiniMinuteChart(
-                trends = trend?.first ?: emptyList(),
-                preClose = trend?.second ?: 0.0,
-                modifier = Modifier
+            Box(
+                Modifier
+                    .align(Alignment.Center)
                     .fillMaxWidth()
                     .padding(start = WATCH_FIXED_W.dp, end = WATCH_PCT_COL_W.dp)
-                    .height(30.dp)
-                    .align(Alignment.Center)
-            )
+                    .padding(horizontal = 4.dp)
+            ) {
+                MiniMinuteChart(
+                    trends = trend?.first ?: emptyList(),
+                    preClose = trend?.second ?: 0.0,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(30.dp)
+                )
+            }
         }
         // 每只股票行底部的细分隔线（很淡的浅灰，跟随列表一起滑动）
         HorizontalDivider(
