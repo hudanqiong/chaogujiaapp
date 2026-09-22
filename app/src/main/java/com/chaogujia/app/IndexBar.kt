@@ -515,18 +515,19 @@ private fun fmtAmount(v: Double): String {
 /* ==================== 字体对比页（临时调试用，选完删除） ==================== */
 
 /**
- * 字体对比页：把候选字体的 0123456789 大字并排列出，
- * 用户一屏看全，专挑「6/9 无勾」且整体像同花顺的那一个。
+ * 字体对比页：每个字体显示「粗(Medium) / 细(Light)」两行 0123456789，
+ * 用户一屏看全，专挑「粗细 + 宽窄」最像同花顺的那一个。
+ * （注：这一批字体全都是「有勾」的主流字体，差异在字重和宽窄。）
  */
 @Composable
 fun FontComparePage() {
     // 候选字体清单：名称 + 字体家族
     val candidates: List<Pair<String, FontFamily>> = listOf(
-        "Bebas Neue" to FontFamily(Font(R.font.bebas_neue)),
-        "Anton" to FontFamily(Font(R.font.anton)),
-        "Fjalla One" to FontFamily(Font(R.font.fjalla_one)),
-        "League Gothic" to FontFamily(Font(R.font.league_gothic)),
-        "系统默认" to FontFamily.Default
+        "系统默认(Roboto)" to FontFamily.Default,
+        "Roboto" to FontFamily(Font(R.font.roboto)),
+        "Roboto Condensed" to FontFamily(Font(R.font.robotocondensed)),
+        "Inter" to FontFamily(Font(R.font.inter)),
+        "Noto Sans" to FontFamily(Font(R.font.notosans))
     )
 
     androidx.compose.foundation.layout.Column(
@@ -536,22 +537,31 @@ fun FontComparePage() {
             .verticalScroll(rememberScrollState())
             .padding(12.dp)
     ) {
-        Text("字体对比 (看 6 和 9 有没有勾)", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("字体对比 (全都'有勾'，比粗细/宽窄)", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         for ((label, ff) in candidates) {
             Text("【$label】", color = Color(0xFF888888), fontSize = 11.sp)
-            // 全数字
+            // 粗体行
             Text(
-                text = "0123456789",
+                text = "0123456789  (粗)",
                 color = Color.Black,
-                fontSize = 28.sp,
-                fontFamily = ff
+                fontSize = 26.sp,
+                fontFamily = ff,
+                fontWeight = FontWeight.Medium
             )
-            // 6 和 9 单独放大，方便盯"有没有勾"
+            // 细体行
+            Text(
+                text = "0123456789  (细)",
+                color = Color.Black,
+                fontSize = 26.sp,
+                fontFamily = ff,
+                fontWeight = FontWeight.Light
+            )
+            // 6 和 9 单独放大，方便盯"勾"的形状和长短
             Text(
                 text = "6  9",
                 color = Color(0xFFF5222D),
-                fontSize = 48.sp,
+                fontSize = 44.sp,
                 fontFamily = ff
             )
             Spacer(Modifier.height(18.dp))
