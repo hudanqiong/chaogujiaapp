@@ -547,24 +547,42 @@ internal val WATCH_FIXED_W = 96
 internal const val WATCH_NAME_TEXT_W = 80f
 
 /**
- * 名称显示文本：严格控制在「满 6 个字」就截断。
- *  · 名称 ≤6 字：原样显示；
- *  · 名称 >6 字：只显示前 6 个字 + 「…」（手动截断，不依赖按像素截，保证刚好 6 字）。
+ * 名称显示文本：按「汉字宽度」截断，满 [NAME_MAX_HAN] 个汉字宽就停，超出加「…」。
+ *  · 汉字（含全角标点）= 1 个宽度；
+ *  · 数字 / 英文字母等半角字符 = 0.5 个宽度；
+ * 例：「沪深300ETF华泰柏瑞」→ 沪深(2) 300ETF(3) 华(1) = 6 → 显示「沪深300ETF华…」
  */
 internal fun watchNameDisplay(name: String): String {
-    return if (name.length > NAME_MAX_CHARS) name.substring(0, NAME_MAX_CHARS) + "…" else name
+    if (name.isEmpty()) return name
+    var acc = 0f
+    val sb = StringBuilder()
+    for (ch in name) {
+        val w = charWidth(ch)
+        if (acc + w > NAME_MAX_HAN) {
+            return sb.append("…").toString()
+        }
+        acc += w
+        sb.append(ch)
+    }
+    return sb.toString()
 }
 
+/** 单字符占「汉字宽度」：汉字/全角 = 1.0，半角（数字/字母/半角符号）= 0.5 */
+private fun charWidth(ch: Char): Float = if (ch.code <= 0x7F) 0.5f else 1f
+
 /**
- * 股票名称字号：整名（含「…」）固定为能放下 6 个字的大小，不再随名称长度缩小。
- * 名称本身已在 [watchNameDisplay] 中按 6 字截断，故字号恒定，避免长名被缩成「蚂蚁字」。
+ * 股票名称字号：整名（含「…」）固定为能放下 6 个汉字宽的大小，不再随名称长度缩小。
+ * 名称本身已在 [watchNameDisplay] 中按 6 个汉字宽截断，故字号恒定，避免长名被缩成「蚂蚁字」。
  */
 internal fun watchNameFontSize(@Suppress("UNUSED_PARAMETER") name: String): Float = NAME_FONT_SP
 
-/** 名称最多显示的字数，超过则截断加省略号 */
-private const val NAME_MAX_CHARS = 6
-/** 名称固定字号：刚好保证 6 个字能放进名称列（80dp），且不缩成小字 */
-private const val NAME_FONT_SP = 13.3f
+/** 名称最多显示的「汉字宽度」数（汉字=1，数字/字母=0.5），超过则截断加省略号 */
+private const val NAME_MAX_HAN = 6f
+/**
+ * 名称固定字号：名称列可用宽 80dp，需容纳「6 个汉字宽 + 1 个「…」」≈ 7 个汉字宽，
+ * 80 / 7 ≈ 11.4，取 11.5sp，保证「沪深300ETF华…」能完整放下且不被二次截断。
+ */
+private const val NAME_FONT_SP = 11.5f
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
