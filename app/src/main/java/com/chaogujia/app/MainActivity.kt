@@ -84,6 +84,8 @@ fun ChaoGuJiaApp() {
         member = MemberInfo()
     }
 
+    // ★ 最外层 Box：让全屏搜索页能盖住红条 + 底部导航（铺满整个屏幕）
+    Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
             // 红色会员顶栏：5 个 Tab 页面统一渲染，高度一致
@@ -164,13 +166,6 @@ fun ChaoGuJiaApp() {
                 "news" -> EmptyScreen()
             }
 
-            // ★ 全屏搜索页：点自选页红条最右图标弹出，盖住整个内容区
-            if (showSearch) {
-                SearchPage(
-                    token = token,
-                    onClose = { showSearch = false }
-                )
-            }
             if (showLogin) {
                 LoginScreen(
                     onSuccess = { tk, un ->
@@ -185,8 +180,16 @@ fun ChaoGuJiaApp() {
             }
         }
     }
-}
 
+        // ★ 全屏搜索页：铺满屏幕，盖住红条 + 底部导航（从状态栏往下）
+        if (showSearch) {
+            SearchPage(
+                token = token,
+                onClose = { showSearch = false }
+            )
+        }
+    }
+}
 // 页面内容区：暂时留空，等后续接入真实接口后再填充
 @Composable
 fun EmptyScreen() {
