@@ -634,7 +634,11 @@ private fun StockRow(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                            // 符号规则：涨（红）不显示「+」，跌（绿）显示「-」，平盘不带符号
+                            text = if (s.changePct < -0.000001)
+                                String.format(Locale.CHINA, "-%.2f%%", kotlin.math.abs(s.changePct))
+                            else
+                                String.format(Locale.CHINA, "%.2f%%", kotlin.math.abs(s.changePct)),
                             color = Color.White,
                             fontSize = 13.sp,
                             fontFamily = NumFont,
