@@ -191,7 +191,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
         val openIdx = detailIdx
         if (openIdx != null && openIdx in stocks.indices) {
             StockDetailPage(
-                token = token,
+                token = token.orEmpty(),
                 list = stocks,
                 index = openIdx,
                 onClose = { detailIdx = null },
