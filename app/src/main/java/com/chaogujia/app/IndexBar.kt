@@ -602,14 +602,14 @@ internal fun watchNameFontSize(name: String): Float {
 private const val NAME_MAX_HAN = 6f
 
 /* 名称字号分档（sp）：只影响「该只股票自己」，与其他股票无关 */
-/** ≤4 汉字宽：默认原始大小 */
-private const val NAME_FONT_L0_SP = 14f
-/** 5 汉字宽：稍微缩小 */
-private const val NAME_FONT_L1_SP = 13f
-/** 6 汉字宽：缩小更多 */
-private const val NAME_FONT_L2_SP = 12f
+/** ≤4 汉字宽：撑满名称列（可用宽 80dp / 4 字 = 20sp，取 18sp 兼顾行高 44dp 与下方代码行） */
+private const val NAME_FONT_L0_SP = 18f
+/** 5 汉字宽：稍微缩小（80/5=16，取 14sp 留余量） */
+private const val NAME_FONT_L1_SP = 14f
+/** 6 汉字宽：缩小更多（80/6≈13.3，取 12.5sp） */
+private const val NAME_FONT_L2_SP = 12.5f
 /** ≥7 汉字宽：与 6 字同字号（文本已截断为 6 汉字宽 + …，需容纳省略号留量） */
-private const val NAME_FONT_L3_SP = 12f
+private const val NAME_FONT_L3_SP = 12.5f
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
