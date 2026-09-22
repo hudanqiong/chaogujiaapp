@@ -156,7 +156,7 @@ fun ChaoGuJiaApp() {
                 "watch" -> Box(Modifier.fillMaxSize().background(Color.White)) {
                     // 纯白背景层（红条与分割线由 IndexBar 内部绘制，详情面板 overlay 悬浮其上）
                     // 叠在最上方：顶部工具条 + 分割线 + （展开时）详情面板
-                    IndexBar()
+                    IndexBar(onOpenNews = { current = "news" })
                 }
                 "trade" -> EmptyScreen()
                 "news" -> EmptyScreen()

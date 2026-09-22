@@ -1,6 +1,7 @@
 package com.chaogujia.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -38,6 +39,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -80,7 +83,7 @@ private fun colorOf(pct: Double): Color =
 private val NumFont = FontFamily(Font(R.font.ths_regular))
 
 @Composable
-fun IndexBar() {
+fun IndexBar(onOpenNews: () -> Unit = {}) {
     // 顶部当前选中指数
     var secid by remember { mutableStateOf("1.000001") }
     var quote by remember { mutableStateOf<IndexQuote?>(null) }
@@ -135,7 +138,8 @@ fun IndexBar() {
             TopBar(
                 quote = quote,
                 expanded = expanded,
-                onToggle = { expanded = !expanded }
+                onToggle = { expanded = !expanded },
+                onOpenNews = onOpenNews
             )
 
             if (expanded) {
@@ -174,7 +178,7 @@ fun IndexBar() {
 /* ---------------- 顶部两排版 ---------------- */
 
 @Composable
-private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) {
+private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, onOpenNews: () -> Unit) {
     val pct = quote?.changePct ?: 0.0
     val c = colorOf(pct)
     val priceText = quote?.let { fmt(it.price) } ?: "--"
@@ -240,6 +244,43 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
                 )
             }
         }
+
+        // ---------- 右侧四个功能按钮（上图标 + 下文字）----------
+        TopActionButton(R.drawable.btn_fund, "资金", enabled = false)
+        TopActionButton(R.drawable.btn_news, "资讯", enabled = true) { onOpenNews() }
+        TopActionButton(R.drawable.btn_asset, "资产", enabled = false)
+        TopActionButton(R.drawable.btn_analysis, "分析", enabled = false)
+    }
+}
+
+/** 顶部功能按钮：上图标 + 下文字。enabled=false 时暂不绑定功能（点了没反应） */
+@Composable
+private fun TopActionButton(
+    iconRes: Int,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit = {}
+) {
+    Column(
+        modifier = Modifier
+            .width(48.dp)
+            .clickable(enabled = enabled) { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = label,
+            modifier = Modifier.size(24.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = if (enabled) Color(0xFF333333) else Color(0xFFBBBBBB),
+            fontSize = 11.sp,
+            fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
+        )
     }
 }
 
