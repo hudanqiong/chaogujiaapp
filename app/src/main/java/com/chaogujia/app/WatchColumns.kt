@@ -82,14 +82,15 @@ object WatchColumnRegistry {
     val ALL: List<WatchColumn> = listOf(PCT_PRICE, PRICE, CHANGE_PCT, CHANGE)
 
     /** 默认显示的列 key（顺序敏感）：只默认显示「涨幅」合并列（上百分比 / 下价格） */
-    val DEFAULT_KEYS: List<String> = listOf(PCT_PRICE.key)
+    // 默认不启用任何横滑统计列（「涨幅」已作为右侧固定列单独渲染）
+    val DEFAULT_KEYS: List<String> = emptyList()
 
     /** 按 key 取列定义 */
     fun byKey(key: String): WatchColumn? = ALL.firstOrNull { it.key == key }
 
-    /** 把用户配置的 key 列表转成列定义列表（过滤掉不认识的 key） */
+    /** 把用户配置的 key 列表转成列定义列表（过滤掉不认识的 key；pctPrice 已作为右侧固定列，不再参与横滑） */
     fun resolve(keys: List<String>): List<WatchColumn> =
-        keys.mapNotNull { byKey(it) }
+        keys.filter { it != PCT_PRICE.key }.mapNotNull { byKey(it) }
 }
 
 /** 用户列偏好（本地持久化，简单实现，避免额外依赖） */

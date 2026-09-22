@@ -314,6 +314,17 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                             maxLines = 1
                         )
                     }
+                    // 「涨幅」列标题 —— 紧接「多股同列」右侧，独立成列，右对齐
+                    Text(
+                        text = "涨幅",
+                        color = COLOR_SUB,
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .width(WATCH_PCT_COL_W.dp)
+                            .padding(end = 10.dp)
+                    )
                     // 上层：固定列「名称 / 代码」，带白底，盖住滑过来的统计列
                     Box(
                         Modifier
@@ -496,6 +507,9 @@ internal val WATCH_FIXED_W = 110
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
 
+/** 表头/列表行最右「涨幅」列宽度（dp）：显示涨跌幅百分比 + 最新价，右对齐 */
+internal val WATCH_PCT_COL_W = 92
+
 /**
  * 自选股票行。
  * 布局：左侧「名称/代码」固定不动；右侧统计列横向可滑动（与表头共用 [hScroll]）；
@@ -527,45 +541,6 @@ private fun StockRow(
             ) {
                 for (col in cols) {
                     val txt = col.value(s)
-                    // 「涨幅」合并列：上行 = 涨跌幅百分比（红涨绿跌），下行 = 最新价（灰色），两行都右对齐
-                    if (col.key == "pctPrice") {
-                        Column(
-                            Modifier
-                                .width(col.width.dp)
-                                .padding(horizontal = 10.dp),
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            // 上行：涨跌幅 —— 长方形微圆角色块底 + 白字，整体右对齐
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(colorOf(s.changePct))
-                                    .padding(horizontal = 6.dp, vertical = 3.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
-                                    color = Color.White,
-                                    fontSize = 13.sp,
-                                    fontFamily = NumFont,
-                                    textAlign = TextAlign.End,
-                                    maxLines = 1
-                                )
-                            }
-                            Spacer(Modifier.height(2.dp))
-                            // 下行：最新价 —— 灰色，右对齐
-                            Text(
-                                text = String.format(Locale.CHINA, "%.2f", s.price),
-                                color = COLOR_SUB,
-                                fontSize = 12.sp,
-                                fontFamily = NumFont,
-                                textAlign = TextAlign.End,
-                                maxLines = 1
-                            )
-                        }
-                        continue
-                    }
                     when (col.colorMode) {
                         WatchColumn.ColorMode.UP_DOWN -> {
                             // 涨跌幅用色块底，其余用带色文字
@@ -635,6 +610,41 @@ private fun StockRow(
                     color = COLOR_SUB,
                     fontSize = 12.sp,
                     fontFamily = NumFont
+                )
+            }
+            // 上层：最右「涨幅」固定列 —— 上行涨跌幅（长方形微圆角色块底+白字），下行最新价（灰），右对齐
+            Column(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(WATCH_PCT_COL_W.dp)
+                    .fillMaxHeight()
+                    .background(Color.White)
+                    .padding(end = 10.dp),
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(colorOf(s.changePct))
+                        .padding(horizontal = 6.dp, vertical = 3.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontFamily = NumFont,
+                        maxLines = 1
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = String.format(Locale.CHINA, "%.2f", s.price),
+                    color = COLOR_SUB,
+                    fontSize = 12.sp,
+                    fontFamily = NumFont,
+                    maxLines = 1
                 )
             }
         }
