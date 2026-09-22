@@ -226,8 +226,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF7F7F7))
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                        .height(44.dp)
+                        .background(Color.White)
+                        .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -243,7 +244,6 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                         modifier = Modifier.width(96.dp),
                         textAlign = TextAlign.Right
                     )
-                    Spacer(Modifier.width(16.dp))
                     Text(
                         text = "涨跌幅",
                         color = COLOR_SUB,
@@ -394,10 +394,12 @@ private fun TopActionButton(
 @Composable
 private fun StockRow(s: StockItem) {
     val c = colorOf(s.changePct)
+    Column(Modifier.fillMaxWidth()) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .height(44.dp)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 左：名称 + 代码
@@ -441,6 +443,12 @@ private fun StockRow(s: StockItem) {
                 fontFamily = NumFont
             )
         }
+    }
+        // 每只股票行底部的细分隔线（很淡的浅灰，跟随列表一起滑动）
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = Color(0xFFF0F0F0)
+        )
     }
 }
 
