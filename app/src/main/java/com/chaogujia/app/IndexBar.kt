@@ -71,8 +71,8 @@ private val COLOR_SUB = Color(0xFF888888)
 private fun colorOf(pct: Double): Color =
     if (pct > 0.000001) COLOR_UP else if (pct < -0.000001) COLOR_DOWN else COLOR_FLAT
 
-/** 行情数字专用字体：Roboto Condensed（窄体，金融App数字感） */
-private val NumFont = FontFamily(Font(R.font.roboto_condensed))
+/** 行情数字专用字体：Oswald（窄体、敦实，最接近同花顺的 DIN 数字感） */
+private val NumFont = FontFamily(Font(R.font.oswald))
 
 @Composable
 fun IndexBar() {
@@ -187,7 +187,7 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            // 第一排：点数（大粗红） + 涨跌点（小红）  —— 数字用真窄体 Roboto Condensed
+            // 第一排：点数（大粗红） + 涨跌点（小红）  —— 数字用真窄体 Oswald
             Row(
                 verticalAlignment = Alignment.Bottom
             ) {
@@ -210,13 +210,13 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
             }
             // 两排之间加大间距
             Spacer(Modifier.height(6.dp))
-            // 第二排：名称（纯黑加粗） + 涨跌幅%（红，压细长） + ▼
+            // 第二排：名称（纯黑，中粗，别太粗） + 涨跌幅%（红） + ▼
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = nameText,
                     color = Color(0xFF000000),
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Black
+                    fontWeight = FontWeight.SemiBold
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
