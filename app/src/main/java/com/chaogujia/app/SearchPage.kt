@@ -116,7 +116,7 @@ fun SearchPage(
                 modifier = Modifier
                     .weight(1f)
                     .height(38.dp)
-                    .clip(RoundedCornerShape(19.dp))
+                    .clip(RoundedCornerShape(6.dp))   // ★ 方形（小圆角），非胶囊
                     .background(Color(0xFFF2F2F2))
                     .padding(horizontal = 14.dp),
                 contentAlignment = Alignment.CenterStart
