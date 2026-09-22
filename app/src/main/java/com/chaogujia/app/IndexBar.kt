@@ -513,65 +513,115 @@ private fun fmtAmount(v: Double): String {
     }
 }
 
-/* ======================= 字体对比页（临时调试，挑完删除） ======================= */
+/* ======================= 6/9 手绘对比页（临时调试，挑完删除） ======================= */
+/*
+ * 目的：数字用系统字体，但 6/9 尾巴改成「直着斜出去」（不往里勾）。
+ * 做法：用 Canvas 手绘 6/9 两个字符（圈 + 直斜尾巴），其他数字仍用系统字体。
+ * 参数：
+ *   isNine  = true 画 9（圈在上，尾巴向下斜出）；false 画 6（圈在下，尾巴向上斜出）
+ *   slopeDeg= 尾巴与竖直方向的夹角（0=完全竖直，45=斜得最厉害）
+ */
 
-private data class FontCand(val label: String, val font: FontFamily?, val resName: String?)
+/** 手绘一个 6 或 9（strokeColor=描边颜色，strokeWidth=线宽） */
+@Composable
+private fun DrawnChar(
+    isNine: Boolean,
+    slopeDeg: Float,
+    color: Color,
+    sizeDp: androidx.compose.ui.unit.Dp = 52.dp,
+    strokeDp: androidx.compose.ui.unit.Dp = 3.2.dp
+) {
+    Canvas(modifier = Modifier.size(sizeDp)) {
+        val w = this.size.width
+        val h = this.size.height
+        val sw = strokeDp.toPx() * (w / sizeDp.toPx())
+        val rad = w * 0.30f            // 圈半径
+        val cx = w * 0.50f
+        val cyCircle = if (isNine) h * 0.32f else h * 0.68f  // 9 圈在上，6 圈在下
+        // 1) 画圈
+        drawCircle(
+            color = color,
+            radius = rad,
+            center = Offset(cx, cyCircle),
+            style = Stroke(width = sw)
+        )
+        // 2) 画尾巴：从圈的切线处出发，沿 slopeDeg 方向直斜出去
+        val slopeRad = Math.toRadians(slopeDeg.toDouble())
+        val dirX = Math.sin(slopeRad).toFloat()   // 水平分量
+        val dirY = Math.cos(slopeRad).toFloat()   // 竖直分量
+        // 起点：圈上靠近出发方向的一点
+        val startX = cx + dirX * rad
+        val startY = cyCircle + (if (isNine) dirY * rad else -dirY * rad)
+        // 终点：沿方向延伸
+        val len = rad * 2.15f
+        val endX = startX + dirX * len
+        val endY = startY + (if (isNine) dirY * len else -dirY * len)
+        drawLine(
+            color = color,
+            start = Offset(startX, startY),
+            end = Offset(endX, endY),
+            strokeWidth = sw,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round
+        )
+    }
+}
 
-private val FONT_CANDS: List<FontCand> = listOf(
-    FontCand("系统默认", null, null),
-    FontCand("Lato(上版)", FontFamily(Font(R.font.lato)), "lato"),
-    FontCand("山海经·将纳", FontFamily(Font(R.font.shanhai_jiangna)), "shanhai_jiangna"),
-    FontCand("山海经·臻珂45", FontFamily(Font(R.font.shanhai_zhenke45)), "shanhai_zhenke45"),
-    FontCand("山海经·臻珂65", FontFamily(Font(R.font.shanhai_zhenke65)), "shanhai_zhenke65"),
-    FontCand("山海经·臻珂75", FontFamily(Font(R.font.shanhai_zhenke75)), "shanhai_zhenke75"),
-    FontCand("汉仪世微55", FontFamily(Font(R.font.hanyi_shiwei)), "hanyi_shiwei"),
-    FontCand("碑版篆·新东", FontFamily(Font(R.font.beiban_xindong)), "beiban_xindong"),
-    FontCand("碑版篆·清空", FontFamily(Font(R.font.beiban_qingkong)), "beiban_qingkong"),
+private data class SlopeCand(val label: String, val deg: Float)
+
+private val SLOPE_CANDS = listOf(
+    SlopeCand("A 45°斜(明显)", 45f),
+    SlopeCand("B 60°斜(中等)", 60f),
+    SlopeCand("C 75°斜(接近竖直)", 75f),
 )
 
 @Composable
 fun FontComparePage() {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Color.White).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
-            Text("字体对比（数字用哪套）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("看「数字」行：能正常显示 0123456789 的才可用；空白/回退=该字体没有数字字形",
+            Text("6/9 尾巴斜度对比", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("数字用系统字体；6/9 尾巴改成「直着斜出去」。挑一版最像的斜度",
                 fontSize = 11.sp, color = Color(0xFF888888))
             Spacer(Modifier.height(6.dp))
-        }
-        items(FONT_CANDS) { c ->
-            val fam = c.font ?: FontFamily.Default
-            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(c.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
-                    Spacer(Modifier.width(8.dp))
-                    Text("[数字]", fontSize = 10.sp, color = Color(0xFF999999))
-                }
-                // 数字行（超大，看数字字形/是否有数字）
-                Text(
-                    text = "3963.73  +0.35%",
-                    fontSize = 34.sp,
-                    color = Color(0xFFF5222D),
-                    fontFamily = fam
-                )
-                Text(
-                    text = "0123456789 . + - %",
-                    fontSize = 22.sp,
-                    color = Color(0xFF222222),
-                    fontFamily = fam
-                )
-                // 中文行（看中文效果）
-                Text(
-                    text = "上证指数  涨跌幅  成交额  万爽",
-                    fontSize = 16.sp,
-                    color = Color(0xFF111111),
-                    fontFamily = fam
-                )
-                HorizontalDivider(Modifier.padding(top = 8.dp), color = Color(0xFFEEEEEE))
+            // 对照：系统默认的 6 9
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("系统默认", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                Spacer(Modifier.width(12.dp))
+                Text("6", fontSize = 44.sp, color = Color(0xFFF5222D))
+                Spacer(Modifier.width(10.dp))
+                Text("9", fontSize = 44.sp, color = Color(0xFFF5222D))
             }
+            HorizontalDivider(Modifier.padding(top = 8.dp), color = Color(0xFFDDDDDD))
         }
-        item { Spacer(Modifier.height(30.dp)) }
+        items(SLOPE_CANDS) { c ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text(c.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 手绘 6
+                    DrawnChar(false, c.deg, Color(0xFFF5222D))
+                    Spacer(Modifier.width(14.dp))
+                    // 手绘 9
+                    DrawnChar(true, c.deg, Color(0xFFF5222D))
+                    Spacer(Modifier.width(20.dp))
+                    // 整串数字（系统字体，看整体搭配）
+                    Text(
+                        "3952.30",
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFF5222D),
+                        fontFamily = FontFamily.Default
+                    )
+                }
+            }
+            HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
+        }
+        item {
+            Spacer(Modifier.height(20.dp))
+            Text("说明：每一版上方两个巨大的红字就是手绘的 6 和 9（系统字体渲染不了斜尾，所以用手绘）。",
+                fontSize = 11.sp, color = Color(0xFF888888))
+        }
     }
 }
