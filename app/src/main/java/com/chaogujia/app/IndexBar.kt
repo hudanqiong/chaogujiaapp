@@ -185,9 +185,10 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(96.dp)
             .background(Color.White)
             .clickable { onToggle() }
-            .padding(horizontal = 12.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
