@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,7 +84,7 @@ private fun colorOf(pct: Double): Color =
 private val NumFont = FontFamily(Font(R.font.ths_regular))
 
 @Composable
-fun IndexBar(onOpenNews: () -> Unit = {}) {
+fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
     // 顶部当前选中指数
     var secid by remember { mutableStateOf("1.000001") }
     var quote by remember { mutableStateOf<IndexQuote?>(null) }
@@ -93,6 +94,20 @@ fun IndexBar(onOpenNews: () -> Unit = {}) {
     var boxQuotes by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     // 是否展开详情面板
     var expanded by remember { mutableStateOf(false) }
+
+    // ===== 自选分组标签 =====
+    // 当前选中的分组 key：负数为内置组（-1 自选股 / -2 持仓股），>=0 为用户自建组 id
+    var selectedGroup by remember { mutableStateOf(-1) }
+    // 用户自建分组（来自后端 watch_group.php）
+    var userGroups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
+
+    // 拉一次分组列表
+    LaunchedEffect(token) {
+        try {
+            val g = withContext(Dispatchers.IO) { Api.watchGroups(token) }
+            if (g.isNotEmpty()) userGroups = g.sortedBy { it.sort }
+        } catch (e: Exception) { /* 忽略 */ }
+    }
 
     // 初始拉一次指数清单
     LaunchedEffect(Unit) {
@@ -170,6 +185,33 @@ fun IndexBar(onOpenNews: () -> Unit = {}) {
                     thickness = 2.dp,
                     color = Color(0xFFEEEEEE)
                 )
+
+                // 分组标签栏（自选股 / 持仓股 / 用户自建分组）
+                GroupTabsBar(
+                    selected = selectedGroup,
+                    userGroups = userGroups,
+                    onSelect = { selectedGroup = it }
+                )
+
+                // 标签栏与股票列表之间的细分隔线
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = Color(0xFFEEEEEE)
+                )
+
+                // 该组股票列表（待接数据）
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 40.dp),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                    Text(
+                        text = "「${groupNameOf(selectedGroup, userGroups)}」股票列表待接入",
+                        color = Color(0xFF999999),
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }
@@ -280,6 +322,87 @@ private fun TopActionButton(
             color = Color(0xFF333333),
             fontSize = 11.sp,
             fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+/* ---------------- 自选分组标签栏 ---------------- */
+
+/** 内置两个固定分组：自选股(-1) / 持仓股(-2) */
+/** 选择项 key 对应的显示名：-1 自选股 / -2 持仓股 / >=0 用户分组名 */
+private fun groupNameOf(key: Int, groups: List<WatchGroup>): String = when (key) {
+    -1 -> "自选股"
+    -2 -> "持仓股"
+    else -> groups.firstOrNull { it.id == key }?.name?.ifEmpty { "分组$key" } ?: "自选股"
+}
+
+data class GroupTabItem(val key: Int, val name: String)
+
+/**
+ * 分组标签栏：横向可滑动。
+ * 前两个固定为「自选股」「持仓股」，其后为用户自建分组。
+ * 点亮态 = 主色红 + 稍放大 + 名字下方居中一根固定一个字宽的短红线。
+ */
+@Composable
+private fun GroupTabsBar(
+    selected: Int,
+    userGroups: List<WatchGroup>,
+    onSelect: (Int) -> Unit
+) {
+    val items = remember(userGroups) {
+        val base = arrayListOf(
+            GroupTabItem(-1, "自选股"),
+            GroupTabItem(-2, "持仓股")
+        )
+        for (g in userGroups) base.add(GroupTabItem(g.id, g.name.ifEmpty { "分组${g.id}" }))
+        base
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .background(Color.White)
+            .horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(Modifier.width(8.dp))
+        for (it in items) {
+            GroupTab(
+                name = it.name,
+                active = it.key == selected,
+                onClick = { onSelect(it.key) }
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+    }
+}
+
+/** 单个分组标签：上文字、下短红线（点亮时）。红线固定一个字宽并居中。 */
+@Composable
+private fun GroupTab(name: String, active: Boolean, onClick: () -> Unit) {
+    val textColor = if (active) Color(0xFFF03036) else Color(0xFF888888)
+    val fontSize = if (active) 16.sp else 15.sp
+    Column(
+        modifier = Modifier
+            .clickable { onClick() }
+            .padding(horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = name,
+            color = textColor,
+            fontSize = fontSize,
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 1
+        )
+        Spacer(Modifier.height(3.dp))
+        // 短红线：固定一个汉字宽（16dp），居中；未点亮时占位透明，避免跳动
+        Box(
+            Modifier
+                .width(16.dp)
+                .height(2.dp)
+                .background(if (active) Color(0xFFF03036) else Color.Transparent)
         )
     }
 }
