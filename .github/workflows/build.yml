@@ -25,7 +25,7 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee full_build_log.txt
+        run: gradle assembleDebug --no-daemon --stacktrace > full_build_log.txt 2>&1 || (cat full_build_log.txt; exit 1)
 
       - name: Upload build log (always)
         if: always()
