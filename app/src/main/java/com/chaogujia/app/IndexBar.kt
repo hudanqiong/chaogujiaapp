@@ -516,15 +516,17 @@ private fun GroupTab(
 ) {
     val textColor = if (active) Color(0xFF000000) else Color(0xFF888888)
     val fontSize = if (active) 16.sp else 15.sp
-    Column(
+    // 外层 Box 填满标签栏高度：文字在整条高度里【垂直居中】，红线固定贴在底部
+    Box(
         modifier = Modifier
+            .fillMaxHeight()
             .clickable { onClick() }
             .padding(horizontal = 8.dp)
             .onGloballyPositioned { coords ->
                 val b = coords.boundsInParent()
                 onCenterX(((b.left + b.right) / 2f).toInt())
             },
-        horizontalAlignment = Alignment.CenterHorizontally
+        contentAlignment = Alignment.Center
     ) {
         Text(
             text = name,
@@ -533,10 +535,11 @@ private fun GroupTab(
             fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
             maxLines = 1
         )
-        Spacer(Modifier.height(3.dp))
-        // 短红线：短而粗（14dp x 3dp），居中；未点亮时占位透明，避免跳动
+        // 短红线：短而粗（14dp x 3dp），贴底居中；未点亮时透明，避免跳动
         Box(
             Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 5.dp)
                 .width(14.dp)
                 .height(3.dp)
                 .background(if (active) Color(0xFFF03036) else Color.Transparent)
