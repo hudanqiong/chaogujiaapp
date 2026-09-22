@@ -83,6 +83,15 @@ data class WatchGroup(
     val sort: Int = 0
 )
 
+/** 大盘指数（index_quote.php） */
+data class IndexQuote(
+    val code: String = "",
+    val name: String = "",
+    val price: Double = 0.0,
+    val change: Double = 0.0,
+    val changePct: Double = 0.0
+)
+
 object Api {
 
     private fun base(url: String) = Config.BASE_URL + url
@@ -98,6 +107,32 @@ object Api {
 
     /** 通用结果 */
     data class Res(val ok: Boolean, val msg: String = "")
+
+    /** 大盘指数（上证/深证/创业板），无需登录 */
+    fun indexQuotes(): List<IndexQuote> {
+        return try {
+            val raw = Net.get(base("index_quote.php"))
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<IndexQuote>()
+            for (i in 0 until arr.length()) {
+                val j = arr.optJSONObject(i) ?: continue
+                list.add(
+                    IndexQuote(
+                        code = j.optString("code", ""),
+                        name = j.optString("name", ""),
+                        price = j.optDouble("price", 0.0),
+                        change = j.optDouble("change", 0.0),
+                        changePct = j.optDouble("changePct", 0.0)
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     /** 登录 */
     fun login(username: String, password: String): AuthResult {

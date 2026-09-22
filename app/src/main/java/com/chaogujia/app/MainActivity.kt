@@ -151,7 +151,16 @@ fun ChaoGuJiaApp() {
                     onMemberChanged = { member = it }
                 )
                 "quote" -> EmptyScreen()
-                "watch" -> EmptyScreen()
+                // 自选页：红条正下方紧贴一排工具条（左=大盘指数，右=占位按钮），下方才是白色内容区
+                "watch" -> Column(Modifier.fillMaxSize()) {
+                    IndexBar()
+                    HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFEAEAEA))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.White)
+                    )
+                }
                 "trade" -> EmptyScreen()
                 "news" -> EmptyScreen()
             }
