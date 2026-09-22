@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -209,8 +210,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 quote = quote,
                 expanded = expanded,
                 onToggle = { expanded = !expanded },
-                onOpenNews = onOpenNews,
-                onOpenColumns = { showColumns = true }
+                onOpenNews = onOpenNews
             )
 
             if (expanded) {
@@ -284,6 +284,33 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                             )
                         }
                     }
+                    // 中层：「多股同列」入口 —— 紧贴固定列右缘，占满第一列右边所有宽度（白底盖住统计列）
+                    // 默认只看到它；下面列表左滑时统计列会从它底下钻出
+                    Row(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = WATCH_FIXED_W.dp)
+                            .fillMaxWidth()
+                            .fillMaxHeight()
+                            .background(Color.White)
+                            .clickable { showColumns = true }
+                            .padding(start = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_multi_stock_columns),
+                            contentDescription = "多股同列",
+                            tint = COLOR_SUB,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "多股同列",
+                            color = COLOR_TEXT,
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
+                    }
                     // 上层：固定列「名称 / 代码」，带白底，盖住滑过来的统计列
                     Box(
                         Modifier
@@ -351,7 +378,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
 /* ---------------- 顶部两排版 ---------------- */
 
 @Composable
-private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, onOpenNews: () -> Unit, onOpenColumns: () -> Unit) {
+private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, onOpenNews: () -> Unit) {
     val pct = quote?.changePct ?: 0.0
     val c = colorOf(pct)
     val priceText = quote?.let { fmt(it.price) } ?: "--"
@@ -419,8 +446,7 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, 
         }
 
         // ---------- 右侧功能按钮（上图标 + 下文字）----------
-        // 「多股同列」：图标取自 bt1.png -> res/drawable/ic_multi_stock_columns.png
-        TopActionButton(R.drawable.ic_multi_stock_columns, "多股同列", enabled = true) { onOpenColumns() }
+        // 注：「多股同列」入口已移到自选列表表头行第二列，此处不再放
         TopActionButton(R.drawable.btn_fund, "资金", enabled = false)
         TopActionButton(R.drawable.btn_news, "资讯", enabled = true) { onOpenNews() }
         TopActionButton(R.drawable.btn_asset, "资产", enabled = false)
