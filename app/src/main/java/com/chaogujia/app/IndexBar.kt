@@ -63,7 +63,7 @@ import java.util.Locale
 
 /** 涨跌颜色：>=0 红，<0 绿 */
 private val COLOR_UP = Color(0xFFF5222D)    // 红（涨）——更鲜红
-private val COLOR_DOWN = Color(0xFF2E7D32)  // 绿（跌）
+private val COLOR_DOWN = Color(0xFF00B050)  // 绿（跌）——翠绿（同花顺）
 private val COLOR_FLAT = Color(0xFF000000)  // 平——纯黑
 private val COLOR_TEXT = Color(0xFF222222)
 private val COLOR_SUB = Color(0xFF888888)
@@ -164,8 +164,8 @@ fun IndexBar() {
                 // 未展开时：红条（指数显示区）与下方白色区之间的分割线
                 Spacer(Modifier.height(8.dp))
                 HorizontalDivider(
-                    thickness = 3.dp,
-                    color = Color(0xFFDDDDDD)
+                    thickness = 2.dp,
+                    color = Color(0xFFEEEEEE)
                 )
             }
         }
@@ -589,7 +589,7 @@ fun FontComparePage() {
         }
         item {
             Spacer(Modifier.height(10.dp))
-            HorizontalDivider(color = Color(0xFFCCCCCC))
+            HorizontalDivider(color = Color(0xFFE8E8E8))
             Spacer(Modifier.height(10.dp))
             Text("↓ 下跌绿色对比（挑一个告诉我编号）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
             Text("看哪个最像同花顺的跌绿、又不偏黑。用同花顺金融体渲染。",
