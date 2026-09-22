@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -1388,10 +1389,17 @@ private fun MiniMinuteChart(
         fun xOf(i: Int): Float = ((i.toFloat() / total).coerceIn(0f, 1f)) * w
 
         val last = trends.last().price
-        val lineColor = when {
-            last > preClose -> Color(0xFFE64A3B)
-            last < preClose -> Color(0xFF19A05A)
-            else -> Color(0xFF9E9E9E)
+        // 线色：相对昨收 涨红 / 跌绿 / 平灰；竖向渐变——上端深、下端浅
+        val lineBrush = when {
+            last > preClose -> Brush.verticalGradient(
+                colors = listOf(Color(0xFFE64A3B), Color(0x40E64A3B))
+            )
+            last < preClose -> Brush.verticalGradient(
+                colors = listOf(Color(0xFF19A05A), Color(0x4019A05A))
+            )
+            else -> Brush.verticalGradient(
+                colors = listOf(Color(0xFF9E9E9E), Color(0x409E9E9E))
+            )
         }
 
         val path = Path()
@@ -1400,6 +1408,6 @@ private fun MiniMinuteChart(
             val y = yOf(p.price)
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path = path, color = lineColor, style = Stroke(width = 1.6f))
+        drawPath(path = path, brush = lineBrush, style = Stroke(width = 1.6f))
     }
 }
