@@ -1198,6 +1198,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             try {
                 val list = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
                 stocks = list
+                android.util.Log.i("CGJ_DIAG", "stockList size=" + list.size + " firstCode=" + (list.firstOrNull()?.code ?: "null"))
                 // 拉取每只股票的分时走势（并发请求，失败跳过）——避免串行导致首屏长时间空白
                 val m = HashMap<String, Pair<List<DetailTrend>, Double>>()
                 if (list.isNotEmpty()) {
@@ -1215,6 +1216,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                     }
                     for (r in results) if (r != null) m[r.first] = r.second
                 }
+                android.util.Log.i("CGJ_DIAG", "detail fetched m.size=" + m.size + " keys=" + m.keys.take(3))
                 if (m.isNotEmpty()) trendMap = m
                 val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.CHINA)
                     .format(java.util.Date())
@@ -1330,6 +1332,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             Spacer(Modifier.height(6.dp))
                             // 分时走势：从左向右逐点延伸的折线（涨红跌绿 + 昨收基准线）
                             val tr = trendMap[s.code]
+                            android.util.Log.i("CGJ_DIAG", "card code=" + s.code + " hit=" + (tr != null) + " trendSize=" + (tr?.first?.size ?: -1))
                             MiniMinuteChart(
                                 trends = tr?.first ?: emptyList(),
                                 preClose = tr?.second ?: 0.0,
