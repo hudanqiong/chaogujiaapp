@@ -522,10 +522,10 @@ private fun fmtAmount(v: Double): String {
 fun FontComparePage() {
     // 候选字体清单：名称 + 字体家族
     val candidates: List<Pair<String, FontFamily>> = listOf(
-        "Oswald" to FontFamily(Font(R.font.oswald)),
-        "Barlow Condensed" to FontFamily(Font(R.font.barlow_cond)),
-        "Archivo Narrow" to FontFamily(Font(R.font.archivo_narrow)),
-        "Saira Condensed" to FontFamily(Font(R.font.saira_cond)),
+        "Bebas Neue" to FontFamily(Font(R.font.bebas_neue)),
+        "Anton" to FontFamily(Font(R.font.anton)),
+        "Fjalla One" to FontFamily(Font(R.font.fjalla_one)),
+        "League Gothic" to FontFamily(Font(R.font.league_gothic)),
         "系统默认" to FontFamily.Default
     )
 
