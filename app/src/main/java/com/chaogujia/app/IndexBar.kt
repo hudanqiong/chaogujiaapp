@@ -215,6 +215,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     if (m.isNotEmpty()) watchTrendMap = m
                 }
             } catch (e: Exception) { /* 忽略 */ }
+            android.util.Log.d("CGJ_DIAG", "watch stocks.size=" + stocks.size + " codes=" + stocks.map { it.code }.take(5) + " trendMap.size=" + watchTrendMap.size)
             kotlinx.coroutines.delay(3000)
         }
     }
@@ -622,17 +623,6 @@ private fun StockRow(
                     }
                 }
             }
-            // 中层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
-            MiniMinuteChart(
-                trends = trend?.first ?: emptyList(),
-                preClose = trend?.second ?: 0.0,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = WATCH_FIXED_W.dp, end = WATCH_PCT_COL_W.dp)
-                    .padding(horizontal = 6.dp)
-                    .height(30.dp)
-                    .align(Alignment.Center)
-            )
             // 上层：固定列「名称 + 代码」，带白底（点击进详情页），盖住滑过来的统计列
             Column(
                 Modifier
@@ -702,6 +692,17 @@ private fun StockRow(
                     )
                 }
             }
+            // 最上层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
+            // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡
+            MiniMinuteChart(
+                trends = trend?.first ?: emptyList(),
+                preClose = trend?.second ?: 0.0,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = WATCH_FIXED_W.dp, end = WATCH_PCT_COL_W.dp)
+                    .height(30.dp)
+                    .align(Alignment.Center)
+            )
         }
         // 每只股票行底部的细分隔线（很淡的浅灰，跟随列表一起滑动）
         HorizontalDivider(
