@@ -52,6 +52,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import kotlinx.coroutines.launch
 
 /**
  * 自选页 —— 红条正下方的「指数工具条」。
@@ -455,7 +460,8 @@ data class GroupTabItem(val key: Int, val name: String)
 /**
  * 分组标签栏：横向可滑动。
  * 前两个固定为「自选股」「持仓股」，其后为用户自建分组。
- * 点亮态 = 主色红 + 稍放大 + 名字下方居中一根固定一个字宽的短红线。
+ * 点亮态 = 纯黑加粗 + 名字下方居中一根短红线。
+ * 点击某个分组时，会自动把该分组滚动到容器正中间；靠边的分组受滚动边界限制，最多只能滚到中间。
  */
 @Composable
 private fun GroupTabsBar(
@@ -471,36 +477,53 @@ private fun GroupTabsBar(
         for (g in userGroups) base.add(GroupTabItem(g.id, g.name.ifEmpty { "分组${g.id}" }))
         base
     }
+    val scrollState = rememberScrollState()
+    val centerTargets = remember { mutableStateMapOf<Int, Int>() }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .background(Color.White)
-            .horizontalScroll(rememberScrollState()),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Spacer(Modifier.width(8.dp))
-        for (it in items) {
-            GroupTab(
-                name = it.name,
-                active = it.key == selected,
-                onClick = { onSelect(it.key) }
-            )
+    // 选中项变化时，把选中标签滚到容器正中间（animateScrollTo 自动夹在 [0, maxValue] 内 → 靠边的组最多只能滚到中间）
+    LaunchedEffect(selected, items.size) {
+        val center = centerTargets[selected] ?: return@LaunchedEffect
+        val viewport = scrollState.viewportSize
+        if (viewport <= 0) return@LaunchedEffect
+        scrollState.animateScrollTo((center - viewport / 2).coerceAtLeast(0))
+    }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(44.dp).background(Color.White)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(scrollState),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(8.dp))
+            for (it in items) {
+                GroupTab(
+                    name = it.name,
+                    active = it.key == selected,
+                    onClick = { onSelect(it.key) },
+                    onCenterX = { cx -> centerTargets[it.key] = cx }
+                )
+            }
+            Spacer(Modifier.width(8.dp))
         }
-        Spacer(Modifier.width(8.dp))
     }
 }
-
 /** 单个分组标签：上文字、下短红线（点亮时）。红线固定一个字宽并居中。 */
 @Composable
-private fun GroupTab(name: String, active: Boolean, onClick: () -> Unit) {
+private fun GroupTab(
+    name: String,
+    active: Boolean,
+    onClick: () -> Unit,
+    onCenterX: (Int) -> Unit
+) {
     val textColor = if (active) Color(0xFF000000) else Color(0xFF888888)
     val fontSize = if (active) 16.sp else 15.sp
     Column(
         modifier = Modifier
             .clickable { onClick() }
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp)
+            .onGloballyPositioned { coords ->
+                val b = coords.boundsInParent()
+                onCenterX(((b.left + b.right) / 2f).toInt())
+            },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -511,11 +534,11 @@ private fun GroupTab(name: String, active: Boolean, onClick: () -> Unit) {
             maxLines = 1
         )
         Spacer(Modifier.height(3.dp))
-        // 短红线：固定一个汉字宽（16dp），居中；未点亮时占位透明，避免跳动
+        // 短红线：短而粗（14dp x 3dp），居中；未点亮时占位透明，避免跳动
         Box(
             Modifier
-                .width(16.dp)
-                .height(2.dp)
+                .width(14.dp)
+                .height(3.dp)
                 .background(if (active) Color(0xFFF03036) else Color.Transparent)
         )
     }
