@@ -516,18 +516,18 @@ private fun fmtAmount(v: Double): String {
 
 /**
  * 字体对比页：每个字体显示「粗(Medium) / 细(Light)」两行 0123456789，
- * 用户一屏看全，专挑「粗细 + 宽窄」最像同花顺的那一个。
- * （注：这一批字体全都是「有勾」的主流字体，差异在字重和宽窄。）
+ * 外加一个 80sp 超大的 6/9 尾巴对比区，用户一屏看全，
+ * 专挑「6/9 尾巴最短最直 + 整体像同花顺」的那一个。
  */
 @Composable
 fun FontComparePage() {
-    // 候选字体清单：名称 + 字体家族
+    // 候选字体清单；第一个 Roboto 是上一版胜出者，作为基准
     val candidates: List<Pair<String, FontFamily>> = listOf(
-        "系统默认(Roboto)" to FontFamily.Default,
-        "Roboto" to FontFamily(Font(R.font.roboto)),
-        "Roboto Condensed" to FontFamily(Font(R.font.robotocondensed)),
-        "Inter" to FontFamily(Font(R.font.inter)),
-        "Noto Sans" to FontFamily(Font(R.font.notosans))
+        "系统默认" to FontFamily.Default,
+        "Roboto(上版胜出)" to FontFamily(Font(R.font.roboto)),
+        "Open Sans" to FontFamily(Font(R.font.opensans)),
+        "Lato" to FontFamily(Font(R.font.lato)),
+        "Source Sans 3" to FontFamily(Font(R.font.sourcesans3))
     )
 
     androidx.compose.foundation.layout.Column(
@@ -537,7 +537,7 @@ fun FontComparePage() {
             .verticalScroll(rememberScrollState())
             .padding(12.dp)
     ) {
-        Text("字体对比 (全都'有勾'，比粗细/宽窄)", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("字体对比 (比 6/9 尾巴长短 + 粗细)", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(12.dp))
         for ((label, ff) in candidates) {
             Text("【$label】", color = Color(0xFF888888), fontSize = 11.sp)
@@ -557,14 +557,14 @@ fun FontComparePage() {
                 fontFamily = ff,
                 fontWeight = FontWeight.Light
             )
-            // 6 和 9 单独放大，方便盯"勾"的形状和长短
+            // 6 和 9 超大，方便精确判断"尾巴长短/弯度"
             Text(
                 text = "6  9",
                 color = Color(0xFFF5222D),
-                fontSize = 44.sp,
+                fontSize = 80.sp,
                 fontFamily = ff
             )
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
 }
