@@ -1494,7 +1494,7 @@ private fun MiniMinuteChart(
         )
         drawPath(path = areaPath, brush = areaBrush)
 
-        // 最后画线，压在面积之上，保证线清晰
-        drawPath(path = path, color = lineColor, style = Stroke(width = 1.6f))
+        // 最后画线，压在面积之上，保证线清晰、醒目加粗
+        drawPath(path = path, color = lineColor, style = Stroke(width = 3.5f))
     }
 }
