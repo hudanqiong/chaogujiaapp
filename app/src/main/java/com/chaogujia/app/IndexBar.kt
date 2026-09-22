@@ -51,6 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -1196,15 +1198,22 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             try {
                 val list = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
                 stocks = list
-                // 拉取每只股票的分时走势（逐只请求，失败跳过）
+                // 拉取每只股票的分时走势（并发请求，失败跳过）——避免串行导致首屏长时间空白
                 val m = HashMap<String, Pair<List<DetailTrend>, Double>>()
-                for (s in list) {
-                    try {
-                        val d = withContext(Dispatchers.IO) { Api.detail(s.code) }
-                        if (d != null && d.trends.isNotEmpty()) {
-                            m[s.code] = d.trends to d.base.preClose
-                        }
-                    } catch (e: Exception) { }
+                if (list.isNotEmpty()) {
+                    val results = withContext(Dispatchers.IO) {
+                        list.map { s ->
+                            async {
+                                try {
+                                    val d = Api.detail(s.code)
+                                    if (d != null && d.trends.isNotEmpty())
+                                        s.code to (d.trends to d.base.preClose)
+                                    else null
+                                } catch (e: Exception) { null }
+                            }
+                        }.awaitAll()
+                    }
+                    for (r in results) if (r != null) m[r.first] = r.second
                 }
                 if (m.isNotEmpty()) trendMap = m
                 val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.CHINA)
@@ -1362,7 +1371,17 @@ private fun MiniMinuteChart(
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
-        if (trends.size < 2) return@Canvas
+
+        // 数据未就绪：画一条浅灰占位提示线，让用户明确看到分时图的位置
+        if (trends.size < 2) {
+            drawLine(
+                color = Color(0xFFEEEEEE),
+                start = Offset(0f, h / 2f),
+                end = Offset(w, h / 2f),
+                strokeWidth = 1.6f
+            )
+            return@Canvas
+        }
 
         var maxP = preClose
         var minP = preClose
@@ -1385,8 +1404,10 @@ private fun MiniMinuteChart(
             strokeWidth = 1f
         )
 
-        val total = 240f
-        fun xOf(i: Int): Float = ((i.toFloat() / total).coerceIn(0f, 1f)) * w
+        // x 轴按数据实际时间跨度（min 值域）自适应铺满整栏；
+        // A股全天约 240 分钟（含集合竞价可达 ~270），用实际末点保证对齐且铺满。
+        val maxMin = trends.maxOf { it.min }.toFloat().coerceAtLeast(1f)
+        fun xOf(i: Int): Float = ((trends[i].min.toFloat() / maxMin).coerceIn(0f, 1f)) * w
 
         val last = trends.last().price
         // 线色：相对昨收 涨红 / 跌绿 / 平灰；竖向渐变——上端深、下端浅
