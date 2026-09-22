@@ -512,3 +512,49 @@ private fun fmtAmount(v: Double): String {
         else -> String.format(Locale.CHINA, "%.0f", v)
     }
 }
+/* ==================== 字体对比页（临时调试用，选完删除） ==================== */
+
+/**
+ * 字体对比页：把候选字体的 0123456789 大字并排列出，
+ * 用户一屏看全，专挑「6/9 无勾」且整体像同花顺的那一个。
+ */
+@Composable
+fun FontComparePage() {
+    // 候选字体清单：名称 + 字体家族
+    val candidates: List<Pair<String, FontFamily>> = listOf(
+        "Oswald" to FontFamily(Font(R.font.oswald)),
+        "Barlow Condensed" to FontFamily(Font(R.font.barlow_cond)),
+        "Archivo Narrow" to FontFamily(Font(R.font.archivo_narrow)),
+        "Saira Condensed" to FontFamily(Font(R.font.saira_cond)),
+        "系统默认" to FontFamily.Default
+    )
+
+    androidx.compose.foundation.layout.Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+            .verticalScroll(rememberScrollState())
+            .padding(12.dp)
+    ) {
+        Text("字体对比 (看 6 和 9 有没有勾)", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(12.dp))
+        for ((label, ff) in candidates) {
+            Text("【$label】", color = Color(0xFF888888), fontSize = 11.sp)
+            // 全数字
+            Text(
+                text = "0123456789",
+                color = Color.Black,
+                fontSize = 28.sp,
+                fontFamily = ff
+            )
+            // 6 和 9 单独放大，方便盯"有没有勾"
+            Text(
+                text = "6  9",
+                color = Color(0xFFF5222D),
+                fontSize = 48.sp,
+                fontFamily = ff
+            )
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
