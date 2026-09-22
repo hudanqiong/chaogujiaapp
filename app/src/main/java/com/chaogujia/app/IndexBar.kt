@@ -535,6 +535,17 @@ private val NUM_CANDS: List<NumCand> = listOf(
     NumCand("DIN din_medium", FontFamily(Font(R.font.din_medium))),
 )
 
+/** 下跌绿候选：label + 颜色。挑一个最顺眼的，告诉我 label 前字母即可 */
+private data class ColorCand(val label: String, val color: Color)
+private val DOWN_CANDS = listOf(
+    ColorCand("① 现状 2E7D32（偏黑）", Color(0xFF2E7D32)),
+    ColorCand("② 00A05A（清新绿）", Color(0xFF00A05A)),
+    ColorCand("③ 00B050（翠绿·同花顺）", Color(0xFF00B050)),
+    ColorCand("④ 00C853（亮饱和绿）", Color(0xFF00C853)),
+    ColorCand("⑤ 3CB371（柔和中绿）", Color(0xFF3CB371)),
+    ColorCand("⑥ 1DB954（清新流行绿）", Color(0xFF1DB954)),
+)
+
 @Composable
 fun FontComparePage() {
     LazyColumn(
@@ -572,6 +583,44 @@ fun FontComparePage() {
                     fontSize = 22.sp,
                     color = Color(0xFFF5222D),
                     fontFamily = fam
+                )
+                HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
+            }
+        }
+        item {
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = Color(0xFFCCCCCC))
+            Spacer(Modifier.height(10.dp))
+            Text("↓ 下跌绿色对比（挑一个告诉我编号）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("看哪个最像同花顺的跌绿、又不偏黑。用同花顺金融体渲染。",
+                fontSize = 11.sp, color = Color(0xFF888888))
+            Spacer(Modifier.height(4.dp))
+        }
+        items(DOWN_CANDS) { c ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 左侧色块
+                    Box(
+                        Modifier
+                            .size(28.dp)
+                            .background(c.color)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(c.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                }
+                Spacer(Modifier.height(3.dp))
+                // 用该颜色 + 金融字体渲染真实行情串（跌）
+                Text(
+                    text = "3963.73  -12.85  -0.32%",
+                    fontSize = 24.sp,
+                    color = c.color,
+                    fontFamily = FontFamily(Font(R.font.ths_regular))
+                )
+                Text(
+                    text = "深证成指  9876.54  -1.28%",
+                    fontSize = 15.sp,
+                    color = c.color,
+                    fontFamily = FontFamily(Font(R.font.ths_regular))
                 )
                 HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
             }
