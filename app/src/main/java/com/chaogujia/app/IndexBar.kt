@@ -277,7 +277,7 @@ private fun TopActionButton(
         Spacer(Modifier.height(2.dp))
         Text(
             text = label,
-            color = if (enabled) Color(0xFF333333) else Color(0xFFBBBBBB),
+            color = Color(0xFF333333),
             fontSize = 11.sp,
             fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
         )
