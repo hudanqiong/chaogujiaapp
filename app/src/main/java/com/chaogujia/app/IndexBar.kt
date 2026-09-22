@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -217,6 +218,40 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     color = Color(0xFFEEEEEE)
                 )
 
+                // 列表统计/列头（名称代码 | 最新价 | 涨跌幅），与 StockRow 三段对齐
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF7F7F7))
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "名称 / 代码",
+                        color = COLOR_SUB,
+                        fontSize = 12.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "最新价",
+                        color = COLOR_SUB,
+                        fontSize = 12.sp,
+                        modifier = Modifier.width(96.dp),
+                        textAlign = TextAlign.Right
+                    )
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = "涨跌幅",
+                        color = COLOR_SUB,
+                        fontSize = 12.sp,
+                        modifier = Modifier.width(72.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+                HorizontalDivider(
+                    thickness = 1.dp,
+                    color = Color(0xFFEEEEEE)
+                )
                 // 该组股票列表
                 if (stocks.isEmpty()) {
                     Box(
@@ -382,9 +417,10 @@ private fun StockRow(s: StockItem) {
             text = String.format(Locale.CHINA, "%.2f", s.price),
             color = c,
             fontSize = 16.sp,
-            fontFamily = NumFont
+            fontFamily = NumFont,
+            modifier = Modifier.width(96.dp),
+            textAlign = TextAlign.Right
         )
-        Spacer(Modifier.width(16.dp))
         // 右：涨跌幅（固定宽度右对齐，画一个色块底）
         Box(
             Modifier
