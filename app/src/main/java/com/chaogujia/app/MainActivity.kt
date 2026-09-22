@@ -151,15 +151,20 @@ fun ChaoGuJiaApp() {
                     onMemberChanged = { member = it }
                 )
                 "quote" -> EmptyScreen()
-                // 自选页：红条正下方紧贴一排工具条（左=大盘指数，右=占位按钮），下方才是白色内容区
-                "watch" -> Column(Modifier.fillMaxSize()) {
+                // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
+                // 点 ▼ 展开的「指数详情面板」悬浮在内容区之上（不挤压内容区高度）。
+                "watch" -> Box(Modifier.fillMaxSize()) {
+                    Column(Modifier.fillMaxSize()) {
+                        // 只渲染顶部两排（详情面板由 IndexBar 内部以 overlay 形式浮在下方）
+                        HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFEAEAEA))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.White)
+                        )
+                    }
+                    // 叠在最上方：顶部工具条 + （展开时）详情面板
                     IndexBar()
-                    HorizontalDivider(thickness = 0.5.dp, color = Color(0xFFEAEAEA))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.White)
-                    )
                 }
                 "trade" -> EmptyScreen()
                 "news" -> EmptyScreen()

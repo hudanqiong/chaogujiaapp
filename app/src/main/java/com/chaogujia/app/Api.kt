@@ -92,6 +92,37 @@ data class IndexQuote(
     val changePct: Double = 0.0
 )
 
+/** 指数清单项（index_list.php） */
+data class IndexItemInfo(
+    val secid: String = "",
+    val name: String = "",
+    val short: String = "",
+    val code: String = ""
+)
+
+/** 分时点（index_detail.php 的 trends[]） */
+data class TrendPoint(
+    val t: String = "",      // HH:MM
+    val p: Double = 0.0,     // 当前价
+    val avg: Double = 0.0,   // 均价
+    val v: Double = 0.0      // 成交量
+)
+
+/** 指数详情（index_detail.php） */
+data class IndexDetail(
+    val secid: String = "",
+    val name: String = "",
+    val price: Double = 0.0,
+    val change: Double = 0.0,
+    val changePct: Double = 0.0,
+    val amount: Double = 0.0,
+    val preClose: Double = 0.0,
+    val upCount: Int = 0,
+    val downCount: Int = 0,
+    val flatCount: Int = 0,
+    val trends: List<TrendPoint> = emptyList()
+)
+
 object Api {
 
     private fun base(url: String) = Config.BASE_URL + url
@@ -131,6 +162,97 @@ object Api {
             list
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    /** 指数清单（23 个常用指数，含首字简称），无需登录 */
+    fun indexList(): List<IndexItemInfo> {
+        return try {
+            val raw = Net.get(base("index_list.php"))
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<IndexItemInfo>()
+            for (i in 0 until arr.length()) {
+                val j = arr.optJSONObject(i) ?: continue
+                list.add(
+                    IndexItemInfo(
+                        secid = j.optString("secid", ""),
+                        name = j.optString("name", ""),
+                        short = j.optString("short", ""),
+                        code = j.optString("code", "")
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 指定指数的批量行情（secid 逗号分隔，最多 30 个），无需登录 */
+    fun indexQuotesBy(secids: String): List<IndexQuote> {
+        return try {
+            val raw = Net.get(base("index_quote.php?secid=") + secids)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<IndexQuote>()
+            for (i in 0 until arr.length()) {
+                val j = arr.optJSONObject(i) ?: continue
+                list.add(
+                    IndexQuote(
+                        code = j.optString("code", ""),
+                        name = j.optString("name", ""),
+                        price = j.optDouble("price", 0.0),
+                        change = j.optDouble("change", 0.0),
+                        changePct = j.optDouble("changePct", 0.0)
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 指数详情（点数/涨跌/成交额/涨跌家数/分时），无需登录 */
+    fun indexDetail(secid: String): IndexDetail? {
+        return try {
+            val raw = Net.get(base("index_detail.php?secid=") + secid)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return null
+            val d = o.optJSONObject("data") ?: return null
+            val trends = ArrayList<TrendPoint>()
+            val ta = d.optJSONArray("trends")
+            if (ta != null) {
+                for (i in 0 until ta.length()) {
+                    val j = ta.optJSONObject(i) ?: continue
+                    trends.add(
+                        TrendPoint(
+                            t = j.optString("t", ""),
+                            p = j.optDouble("p", 0.0),
+                            avg = j.optDouble("avg", 0.0),
+                            v = j.optDouble("v", 0.0)
+                        )
+                    )
+                }
+            }
+            IndexDetail(
+                secid = d.optString("secid", secid),
+                name = d.optString("name", ""),
+                price = d.optDouble("price", 0.0),
+                change = d.optDouble("change", 0.0),
+                changePct = d.optDouble("changePct", 0.0),
+                amount = d.optDouble("amount", 0.0),
+                preClose = d.optDouble("preClose", 0.0),
+                upCount = d.optInt("upCount", 0),
+                downCount = d.optInt("downCount", 0),
+                flatCount = d.optInt("flatCount", 0),
+                trends = trends
+            )
+        } catch (e: Exception) {
+            null
         }
     }
 
