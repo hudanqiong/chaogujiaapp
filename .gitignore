@@ -12,3 +12,5 @@ local.properties
 
 *.bak
 _backend_probe/
+*.bak_*
+*.bak.*

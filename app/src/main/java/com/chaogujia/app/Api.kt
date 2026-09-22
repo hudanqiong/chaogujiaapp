@@ -131,6 +131,56 @@ data class IndexDetail(
     val trends: List<TrendPoint> = emptyList()
 )
 
+/** 个股头部统计（detail.php 的 base 对象） */
+data class StockBase(
+    val code: String = "",
+    val name: String = "",
+    val price: Double = 0.0,       // 当前价
+    val preClose: Double = 0.0,    // 昨收
+    val open: Double = 0.0,        // 今开
+    val high: Double = 0.0,        // 最高
+    val low: Double = 0.0,         // 最低
+    val change: Double = 0.0,      // 涨跌额
+    val changePct: Double = 0.0,   // 涨跌幅 %
+    val volume: Double = 0.0,      // 成交量(手)
+    val amount: Double = 0.0,      // 成交额(万)
+    val turnover: Double = 0.0,    // 换手率 %
+    val volRatio: Double = 0.0,    // 量比
+    val mktCap: Double = 0.0,      // 总市值(亿)
+    val floatCap: Double = 0.0,    // 流通市值(亿)
+    val pe: Double = 0.0,          // 市盈率(动)
+    val pb: Double = 0.0,          // 市净率
+    val amplitude: Double = 0.0    // 振幅 %
+)
+
+/** 分时点：[分钟序号, 价格, 量] */
+data class DetailTrend(
+    val min: Int = 0,
+    val price: Double = 0.0,
+    val vol: Double = 0.0
+)
+
+/** K线点：[日期, 开, 收, 高, 低, 量] */
+data class KLinePoint(
+    val date: String = "",
+    val open: Double = 0.0,
+    val close: Double = 0.0,
+    val high: Double = 0.0,
+    val low: Double = 0.0,
+    val vol: Double = 0.0
+)
+
+/** 个股详情（detail.php） */
+data class StockDetail(
+    val code: String = "",
+    val name: String = "",
+    val market: String = "",
+    val k: String = "day",
+    val base: StockBase = StockBase(),
+    val trends: List<DetailTrend> = emptyList(),
+    val line: List<KLinePoint> = emptyList()
+)
+
 object Api {
 
     private fun base(url: String) = Config.BASE_URL + url
@@ -527,8 +577,8 @@ object Api {
     fun addWatch(token: String?, code: String, gid: Int): Res =
         post("watchlist.php", token, "action" to "add", "code" to code, "gid" to gid)
 
-    /** 删除自选 */
-    fun delWatch(token: String?, code: String, gid: Int): Res =
+    /** 删除自选（gid<=0 时按 code 从所有分组全局删除） */
+    fun delWatch(token: String?, code: String, gid: Int = 0): Res =
         post("watchlist.php", token, "action" to "del", "code" to code, "gid" to gid)
 
     /** 股票搜索（search.php）。kw 为空返回热门（最多 30 条）。无需登录。 */
@@ -551,10 +601,108 @@ object Api {
         }
     }
 
+    /** 拉取「所有分组」里的自选股代码集合（用于搜索页判断是否已加自选） */
+    fun allWatchCodes(token: String?): Set<String> {
+        val out = HashSet<String>()
+        try {
+            val groups = watchGroups(token)
+            val gids = if (groups.isEmpty()) listOf(0) else groups.map { it.id }
+            for (g in gids) {
+                for (it in stockList(token, g)) {
+                    if (it.code.isNotEmpty()) out.add(it.code)
+                }
+            }
+        } catch (e: Exception) {
+            // 忽略，返回已拿到的
+        }
+        return out
+    }
+
     /** 修改密码 */
     fun changePwd(token: String?, oldPwd: String, newPwd: String): Res =
         post("user.php", token, "action" to "change_pwd", "old" to oldPwd, "new" to newPwd)
 
     /** 退出登录（服务端可无视，前端清理本地即可） */
     fun logout(token: String?): Res = post("logout.php", token)
+
+    /**
+     * 个股详情（detail.php）
+     * @param code 6 位股票代码，如 "000980"
+     * @param k    周期：day / week / month
+     * @param kn   K线条数，默认 320
+     * 无需登录。失败返回 null。
+     */
+    fun detail(code: String, k: String = "day", kn: Int = 320): StockDetail? {
+        return try {
+            val url = base("detail.php?code=") + code + "&k=" + k + "&kn=" + kn
+            val raw = Net.get(url)
+            val o = JSONObject(raw)
+            if (!o.optBoolean("ok", false)) return null
+            val b = o.optJSONObject("base") ?: JSONObject()
+            val bas = StockBase(
+                code = b.optString("code", code),
+                name = b.optString("name", ""),
+                price = b.optDouble("price", 0.0),
+                preClose = b.optDouble("preClose", 0.0),
+                open = b.optDouble("open", 0.0),
+                high = b.optDouble("high", 0.0),
+                low = b.optDouble("low", 0.0),
+                change = b.optDouble("change", 0.0),
+                changePct = b.optDouble("changePct", 0.0),
+                volume = b.optDouble("volume", 0.0),
+                amount = b.optDouble("amount", 0.0),
+                turnover = b.optDouble("turnover", 0.0),
+                volRatio = b.optDouble("volRatio", 0.0),
+                mktCap = b.optDouble("mktCap", 0.0),
+                floatCap = b.optDouble("floatCap", 0.0),
+                pe = b.optDouble("pe", 0.0),
+                pb = b.optDouble("pb", 0.0),
+                amplitude = b.optDouble("amplitude", 0.0)
+            )
+            // 分时
+            val trends = ArrayList<DetailTrend>()
+            val tr = o.optJSONObject("trends")?.optJSONArray("points")
+            if (tr != null) {
+                for (i in 0 until tr.length()) {
+                    val p = tr.optJSONArray(i) ?: continue
+                    trends.add(
+                        DetailTrend(
+                            min = p.optInt(0, 0),
+                            price = p.optDouble(1, 0.0),
+                            vol = p.optDouble(2, 0.0)
+                        )
+                    )
+                }
+            }
+            // K线
+            val line = ArrayList<KLinePoint>()
+            val ln = o.optJSONObject("line")?.optJSONArray("points")
+            if (ln != null) {
+                for (i in 0 until ln.length()) {
+                    val p = ln.optJSONArray(i) ?: continue
+                    line.add(
+                        KLinePoint(
+                            date = p.optString(0, ""),
+                            open = p.optDouble(1, 0.0),
+                            close = p.optDouble(2, 0.0),
+                            high = p.optDouble(3, 0.0),
+                            low = p.optDouble(4, 0.0),
+                            vol = p.optDouble(5, 0.0)
+                        )
+                    )
+                }
+            }
+            StockDetail(
+                code = o.optString("code", code),
+                name = o.optString("name", ""),
+                market = o.optString("market", ""),
+                k = o.optString("k", k),
+                base = bas,
+                trends = trends,
+                line = line
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
 }
