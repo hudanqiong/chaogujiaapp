@@ -512,3 +512,66 @@ private fun fmtAmount(v: Double): String {
         else -> String.format(Locale.CHINA, "%.0f", v)
     }
 }
+
+/* ======================= 字体对比页（临时调试，挑完删除） ======================= */
+
+private data class FontCand(val label: String, val font: FontFamily?, val resName: String?)
+
+private val FONT_CANDS: List<FontCand> = listOf(
+    FontCand("系统默认", null, null),
+    FontCand("Lato(上版)", FontFamily(Font(R.font.lato)), "lato"),
+    FontCand("山海经·将纳", FontFamily(Font(R.font.shanhai_jiangna)), "shanhai_jiangna"),
+    FontCand("山海经·臻珂45", FontFamily(Font(R.font.shanhai_zhenke45)), "shanhai_zhenke45"),
+    FontCand("山海经·臻珂65", FontFamily(Font(R.font.shanhai_zhenke65)), "shanhai_zhenke65"),
+    FontCand("山海经·臻珂75", FontFamily(Font(R.font.shanhai_zhenke75)), "shanhai_zhenke75"),
+    FontCand("汉仪世微55", FontFamily(Font(R.font.hanyi_shiwei)), "hanyi_shiwei"),
+    FontCand("碑版篆·新东", FontFamily(Font(R.font.beiban_xindong)), "beiban_xindong"),
+    FontCand("碑版篆·清空", FontFamily(Font(R.font.beiban_qingkong)), "beiban_qingkong"),
+)
+
+@Composable
+fun FontComparePage() {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color.White).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        item {
+            Text("字体对比（数字用哪套）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("看「数字」行：能正常显示 0123456789 的才可用；空白/回退=该字体没有数字字形",
+                fontSize = 11.sp, color = Color(0xFF888888))
+            Spacer(Modifier.height(6.dp))
+        }
+        items(FONT_CANDS) { c ->
+            val fam = c.font ?: FontFamily.Default
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                    Spacer(Modifier.width(8.dp))
+                    Text("[数字]", fontSize = 10.sp, color = Color(0xFF999999))
+                }
+                // 数字行（超大，看数字字形/是否有数字）
+                Text(
+                    text = "3963.73  +0.35%",
+                    fontSize = 34.sp,
+                    color = Color(0xFFF5222D),
+                    fontFamily = fam
+                )
+                Text(
+                    text = "0123456789 . + - %",
+                    fontSize = 22.sp,
+                    color = Color(0xFF222222),
+                    fontFamily = fam
+                )
+                // 中文行（看中文效果）
+                Text(
+                    text = "上证指数  涨跌幅  成交额  万爽",
+                    fontSize = 16.sp,
+                    color = Color(0xFF111111),
+                    fontFamily = fam
+                )
+                HorizontalDivider(Modifier.padding(top = 8.dp), color = Color(0xFFEEEEEE))
+            }
+        }
+        item { Spacer(Modifier.height(30.dp)) }
+    }
+}
