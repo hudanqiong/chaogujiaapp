@@ -54,6 +54,18 @@ object WatchColumnRegistry {
         colorMode = WatchColumn.ColorMode.UP_DOWN
     )
 
+    /**
+     * 涨幅（合并列）：上行 = 涨跌幅百分比（红涨绿跌），下行 = 最新价（灰色）。
+     * 注意：此列为两行特殊布局，value 仅作占位（真正渲染在 StockRow 里特判 key）。
+     */
+    val PCT_PRICE = WatchColumn(
+        key = "pctPrice",
+        title = "涨幅",
+        width = 84,
+        value = { String.format(Locale.CHINA, "%+.2f%%", it.changePct) },
+        colorMode = WatchColumn.ColorMode.UP_DOWN
+    )
+
     /** 涨跌额 */
     val CHANGE = WatchColumn(
         key = "change",
@@ -67,10 +79,10 @@ object WatchColumnRegistry {
      * 所有可选列。以后扩充字段（如成交量/换手/市值）时在这里加。
      * 注意：扩展到 StockItem 里没有的字段时，需要先给 StockItem 加字段。
      */
-    val ALL: List<WatchColumn> = listOf(PRICE, CHANGE_PCT, CHANGE)
+    val ALL: List<WatchColumn> = listOf(PCT_PRICE, PRICE, CHANGE_PCT, CHANGE)
 
-    /** 默认显示的列 key（顺序敏感） */
-    val DEFAULT_KEYS: List<String> = listOf(PRICE.key, CHANGE_PCT.key)
+    /** 默认显示的列 key（顺序敏感）：只默认显示「涨幅」合并列（上百分比 / 下价格） */
+    val DEFAULT_KEYS: List<String> = listOf(PCT_PRICE.key)
 
     /** 按 key 取列定义 */
     fun byKey(key: String): WatchColumn? = ALL.firstOrNull { it.key == key }
@@ -84,11 +96,21 @@ object WatchColumnRegistry {
 object WatchColumnPrefs {
     private const val SP_NAME = "watch_cols"
     private const val KEY_ORDER = "order"
+    private const val KEY_VER = "ver"
+
+    /** 当前列配置版本。改列定义时 +1，可触发老配置一次性迁移。 */
+    private const val CUR_VER = 2
 
     /** 读用户配置；没存过则返回默认 */
     fun load(ctx: android.content.Context): List<String> {
         return try {
             val sp = ctx.getSharedPreferences(SP_NAME, android.content.Context.MODE_PRIVATE)
+            val ver = sp.getInt(KEY_VER, 1)
+            if (ver < CUR_VER) {
+                // 老版本配置迁移：把「最新价 / 涨跌幅」两列合并为「涨幅」合并列
+                sp.edit().putInt(KEY_VER, CUR_VER).apply()
+                return WatchColumnRegistry.DEFAULT_KEYS
+            }
             val raw = sp.getString(KEY_ORDER, null) ?: return WatchColumnRegistry.DEFAULT_KEYS
             val list = raw.split(",").filter { it.isNotBlank() }
             val valid = list.filter { WatchColumnRegistry.byKey(it) != null }
@@ -102,7 +124,7 @@ object WatchColumnPrefs {
     fun save(ctx: android.content.Context, keys: List<String>) {
         try {
             val sp = ctx.getSharedPreferences(SP_NAME, android.content.Context.MODE_PRIVATE)
-            sp.edit().putString(KEY_ORDER, keys.joinToString(",")).apply()
+            sp.edit().putString(KEY_ORDER, keys.joinToString(",")).putInt(KEY_VER, CUR_VER).apply()
         } catch (e: Exception) { /* 忽略 */ }
     }
 }

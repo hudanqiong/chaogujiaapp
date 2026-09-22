@@ -279,8 +279,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                 text = col.title,
                                 color = COLOR_SUB,
                                 fontSize = 12.sp,
-                                modifier = Modifier.width(col.width.dp),
-                                textAlign = TextAlign.Center
+                                modifier = Modifier.width(col.width.dp).padding(horizontal = 10.dp),
+                                textAlign = if (col.key == "pctPrice") TextAlign.End else TextAlign.Center
                             )
                         }
                     }
@@ -293,7 +293,10 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                             .fillMaxWidth()
                             .fillMaxHeight()
                             .background(Color.White)
-                            .clickable { showColumns = true }
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showColumns = true }
                             .padding(start = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -521,6 +524,35 @@ private fun StockRow(
             ) {
                 for (col in cols) {
                     val txt = col.value(s)
+                    // 「涨幅」合并列：上行 = 涨跌幅百分比（红涨绿跌），下行 = 最新价（灰色），两行都右对齐
+                    if (col.key == "pctPrice") {
+                        Column(
+                            Modifier
+                                .width(col.width.dp)
+                                .padding(horizontal = 10.dp),
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                                color = colorOf(s.changePct),
+                                fontSize = 14.sp,
+                                fontFamily = NumFont,
+                                textAlign = TextAlign.End,
+                                maxLines = 1
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = String.format(Locale.CHINA, "%.2f", s.price),
+                                color = COLOR_SUB,
+                                fontSize = 12.sp,
+                                fontFamily = NumFont,
+                                textAlign = TextAlign.End,
+                                maxLines = 1
+                            )
+                        }
+                        continue
+                    }
                     when (col.colorMode) {
                         WatchColumn.ColorMode.UP_DOWN -> {
                             // 涨跌幅用色块底，其余用带色文字
