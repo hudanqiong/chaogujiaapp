@@ -185,7 +185,7 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(96.dp)
+            .height(72.dp)
             .background(Color.White)
             .clickable { onToggle() }
             .padding(horizontal = 12.dp),
