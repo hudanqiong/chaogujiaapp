@@ -162,7 +162,6 @@ fun IndexBar() {
                 )
             } else {
                 // 未展开时：红条（指数显示区）与下方白色区之间的分割线
-                Spacer(Modifier.height(8.dp))
                 HorizontalDivider(
                     thickness = 2.dp,
                     color = Color(0xFFEEEEEE)
@@ -188,7 +187,7 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
             .fillMaxWidth()
             .background(Color.White)
             .clickable { onToggle() }
-            .padding(horizontal = 12.dp, vertical = 5.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
