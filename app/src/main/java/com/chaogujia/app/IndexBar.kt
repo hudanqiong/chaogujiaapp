@@ -1463,17 +1463,11 @@ private fun MiniMinuteChart(
         fun xOf(i: Int): Float = ((trends[i].min.toFloat() / maxMin).coerceIn(0f, 1f)) * w
 
         val last = trends.last().price
-        // 线色：相对昨收 涨红 / 跌绿 / 平灰；竖向渐变——上端深、下端浅
-        val lineBrush = when {
-            last > preClose -> Brush.verticalGradient(
-                colors = listOf(Color(0xFFE64A3B), Color(0x40E64A3B))
-            )
-            last < preClose -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF19A05A), Color(0x4019A05A))
-            )
-            else -> Brush.verticalGradient(
-                colors = listOf(Color(0xFF9E9E9E), Color(0x409E9E9E))
-            )
+        // 线色：相对昨收 涨红 / 跌绿 / 平灰 —— 线用纯色
+        val lineColor = when {
+            last > preClose -> Color(0xFFE64A3B)
+            last < preClose -> Color(0xFF19A05A)
+            else -> Color(0xFF9E9E9E)
         }
 
         val path = Path()
@@ -1482,6 +1476,25 @@ private fun MiniMinuteChart(
             val y = yOf(p.price)
             if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
         }
-        drawPath(path = path, brush = lineBrush, style = Stroke(width = 1.6f))
+
+        // 线下方面积：竖向渐变“背景色”，上端浓、往下渐淡
+        val areaPath = Path().apply {
+            addPath(path)
+            lineTo(xOf(trends.size - 1), h)
+            lineTo(xOf(0), h)
+            close()
+        }
+        val areaBrush = Brush.verticalGradient(
+            colors = listOf(
+                lineColor.copy(alpha = 0.28f),
+                lineColor.copy(alpha = 0.04f)
+            ),
+            startY = 0f,
+            endY = h
+        )
+        drawPath(path = areaPath, brush = areaBrush, style = Fill)
+
+        // 最后画线，压在面积之上，保证线清晰
+        drawPath(path = path, color = lineColor, style = Stroke(width = 1.6f))
     }
 }
