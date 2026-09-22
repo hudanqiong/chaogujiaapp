@@ -628,9 +628,10 @@ private fun StockRow(
                 ) {
                     Box(
                         Modifier
+                            .width(78.dp)
+                            .height(24.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(colorOf(s.changePct))
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                            .background(colorOf(s.changePct)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -640,7 +641,7 @@ private fun StockRow(
                             else
                                 String.format(Locale.CHINA, "%.2f%%", kotlin.math.abs(s.changePct)),
                             color = Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 15.sp,
                             fontFamily = NumFont,
                             maxLines = 1
                         )
