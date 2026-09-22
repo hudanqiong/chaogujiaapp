@@ -38,6 +38,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +70,9 @@ private val COLOR_SUB = Color(0xFF888888)
 
 private fun colorOf(pct: Double): Color =
     if (pct > 0.000001) COLOR_UP else if (pct < -0.000001) COLOR_DOWN else COLOR_FLAT
+
+/** 行情数字专用字体：Roboto Condensed（窄体，金融App数字感） */
+private val NumFont = FontFamily(Font(R.font.roboto_condensed))
 
 @Composable
 fun IndexBar() {
@@ -182,23 +187,24 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            // 第一排：点数（大粗红） + 涨跌点（小红）  —— 数字整体压细长
+            // 第一排：点数（大粗红） + 涨跌点（小红）  —— 数字用真窄体 Roboto Condensed
             Row(
-                verticalAlignment = Alignment.Bottom,
-                modifier = Modifier.scale(0.85f, 1f)
+                verticalAlignment = Alignment.Bottom
             ) {
                 Text(
                     text = priceText,
                     color = c,
                     fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = NumFont
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = chgText,
                     color = c,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = NumFont,
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
@@ -209,16 +215,16 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
                 Text(
                     text = nameText,
                     color = Color(0xFF000000),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = pctText,
                     color = c,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.scale(0.85f, 1f)
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = NumFont
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
@@ -279,16 +285,16 @@ private fun IndexDetailPanel(
                 Text(d.name, color = COLOR_TEXT, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(fmt(d.price), color = c, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(fmt(d.price), color = c, fontSize = 24.sp, fontWeight = FontWeight.Bold, fontFamily = NumFont)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         (if (d.change >= 0) "+" else "") + fmt(d.change),
-                        color = c, fontSize = 13.sp, modifier = Modifier.padding(bottom = 3.dp)
+                        color = c, fontSize = 13.sp, fontFamily = NumFont, modifier = Modifier.padding(bottom = 3.dp)
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
                         (if (d.changePct >= 0) "+" else "") + fmt(d.changePct) + "%",
-                        color = c, fontSize = 13.sp, modifier = Modifier.padding(bottom = 3.dp)
+                        color = c, fontSize = 13.sp, fontFamily = NumFont, modifier = Modifier.padding(bottom = 3.dp)
                     )
                 }
                 Spacer(Modifier.height(4.dp))
@@ -360,7 +366,8 @@ private fun IndexChip(short: String, pct: Double?, selected: Boolean, onClick: (
         Text(
             text = if (pct == null) "--" else (if (pct >= 0) "+" else "") + fmt(pct) + "%",
             color = c,
-            fontSize = 9.sp
+            fontSize = 9.sp,
+            fontFamily = NumFont
         )
     }
 }
@@ -439,9 +446,9 @@ private fun TrendChart(d: IndexDetail, modifier: Modifier = Modifier) {
                 .align(Alignment.BottomCenter),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("09:30", color = COLOR_SUB, fontSize = 9.sp)
-            Text("11:30/13:00", color = COLOR_SUB, fontSize = 9.sp)
-            Text("15:00", color = COLOR_SUB, fontSize = 9.sp)
+            Text("09:30", color = COLOR_SUB, fontSize = 9.sp, fontFamily = NumFont)
+            Text("11:30/13:00", color = COLOR_SUB, fontSize = 9.sp, fontFamily = NumFont)
+            Text("15:00", color = COLOR_SUB, fontSize = 9.sp, fontFamily = NumFont)
         }
     }
 }
@@ -485,7 +492,7 @@ private fun InfoRow(label: String, value: String, valueColor: Color) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = COLOR_SUB, fontSize = 12.sp)
-        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = valueColor, fontSize = 12.sp, fontWeight = FontWeight.Medium, fontFamily = NumFont)
     }
 }
 
