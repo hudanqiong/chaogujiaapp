@@ -571,18 +571,45 @@ internal fun watchNameDisplay(name: String): String {
 private fun charWidth(ch: Char): Float = if (ch.code <= 0x7F) 0.5f else 1f
 
 /**
- * 股票名称字号：整名（含「…」）固定为能放下 6 个汉字宽的大小，不再随名称长度缩小。
- * 名称本身已在 [watchNameDisplay] 中按 6 个汉字宽截断，故字号恒定，避免长名被缩成「蚂蚁字」。
+ * 计算名称的「汉字宽度」：汉字/全角 = 1.0，数字/字母/半角符号 = 0.5。
+ * 例：「沪深300ETF华泰柏瑞」→ 沪(1)+深(1)+300ETF(3)+华(1)+… = 6+ 。
  */
-internal fun watchNameFontSize(@Suppress("UNUSED_PARAMETER") name: String): Float = NAME_FONT_SP
+internal fun watchNameWidth(name: String): Float {
+    var acc = 0f
+    for (ch in name) acc += charWidth(ch)
+    return acc
+}
+
+/**
+ * 股票名称字号：按「每只股票自己」的名称汉字宽度分档，互不影响。
+ *  · ≤4 字   → 原始大小（14sp）
+ *  · 5 字    → 稍微缩小（13sp）
+ *  · 6 字    → 缩小更多（12sp）
+ *  · ≥7 字   → 与 6 字同字号（12sp），文本由 [watchNameDisplay] 截为「6 汉字宽 + …」
+ * 注意：这里的缩放只作用于当前这一只股票，不会影响同列表其他股票。
+ */
+internal fun watchNameFontSize(name: String): Float {
+    val w = watchNameWidth(name)
+    return when {
+        w <= 4f -> NAME_FONT_L0_SP   // ≤4 字：默认大小
+        w <= 5f -> NAME_FONT_L1_SP   // 5 字：稍微缩小
+        w <= 6f -> NAME_FONT_L2_SP   // 6 字：缩得更多
+        else    -> NAME_FONT_L3_SP   // ≥7 字：同 6 字字号 + 省略号
+    }
+}
 
 /** 名称最多显示的「汉字宽度」数（汉字=1，数字/字母=0.5），超过则截断加省略号 */
 private const val NAME_MAX_HAN = 6f
-/**
- * 名称固定字号：名称列可用宽 80dp，需容纳「6 个汉字宽 + 1 个「…」」≈ 7 个汉字宽，
- * 80 / 7 ≈ 11.4，取 11.5sp，保证「沪深300ETF华…」能完整放下且不被二次截断。
- */
-private const val NAME_FONT_SP = 11.5f
+
+/* 名称字号分档（sp）：只影响「该只股票自己」，与其他股票无关 */
+/** ≤4 汉字宽：默认原始大小 */
+private const val NAME_FONT_L0_SP = 14f
+/** 5 汉字宽：稍微缩小 */
+private const val NAME_FONT_L1_SP = 13f
+/** 6 汉字宽：缩小更多 */
+private const val NAME_FONT_L2_SP = 12f
+/** ≥7 汉字宽：与 6 字同字号（文本已截断为 6 汉字宽 + …，需容纳省略号留量） */
+private const val NAME_FONT_L3_SP = 12f
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
@@ -1421,7 +1448,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                                 .border(1.dp, Color(0xFFEEEEEE), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
                                 .padding(8.dp)
                         ) {
-                            Text(watchNameDisplay(s.name), color = Color(0xFF111111), fontSize = 14.sp,
+                            Text(watchNameDisplay(s.name), color = Color(0xFF111111),
+                                fontSize = watchNameFontSize(s.name).sp,
                                 fontWeight = FontWeight.SemiBold, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(2.dp))
