@@ -495,7 +495,7 @@ private fun GroupTabsBar(
 /** 单个分组标签：上文字、下短红线（点亮时）。红线固定一个字宽并居中。 */
 @Composable
 private fun GroupTab(name: String, active: Boolean, onClick: () -> Unit) {
-    val textColor = if (active) Color(0xFFF03036) else Color(0xFF888888)
+    val textColor = if (active) Color(0xFF000000) else Color(0xFF888888)
     val fontSize = if (active) 16.sp else 15.sp
     Column(
         modifier = Modifier
