@@ -60,9 +60,9 @@ import java.util.Locale
  */
 
 /** 涨跌颜色：>=0 红，<0 绿 */
-private val COLOR_UP = Color(0xFFE53935)    // 红（涨）
+private val COLOR_UP = Color(0xFFF5222D)    // 红（涨）——更鲜红
 private val COLOR_DOWN = Color(0xFF2E7D32)  // 绿（跌）
-private val COLOR_FLAT = Color(0xFF999999)  // 平
+private val COLOR_FLAT = Color(0xFF000000)  // 平——纯黑
 private val COLOR_TEXT = Color(0xFF222222)
 private val COLOR_SUB = Color(0xFF888888)
 
@@ -115,13 +115,12 @@ fun IndexBar() {
         }
     }
 
-    // 顶部固定区（红条 + 下移加粗的分割线）的高度：两排约 54dp + 空白 8dp + 线 3dp
-    val topHeight = 65.dp
-
+    // 顶部红条高度由内容自适应，面板紧贴其底部，无需硬编码
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
 
-        // ---------- 上层：顶部固定区（红条 + 分割线），始终贴在顶部 ----------
-        Column(Modifier.fillMaxWidth().background(Color.White)) {
+        // ---------- 主列：红条 + 分割线 +（展开时）面板 +（展开时）关闭遮罩 ----------
+        Column(Modifier.fillMaxWidth()) {
+
             // ================= 顶部两排版工具条（红条）=================
             TopBar(
                 quote = quote,
@@ -129,24 +128,8 @@ fun IndexBar() {
                 onToggle = { expanded = !expanded }
             )
 
-            // 红条与下方内容区之间的分割线
-            // 先留一段空白，让分割线整体下移
-            Spacer(Modifier.height(8.dp))
-            // 加粗的分割线（3dp）
-            HorizontalDivider(
-                thickness = 3.dp,
-                color = Color(0xFFDDDDDD)
-            )
-        }
-
-        // ---------- 下层：面板从红条底部向下延伸，其余区域为关闭遮罩 ----------
-        if (expanded) {
-            Column(
-                Modifier
-                    .fillMaxSize()
-                    .padding(top = topHeight)
-            ) {
-                // 面板本体（从红条下边缘向下展开）
+            if (expanded) {
+                // 展开时：详情面板【直接】从红条底部向下延伸，中间无分割线、无空白
                 IndexDetailPanel(
                     secid = secid,
                     list = list,
@@ -156,7 +139,8 @@ fun IndexBar() {
                         expanded = false
                     }
                 )
-                // 面板以下的剩余区域：透明遮罩，点击即关闭面板
+
+                // 面板以下的剩余区域：透明遮罩，点面板以外任何地方都关闭
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -165,6 +149,13 @@ fun IndexBar() {
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
                         ) { expanded = false }
+                )
+            } else {
+                // 未展开时：红条（指数显示区）与下方白色区之间的分割线
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(
+                    thickness = 3.dp,
+                    color = Color(0xFFDDDDDD)
                 )
             }
         }
@@ -178,8 +169,8 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
     val pct = quote?.changePct ?: 0.0
     val c = colorOf(pct)
     val priceText = quote?.let { fmt(it.price) } ?: "--"
-    val chgText = quote?.let { (if (it.change >= 0) "+" else "") + fmt(it.change) } ?: "--"
-    val pctText = quote?.let { (if (it.changePct >= 0) "+" else "") + fmt(it.changePct) + "%" } ?: "--"
+    val chgText = quote?.let { fmt(it.change) } ?: "--"
+    val pctText = quote?.let { fmt(it.changePct) + "%" } ?: "--"
     val nameText = quote?.name ?: "上证指数"
 
     Row(
@@ -191,8 +182,11 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            // 第一排：点数（大粗红） + 涨跌点（小红）
-            Row(verticalAlignment = Alignment.Bottom) {
+            // 第一排：点数（大粗红） + 涨跌点（小红）  —— 数字整体压细长
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                modifier = Modifier.scale(0.85f, 1f)
+            ) {
                 Text(
                     text = priceText,
                     color = c,
@@ -208,11 +202,24 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
                     modifier = Modifier.padding(bottom = 2.dp)
                 )
             }
-            // 第二排：名称（黑） + 涨跌幅%（红） + ▼
+            // 两排之间加大间距
+            Spacer(Modifier.height(6.dp))
+            // 第二排：名称（纯黑加粗） + 涨跌幅%（红，压细长） + ▼
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = nameText, color = COLOR_TEXT, fontSize = 12.sp)
+                Text(
+                    text = nameText,
+                    color = Color(0xFF000000),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(Modifier.width(6.dp))
-                Text(text = pctText, color = c, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    text = pctText,
+                    color = c,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.scale(0.85f, 1f)
+                )
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = if (expanded) "▲" else "▼",
@@ -303,7 +310,7 @@ private fun IndexDetailPanel(
                 InfoRow("成交额", fmtAmount(d.amount), COLOR_TEXT)
                 InfoRow("涨家数", d.upCount.toString(), COLOR_UP)
                 InfoRow("跌家数", d.downCount.toString(), COLOR_DOWN)
-                InfoRow("平家数", d.flatCount.toString(), COLOR_SUB)
+                InfoRow("平家数", d.flatCount.toString(), COLOR_FLAT)
             }
         }
 
