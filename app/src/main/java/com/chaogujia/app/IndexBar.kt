@@ -547,28 +547,24 @@ internal val WATCH_FIXED_W = 96
 internal const val WATCH_NAME_TEXT_W = 80f
 
 /**
- * 股票名称字号：统一固定 15sp（不再按字数缩小）。
- * 超长名称（如 ETF/基金）不再等比缩小字号，而是由使用处
- * maxLines=1 + TextOverflow.Ellipsis 以省略号「…」截断。
+ * 名称显示文本：严格控制在「满 6 个字」就截断。
+ *  · 名称 ≤6 字：原样显示；
+ *  · 名称 >6 字：只显示前 6 个字 + 「…」（手动截断，不依赖按像素截，保证刚好 6 字）。
  */
-internal fun watchNameFontSize(name: String): Float {
-    // 分段策略：
-    //  · ≤6 字：完整显示，字号随字数适度缩小（15sp → 最大 6 字时约 13.3sp），保证 6 字能放进名称列
-    //  · >6 字：字号固定在「刚好放下 6 字」的大小，不再继续缩小；
-    //          超出 6 个字的部分由使用处 maxLines=1 + TextOverflow.Ellipsis 以「…」截断
-    val n = name.length
-    if (n <= 0) return MAX_NAME_FONT_SP
-    val displayChars = if (n > NAME_ELLIPSIS_CHARS) NAME_ELLIPSIS_CHARS else n
-    val fit = WATCH_NAME_TEXT_W / displayChars
-    return fit.coerceIn(NAME_MIN_FONT_SP, MAX_NAME_FONT_SP)
+internal fun watchNameDisplay(name: String): String {
+    return if (name.length > NAME_MAX_CHARS) name.substring(0, NAME_MAX_CHARS) + "…" else name
 }
 
-/** 名称正常最大字号（≤6 字时放不下则等比缩到此值以内） */
-private const val MAX_NAME_FONT_SP = 15f
-/** 超过该字数后不再继续缩小字号，改为省略号截断 */
-private const val NAME_ELLIPSIS_CHARS = 6
-/** 名称允许的最小字号（保证 6 字可读） */
-private const val NAME_MIN_FONT_SP = 13f
+/**
+ * 股票名称字号：整名（含「…」）固定为能放下 6 个字的大小，不再随名称长度缩小。
+ * 名称本身已在 [watchNameDisplay] 中按 6 字截断，故字号恒定，避免长名被缩成「蚂蚁字」。
+ */
+internal fun watchNameFontSize(@Suppress("UNUSED_PARAMETER") name: String): Float = NAME_FONT_SP
+
+/** 名称最多显示的字数，超过则截断加省略号 */
+private const val NAME_MAX_CHARS = 6
+/** 名称固定字号：刚好保证 6 个字能放进名称列（80dp），且不缩成小字 */
+private const val NAME_FONT_SP = 13.3f
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
@@ -666,7 +662,7 @@ private fun StockRow(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = s.name,
+                    text = watchNameDisplay(s.name),
                     color = COLOR_TEXT,
                     fontSize = watchNameFontSize(s.name).sp,
                     maxLines = 1,
@@ -1407,7 +1403,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                                 .border(1.dp, Color(0xFFEEEEEE), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
                                 .padding(8.dp)
                         ) {
-                            Text(s.name, color = Color(0xFF111111), fontSize = 14.sp,
+                            Text(watchNameDisplay(s.name), color = Color(0xFF111111), fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold, maxLines = 1,
                                 overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(2.dp))
