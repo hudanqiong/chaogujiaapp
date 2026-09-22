@@ -150,7 +150,7 @@ fun ChaoGuJiaApp() {
                     onLogout = { doLogout() },
                     onMemberChanged = { member = it }
                 )
-                "quote" -> FontComparePage()
+                "quote" -> EmptyScreen()
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
                 // 点 ▼ 展开的「指数详情面板」悬浮在内容区之上（不挤压内容区高度）。
                 "watch" -> Box(Modifier.fillMaxSize().background(Color.White)) {
