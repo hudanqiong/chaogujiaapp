@@ -513,114 +513,70 @@ private fun fmtAmount(v: Double): String {
     }
 }
 
-/* ======================= 6/9 手绘对比页（临时调试，挑完删除） ======================= */
+/* ======================= 数字字体对比页（临时调试，挑完删除） ======================= */
 /*
- * 目的：数字用系统字体，但 6/9 尾巴改成「直着斜出去」（不往里勾）。
- * 做法：用 Canvas 手绘 6/9 两个字符（圈 + 直斜尾巴），其他数字仍用系统字体。
- * 参数：
- *   isNine  = true 画 9（圈在上，尾巴向下斜出）；false 画 6（圈在下，尾巴向上斜出）
- *   slopeDeg= 尾巴与竖直方向的夹角（0=完全竖直，45=斜得最厉害）
+ * 来源：从「趣股道」APK 扒出的同花顺字体。
+ *   ths_money   = THS Money font Medium（同花顺金额字体，纯数字+符号）
+ *   ths_regular = THS（同花顺金融体）
+ *   din_medium  = DIN
+ * 数字重点看 0-9 的形态，尤其 6/9 的尾巴。
  */
 
-/** 手绘一个 6 或 9（strokeColor=描边颜色，strokeWidth=线宽） */
-@Composable
-private fun DrawnChar(
-    isNine: Boolean,
-    slopeDeg: Float,
-    color: Color,
-    sizeDp: androidx.compose.ui.unit.Dp = 52.dp,
-    strokeDp: androidx.compose.ui.unit.Dp = 3.2.dp
-) {
-    Canvas(modifier = Modifier.size(sizeDp)) {
-        val w = this.size.width
-        val h = this.size.height
-        val sw = strokeDp.toPx() * (w / sizeDp.toPx())
-        val rad = w * 0.30f            // 圈半径
-        val cx = w * 0.50f
-        val cyCircle = if (isNine) h * 0.32f else h * 0.68f  // 9 圈在上，6 圈在下
-        // 1) 画圈
-        drawCircle(
-            color = color,
-            radius = rad,
-            center = Offset(cx, cyCircle),
-            style = Stroke(width = sw)
-        )
-        // 2) 画尾巴：从圈的切线处出发，沿 slopeDeg 方向直斜出去
-        val slopeRad = Math.toRadians(slopeDeg.toDouble())
-        val dirX = Math.sin(slopeRad).toFloat()   // 水平分量
-        val dirY = Math.cos(slopeRad).toFloat()   // 竖直分量
-        // 起点：圈上靠近出发方向的一点
-        val startX = cx + dirX * rad
-        val startY = cyCircle + (if (isNine) dirY * rad else -dirY * rad)
-        // 终点：沿方向延伸
-        val len = rad * 2.15f
-        val endX = startX + dirX * len
-        val endY = startY + (if (isNine) dirY * len else -dirY * len)
-        drawLine(
-            color = color,
-            start = Offset(startX, startY),
-            end = Offset(endX, endY),
-            strokeWidth = sw,
-            cap = androidx.compose.ui.graphics.StrokeCap.Round
-        )
-    }
-}
+private data class NumCand(val label: String, val font: FontFamily?)
 
-private data class SlopeCand(val label: String, val deg: Float)
-
-private val SLOPE_CANDS = listOf(
-    SlopeCand("A 45°斜(明显)", 45f),
-    SlopeCand("B 60°斜(中等)", 60f),
-    SlopeCand("C 75°斜(接近竖直)", 75f),
+private val NUM_CANDS: List<NumCand> = listOf(
+    NumCand("系统默认（参考）", null),
+    NumCand("THS金额体 ths_money", FontFamily(Font(R.font.ths_money))),
+    NumCand("THS金融体 ths_regular", FontFamily(Font(R.font.ths_regular))),
+    NumCand("THS金融体 ths_medium", FontFamily(Font(R.font.ths_medium))),
+    NumCand("THS金融体 ths_bold", FontFamily(Font(R.font.ths_bold))),
+    NumCand("DIN din_medium", FontFamily(Font(R.font.din_medium))),
 )
 
 @Composable
 fun FontComparePage() {
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(Color.White).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Text("6/9 尾巴斜度对比", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("数字用系统字体；6/9 尾巴改成「直着斜出去」。挑一版最像的斜度",
+            Text("数字字体对比（同花顺扒出）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("重点看 6 和 9 的尾巴方向。哪套最像同花顺，就选哪套",
                 fontSize = 11.sp, color = Color(0xFF888888))
-            Spacer(Modifier.height(6.dp))
-            // 对照：系统默认的 6 9
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("系统默认", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
-                Spacer(Modifier.width(12.dp))
-                Text("6", fontSize = 44.sp, color = Color(0xFFF5222D))
-                Spacer(Modifier.width(10.dp))
-                Text("9", fontSize = 44.sp, color = Color(0xFFF5222D))
-            }
-            HorizontalDivider(Modifier.padding(top = 8.dp), color = Color(0xFFDDDDDD))
+            Spacer(Modifier.height(4.dp))
         }
-        items(SLOPE_CANDS) { c ->
+        items(NUM_CANDS) { c ->
+            val fam = c.font ?: FontFamily.Default
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text(c.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 手绘 6
-                    DrawnChar(false, c.deg, Color(0xFFF5222D))
-                    Spacer(Modifier.width(14.dp))
-                    // 手绘 9
-                    DrawnChar(true, c.deg, Color(0xFFF5222D))
-                    Spacer(Modifier.width(20.dp))
-                    // 整串数字（系统字体，看整体搭配）
-                    Text(
-                        "3952.30",
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFF5222D),
-                        fontFamily = FontFamily.Default
-                    )
-                }
+                Text(c.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                Spacer(Modifier.height(3.dp))
+                // 大号数字（看 6/9 形态）
+                Text(
+                    text = "6  9",
+                    fontSize = 40.sp,
+                    color = Color(0xFFF5222D),
+                    fontFamily = fam
+                )
+                // 全部数字
+                Text(
+                    text = "0123456789",
+                    fontSize = 26.sp,
+                    color = Color(0xFF222222),
+                    fontFamily = fam
+                )
+                // 实际行情串
+                Text(
+                    text = "3952.30  +0.35%",
+                    fontSize = 22.sp,
+                    color = Color(0xFFF5222D),
+                    fontFamily = fam
+                )
+                HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
             }
-            HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
         }
         item {
-            Spacer(Modifier.height(20.dp))
-            Text("说明：每一版上方两个巨大的红字就是手绘的 6 和 9（系统字体渲染不了斜尾，所以用手绘）。",
+            Spacer(Modifier.height(16.dp))
+            Text("说明：THS 字体是从「趣股道」APK 里扒出来的，字符集只有数字和符号（就是当金额字体用的）。",
                 fontSize = 11.sp, color = Color(0xFF888888))
         }
     }
