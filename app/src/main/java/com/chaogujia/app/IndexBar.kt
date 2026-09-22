@@ -514,3 +514,72 @@ private fun fmtAmount(v: Double): String {
         else -> String.format(Locale.CHINA, "%.0f", v)
     }
 }
+
+/* ======================= 数字字体对比页（临时调试，挑完删除） ======================= */
+/*
+ * 来源：从「趣股道」APK 扒出的同花顺字体。
+ *   ths_money   = THS Money font Medium（同花顺金额字体，纯数字+符号）
+ *   ths_regular = THS（同花顺金融体）
+ *   din_medium  = DIN
+ * 数字重点看 0-9 的形态，尤其 6/9 的尾巴。
+ */
+
+private data class NumCand(val label: String, val font: FontFamily?)
+
+private val NUM_CANDS: List<NumCand> = listOf(
+    NumCand("系统默认（参考）", null),
+    NumCand("THS金额体 ths_money", FontFamily(Font(R.font.ths_money))),
+    NumCand("THS金融体 ths_regular", FontFamily(Font(R.font.ths_regular))),
+    NumCand("THS金融体 ths_medium", FontFamily(Font(R.font.ths_medium))),
+    NumCand("THS金融体 ths_bold", FontFamily(Font(R.font.ths_bold))),
+    NumCand("DIN din_medium", FontFamily(Font(R.font.din_medium))),
+)
+
+@Composable
+fun FontComparePage() {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().background(Color.White).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Text("数字字体对比（同花顺扒出）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("重点看 6 和 9 的尾巴方向。哪套最像同花顺，就选哪套",
+                fontSize = 11.sp, color = Color(0xFF888888))
+            Spacer(Modifier.height(4.dp))
+        }
+        items(NUM_CANDS) { c ->
+            val fam = c.font ?: FontFamily.Default
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Text(c.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+                Spacer(Modifier.height(3.dp))
+                // 大号数字（看 6/9 形态）
+                Text(
+                    text = "6  9",
+                    fontSize = 40.sp,
+                    color = Color(0xFFF5222D),
+                    fontFamily = fam
+                )
+                // 全部数字
+                Text(
+                    text = "0123456789",
+                    fontSize = 26.sp,
+                    color = Color(0xFF222222),
+                    fontFamily = fam
+                )
+                // 实际行情串
+                Text(
+                    text = "3952.30  +0.35%",
+                    fontSize = 22.sp,
+                    color = Color(0xFFF5222D),
+                    fontFamily = fam
+                )
+                HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
+            }
+        }
+        item {
+            Spacer(Modifier.height(16.dp))
+            Text("说明：THS 字体是从「趣股道」APK 里扒出来的，字符集只有数字和符号（就是当金额字体用的）。",
+                fontSize = 11.sp, color = Color(0xFF888888))
+        }
+    }
+}
