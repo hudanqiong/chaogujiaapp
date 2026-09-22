@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -101,12 +102,29 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
     // 用户自建分组（来自后端 watch_group.php）
     var userGroups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
 
+    // 当前分组下的股票列表
+    var stocks by remember { mutableStateOf<List<StockItem>>(emptyList()) }
+    // 列表是否加载中
+    var loadingStocks by remember { mutableStateOf(false) }
     // 拉一次分组列表
     LaunchedEffect(token) {
         try {
             val g = withContext(Dispatchers.IO) { Api.watchGroups(token) }
             if (g.isNotEmpty()) userGroups = g.sortedBy { it.sort }
         } catch (e: Exception) { /* 忽略 */ }
+    }
+    // 切换分组时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 后续接）
+    LaunchedEffect(selectedGroup, token) {
+        loadingStocks = true
+        stocks = emptyList()
+        try {
+            val gid = if (selectedGroup >= 0) selectedGroup else -1
+            if (selectedGroup != -2) {
+                val l = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
+                stocks = l
+            }
+        } catch (e: Exception) { /* 忽略 */ }
+        loadingStocks = false
     }
 
     // 初始拉一次指数清单
@@ -199,18 +217,25 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     color = Color(0xFFEEEEEE)
                 )
 
-                // 该组股票列表（待接数据）
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 40.dp),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Text(
-                        text = "「${groupNameOf(selectedGroup, userGroups)}」股票列表待接入",
-                        color = Color(0xFF999999),
-                        fontSize = 13.sp
-                    )
+                // 该组股票列表
+                if (stocks.isEmpty()) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Text(
+                            text = if (loadingStocks) "加载中…" else "「${groupNameOf(selectedGroup, userGroups)}」暂无股票",
+                            color = Color(0xFF999999),
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(top = 40.dp)
+                        )
+                    }
+                } else {
+                    LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                        items(stocks) { s -> StockRow(s) }
+                    }
                 }
             }
         }
@@ -325,6 +350,60 @@ private fun TopActionButton(
         )
     }
 }
+
+/* ---------------- 自选股票列表行 ---------------- */
+@Composable
+private fun StockRow(s: StockItem) {
+    val c = colorOf(s.changePct)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 左：名称 + 代码
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = s.name,
+                color = COLOR_TEXT,
+                fontSize = 15.sp,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = s.code,
+                color = COLOR_SUB,
+                fontSize = 12.sp,
+                fontFamily = NumFont
+            )
+        }
+        // 中：现价
+        Text(
+            text = String.format(Locale.CHINA, "%.2f", s.price),
+            color = c,
+            fontSize = 16.sp,
+            fontFamily = NumFont
+        )
+        Spacer(Modifier.width(16.dp))
+        // 右：涨跌幅（固定宽度右对齐，画一个色块底）
+        Box(
+            Modifier
+                .width(72.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(c)
+                .padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                color = Color.White,
+                fontSize = 13.sp,
+                fontFamily = NumFont
+            )
+        }
+    }
+}
+
 
 /* ---------------- 自选分组标签栏 ---------------- */
 

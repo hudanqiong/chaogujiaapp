@@ -82,6 +82,14 @@ data class WatchGroup(
     val name: String = "",
     val sort: Int = 0
 )
+/** 股票条目（search.php / watchlist.php list / 行情通用） */
+data class StockItem(
+    val code: String = "",
+    val name: String = "",
+    val price: Double = 0.0,
+    val change: Double = 0.0,
+    val changePct: Double = 0.0
+)
 
 /** 大盘指数（index_quote.php） */
 data class IndexQuote(
@@ -316,6 +324,30 @@ object Api {
             null
         }
     }
+    /** 从 {code,msg,data:[...]} 里取出 data 数组（search.php / watchlist list 用） */
+    private fun dataArrayOf(raw: String): List<StockItem> {
+        return try {
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<StockItem>()
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                list.add(
+                    StockItem(
+                        code = p.optString("code", ""),
+                        name = p.optString("name", ""),
+                        price = p.optString("price", "0").toDoubleOrNull() ?: 0.0,
+                        change = p.optString("change", "0").toDoubleOrNull() ?: 0.0,
+                        changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     /** 通用请求：返回 (ok, msg) */
     private fun post(url: String, token: String?, vararg pairs: Pair<String, Any?>): Res {
@@ -498,6 +530,26 @@ object Api {
     /** 删除自选 */
     fun delWatch(token: String?, code: String, gid: Int): Res =
         post("watchlist.php", token, "action" to "del", "code" to code, "gid" to gid)
+
+    /** 股票搜索（search.php）。kw 为空返回热门（最多 30 条）。无需登录。 */
+    fun search(kw: String): List<StockItem> {
+        return try {
+            val raw = Net.get(base("search.php?kw=" + java.net.URLEncoder.encode(kw, "UTF-8")))
+            dataArrayOf(raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    /** 某分组下的自选股列表（watchlist.php?action=list&gid=X）。gid<=0 取默认分组。 */
+    fun stockList(token: String?, gid: Int): List<StockItem> {
+        return try {
+            val url = base("watchlist.php?action=list&gid=" + gid)
+            val raw = Net.get(url, token)
+            dataArrayOf(raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     /** 修改密码 */
     fun changePwd(token: String?, oldPwd: String, newPwd: String): Res =
