@@ -612,40 +612,44 @@ private fun StockRow(
                     fontFamily = NumFont
                 )
             }
-            // 上层：最右「涨幅」固定列 —— 上行涨跌幅（长方形微圆角色块底+白字），下行最新价（灰），右对齐
-            Column(
+            // 上层：最右「涨幅」固定列 —— 上行涨跌幅（长方形微圆角色块底+白字），下行最新价（灰），整体贴右、垂直居中
+            Box(
                 Modifier
                     .align(Alignment.CenterEnd)
                     .width(WATCH_PCT_COL_W.dp)
                     .fillMaxHeight()
                     .background(Color.White)
                     .padding(end = 10.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.Center
+                contentAlignment = Alignment.CenterEnd
             ) {
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(colorOf(s.changePct))
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Center
                 ) {
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(colorOf(s.changePct))
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontFamily = NumFont,
+                            maxLines = 1
+                        )
+                    }
+                    Spacer(Modifier.height(3.dp))
                     Text(
-                        text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
-                        color = Color.White,
-                        fontSize = 13.sp,
+                        text = String.format(Locale.CHINA, "%.2f", s.price),
+                        color = COLOR_SUB,
+                        fontSize = 12.sp,
                         fontFamily = NumFont,
                         maxLines = 1
                     )
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = String.format(Locale.CHINA, "%.2f", s.price),
-                    color = COLOR_SUB,
-                    fontSize = 12.sp,
-                    fontFamily = NumFont,
-                    maxLines = 1
-                )
             }
         }
         // 每只股票行底部的细分隔线（很淡的浅灰，跟随列表一起滑动）
