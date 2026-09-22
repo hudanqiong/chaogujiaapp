@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -201,7 +202,8 @@ fun SearchPage(
                                     .clickable { kw = h }
                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                             ) {
-                                Text(h, color = Color(0xFF444444), fontSize = 13.sp, maxLines = 1)
+                                Text(h, color = Color(0xFF444444), fontSize = 13.sp, maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }

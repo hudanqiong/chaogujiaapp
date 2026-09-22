@@ -547,16 +547,13 @@ internal val WATCH_FIXED_W = 96
 internal const val WATCH_NAME_TEXT_W = 80f
 
 /**
- * 股票名称自适应字号：常规字号 15sp。
- * A 股名称一般 3~5 字（5 字 × 15sp = 75 ≤ 80 恰好放下）。
- * 超过 5 字（如 ETF/基金等长名）按「可用宽度 ÷ 字数」等比缩小，最小缩到 7.5sp（15sp 的一半）。
- * 返回该名称最终使用的字号（sp）。
+ * 股票名称字号：统一固定 15sp（不再按字数缩小）。
+ * 超长名称（如 ETF/基金）不再等比缩小字号，而是由使用处
+ * maxLines=1 + TextOverflow.Ellipsis 以省略号「…」截断。
  */
 internal fun watchNameFontSize(name: String): Float {
-    val n = name.length
-    if (n <= 5 || n == 0) return 15f
-    val fit = WATCH_NAME_TEXT_W / n           // 单字可占宽度
-    return fit.coerceIn(7.5f, 15f)
+    // 固定字号：超长名称不再等比缩小，统一 15sp，由后续 maxLines=1 + TextOverflow.Ellipsis 截断为省略号
+    return 15f
 }
 
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
@@ -1397,7 +1394,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                                 .padding(8.dp)
                         ) {
                             Text(s.name, color = Color(0xFF111111), fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold, maxLines = 1)
+                                fontWeight = FontWeight.SemiBold, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(2.dp))
                             Text(s.code, color = Color(0xFF888888), fontSize = 11.sp)
                             Spacer(Modifier.height(6.dp))
