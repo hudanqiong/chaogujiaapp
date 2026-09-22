@@ -57,6 +57,13 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 
 /**
  * 自选页 —— 红条正下方的「指数工具条」。
@@ -101,16 +108,28 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
     // 是否展开详情面板
     var expanded by remember { mutableStateOf(false) }
 
+    // 「多股同列」全屏页是否显示
+    var showColumns by remember { mutableStateOf(false) }
+
     // ===== 自选分组标签 =====
     // 当前选中的分组 key：负数为内置组（-1 自选股 / -2 持仓股），>=0 为用户自建组 id
     var selectedGroup by remember { mutableStateOf(-1) }
     // 用户自建分组（来自后端 watch_group.php）
     var userGroups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
-
     // 当前分组下的股票列表
     var stocks by remember { mutableStateOf<List<StockItem>>(emptyList()) }
     // 列表是否加载中
     var loadingStocks by remember { mutableStateOf(false) }
+
+    // ===== 股票列表「列配置」=====
+    // 当前显示哪些统计列（默认：最新价 + 涨跌幅；以后可由用户自定义）
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var colKeys by remember { mutableStateOf(WatchColumnPrefs.load(ctx)) }
+    val activeCols = remember(colKeys) { WatchColumnRegistry.resolve(colKeys) }
+
+    // 点列表行进详情页：记录当前看的是第几只（null = 没进详情页）
+    var detailIdx by remember { mutableStateOf<Int?>(null) }
+
     // 拉一次分组列表
     LaunchedEffect(token) {
         try {
@@ -165,9 +184,22 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
             delay(8000)
         }
     }
-
-    // 顶部红条高度由内容自适应，面板紧贴其底部，无需硬编码
+// 顶部红条高度由内容自适应，面板紧贴其底部，无需硬编码
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+
+        // ---------- 详情页分支：进了详情页就整屏显示，返回时退出 ----------
+        val openIdx = detailIdx
+        if (openIdx != null && openIdx in stocks.indices) {
+            StockDetailPage(
+                token = token,
+                list = stocks,
+                index = openIdx,
+                onClose = { detailIdx = null },
+                onOpenSearch = { detailIdx = null }
+            )
+            return
+        }
+
 
         // ---------- 主列：红条 + 分割线 +（展开时）面板 +（展开时）关闭遮罩 ----------
         Column(Modifier.fillMaxWidth()) {
@@ -177,7 +209,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 quote = quote,
                 expanded = expanded,
                 onToggle = { expanded = !expanded },
-                onOpenNews = onOpenNews
+                onOpenNews = onOpenNews,
+                onOpenColumns = { showColumns = true }
             )
 
             if (expanded) {
@@ -222,35 +255,52 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     color = Color(0xFFEEEEEE)
                 )
 
-                // 列表统计/列头（名称代码 | 最新价 | 涨跌幅），与 StockRow 三段对齐
-                Row(
+                // 列表统计/列头：左侧「名称/代码」固定，右侧统计列横向可滑动
+                // 表头与列表行共用同一个 hScroll，保证左右滑动时两边同步
+                val hScroll = rememberScrollState()
+                // 表头：Box 叠放 —— 下层是可横滑的统计列（铺满整宽），上层是固定列（盖在最上面）
+                // 往左滑时，统计列会从左往右依次钻到固定列底下被遮住
+                Box(
                     Modifier
                         .fillMaxWidth()
                         .height(44.dp)
                         .background(Color.White)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "名称 / 代码",
-                        color = COLOR_SUB,
-                        fontSize = 12.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = "最新价",
-                        color = COLOR_SUB,
-                        fontSize = 12.sp,
-                        modifier = Modifier.width(96.dp),
-                        textAlign = TextAlign.Right
-                    )
-                    Text(
-                        text = "涨跌幅",
-                        color = COLOR_SUB,
-                        fontSize = 12.sp,
-                        modifier = Modifier.width(72.dp),
-                        textAlign = TextAlign.Center
-                    )
+                    // 下层：统计列（从固定列右缘起铺，随列表同步横滑；表头本身不响应手指拖动）
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = WATCH_FIXED_W.dp)
+                            .horizontalScroll(hScroll, enabled = false),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (col in activeCols) {
+                            Text(
+                                text = col.title,
+                                color = COLOR_SUB,
+                                fontSize = 12.sp,
+                                modifier = Modifier.width(col.width.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                    // 上层：固定列「名称 / 代码」，带白底，盖住滑过来的统计列
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .width(WATCH_FIXED_W.dp)
+                            .fillMaxHeight()
+                            .background(Color.White)
+                    ) {
+                        Text(
+                            text = "名称 / 代码",
+                            color = COLOR_SUB,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(start = 16.dp)
+                        )
+                    }
                 }
                 HorizontalDivider(
                     thickness = 1.dp,
@@ -273,10 +323,27 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     }
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
-                        items(stocks) { s -> StockRow(s) }
+                        items(stocks) { s ->
+                            StockRow(
+                                s = s,
+                                cols = activeCols,
+                                hScroll = hScroll,
+                                onOpen = {
+                                    detailIdx = stocks.indexOfFirst { it.code == s.code }
+                                }
+                            )
+                        }
                     }
                 }
             }
+        }
+
+        // ================= 「多股同列」全屏页（图标入口在红条右侧）=================
+        if (showColumns) {
+            MultiStockColumnsScreen(
+                token = token,
+                onClose = { showColumns = false }
+            )
         }
     }
 }
@@ -284,7 +351,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
 /* ---------------- 顶部两排版 ---------------- */
 
 @Composable
-private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, onOpenNews: () -> Unit) {
+private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, onOpenNews: () -> Unit, onOpenColumns: () -> Unit) {
     val pct = quote?.changePct ?: 0.0
     val c = colorOf(pct)
     val priceText = quote?.let { fmt(it.price) } ?: "--"
@@ -351,7 +418,9 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, 
             }
         }
 
-        // ---------- 右侧四个功能按钮（上图标 + 下文字）----------
+        // ---------- 右侧功能按钮（上图标 + 下文字）----------
+        // 「多股同列」：图标取自 bt1.png -> res/drawable/ic_multi_stock_columns.png
+        TopActionButton(R.drawable.ic_multi_stock_columns, "多股同列", enabled = true) { onOpenColumns() }
         TopActionButton(R.drawable.btn_fund, "资金", enabled = false)
         TopActionButton(R.drawable.btn_news, "资讯", enabled = true) { onOpenNews() }
         TopActionButton(R.drawable.btn_asset, "资产", enabled = false)
@@ -391,59 +460,113 @@ private fun TopActionButton(
 }
 
 /* ---------------- 自选股票列表行 ---------------- */
+
+/** 列表左侧「名称/代码」固定列宽度（dp），表头与数据行共用 */ 
+internal val WATCH_FIXED_W = 110
+
+/**
+ * 自选股票行。
+ * 布局：左侧「名称/代码」固定不动；右侧统计列横向可滑动（与表头共用 [hScroll]）；
+ *      点左半区（固定列）进入个股详情页。
+ */
 @Composable
-private fun StockRow(s: StockItem) {
+private fun StockRow(
+    s: StockItem,
+    cols: List<WatchColumn>,
+    hScroll: androidx.compose.foundation.ScrollState,
+    onOpen: () -> Unit
+) {
     val c = colorOf(s.changePct)
     Column(Modifier.fillMaxWidth()) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 左：名称 + 代码
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = s.name,
-                color = COLOR_TEXT,
-                fontSize = 15.sp,
-                maxLines = 1
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = s.code,
-                color = COLOR_SUB,
-                fontSize = 12.sp,
-                fontFamily = NumFont
-            )
-        }
-        // 中：现价
-        Text(
-            text = String.format(Locale.CHINA, "%.2f", s.price),
-            color = c,
-            fontSize = 16.sp,
-            fontFamily = NumFont,
-            modifier = Modifier.width(96.dp),
-            textAlign = TextAlign.Right
-        )
-        // 右：涨跌幅（固定宽度右对齐，画一个色块底）
+        // Box 叠放：下层是可横滑的统计列（铺满整宽），上层是固定列（白底，盖在最上面）
+        // 往左滑时，统计列会从左往右依次钻到固定列底下被遮住
         Box(
             Modifier
-                .width(72.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(c)
-                .padding(vertical = 4.dp),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .height(44.dp)
         ) {
-            Text(
-                text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
-                color = Color.White,
-                fontSize = 13.sp,
-                fontFamily = NumFont
-            )
+            // 下层：统计列（从固定列右缘起铺，与表头同步横滑）
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = WATCH_FIXED_W.dp)
+                    .horizontalScroll(hScroll),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                for (col in cols) {
+                    val txt = col.value(s)
+                    when (col.colorMode) {
+                        WatchColumn.ColorMode.UP_DOWN -> {
+                            // 涨跌幅用色块底，其余用带色文字
+                            if (col.key == "changePct") {
+                                Box(
+                                    Modifier
+                                        .width(col.width.dp)
+                                        .padding(horizontal = 10.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(c)
+                                        .padding(vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = txt,
+                                        color = Color.White,
+                                        fontSize = 13.sp,
+                                        fontFamily = NumFont
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    text = txt,
+                                    color = c,
+                                    fontSize = 15.sp,
+                                    fontFamily = NumFont,
+                                    modifier = Modifier.width(col.width.dp),
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                        else -> {
+                            Text(
+                                text = txt,
+                                color = COLOR_TEXT,
+                                fontSize = 14.sp,
+                                fontFamily = NumFont,
+                                modifier = Modifier.width(col.width.dp),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+            // 上层：固定列「名称 + 代码」，带白底（点击进详情页），盖住滑过来的统计列
+            Column(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .width(WATCH_FIXED_W.dp)
+                    .fillMaxHeight()
+                    .background(Color.White)
+                    .clickable { onOpen() }
+                    .padding(start = 16.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = s.name,
+                    color = COLOR_TEXT,
+                    fontSize = 15.sp,
+                    maxLines = 1
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = s.code,
+                    color = COLOR_SUB,
+                    fontSize = 12.sp,
+                    fontFamily = NumFont
+                )
+            }
         }
-    }
         // 每只股票行底部的细分隔线（很淡的浅灰，跟随列表一起滑动）
         HorizontalDivider(
             thickness = 1.dp,
@@ -941,6 +1064,170 @@ fun FontComparePage() {
             Spacer(Modifier.height(16.dp))
             Text("说明：THS 字体是从「趣股道」APK 里扒出来的，字符集只有数字和符号（就是当金额字体用的）。",
                 fontSize = 11.sp, color = Color(0xFF888888))
+        }
+    }
+}
+/* ================================================================
+ * 「多股同列」全屏页
+ *
+ * 入口：自选页顶部红条右侧「多股同列」按钮（图标 bt1.png）。
+ * 功能：把当前分组下的股票，以 1/2/3/4 列的可切换网格同时显示实时行情。
+ * 数据：复用 Api.stockList(token, gid)，自动刷新。
+ * ================================================================ */
+@Composable
+fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+
+    // 当前分组（默认自选股 -1）
+    var gid by remember { mutableStateOf(-1) }
+    // 分组名映射
+    var groups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
+    // 股票列表
+    var stocks by remember { mutableStateOf<List<StockItem>>(emptyList()) }
+    // 每行显示几列（1 / 2 / 3 / 4）
+    var columns by remember { mutableStateOf(2) }
+    // 刷新
+    var loading by remember { mutableStateOf(false) }
+    var lastUpdate by remember { mutableStateOf("") }
+
+    // 加载分组
+    LaunchedEffect(token) {
+        try { groups = withContext(Dispatchers.IO) { Api.watchGroups(token) }.sortedBy { it.sort } }
+        catch (e: Exception) { }
+    }
+
+    // 加载股票 + 定时刷新（3 秒）
+    LaunchedEffect(token, gid) {
+        while (true) {
+            loading = true
+            try {
+                stocks = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
+                val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.CHINA)
+                    .format(java.util.Date())
+                lastUpdate = now
+            } catch (e: Exception) { }
+            loading = false
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+
+    // 全屏铺满
+    Box(Modifier.fillMaxSize().background(Color.White)) {
+        Column(Modifier.fillMaxSize().systemBarsPadding()) {
+
+            // ---------- 顶栏：关闭 + 标题 + 刷新状态 ----------
+            Row(
+                Modifier.fillMaxWidth().height(48.dp)
+                    .background(Color(0xFFD32F2F)).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "✕",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    modifier = Modifier.clickable { onClose() }.padding(8.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("多股同列", color = Color.White, fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = if (loading) "刷新中…" else "更新 $lastUpdate",
+                    color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp
+                )
+            }
+
+            // ---------- 分组标签 + 列数切换 ----------
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 分组：自选股 + 用户自建组
+                val groupTabs = buildList {
+                    add(-1 to "自选股")
+                    groups.forEach { add(it.id to it.name) }
+                }
+                LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(groupTabs) { (id, name) ->
+                        val on = id == gid
+                        Text(
+                            text = name,
+                            color = if (on) Color.White else Color(0xFF666666),
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .background(
+                                    if (on) Color(0xFFD32F2F) else Color(0xFFF2F2F2),
+                                    androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+                                )
+                                .clickable { gid = id }
+                                .padding(horizontal = 12.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+                // 列数切换 1/2/3/4
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    listOf(1, 2, 3, 4).forEach { n ->
+                        val on = n == columns
+                        Text(
+                            text = "$n",
+                            color = if (on) Color.White else Color(0xFF666666),
+                            fontSize = 13.sp,
+                            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier
+                                .background(
+                                    if (on) Color(0xFFD32F2F) else Color(0xFFF2F2F2),
+                                    androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                                )
+                                .clickable { columns = n }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFFEEEEEE))
+
+            // ---------- 网格 ----------
+            if (stocks.isEmpty()) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    Text(if (loading) "加载中…" else "暂无股票", color = Color(0xFF999999), fontSize = 13.sp)
+                }
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentPadding = PaddingValues(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(stocks) { s ->
+                        Column(
+                            Modifier
+                                .background(Color(0xFFFAFAFA), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFEEEEEE), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                                .padding(8.dp)
+                        ) {
+                            Text(s.name, color = Color(0xFF111111), fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold, maxLines = 1)
+                            Spacer(Modifier.height(2.dp))
+                            Text(s.code, color = Color(0xFF888888), fontSize = 11.sp)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = String.format(java.util.Locale.CHINA, "%.2f", s.price),
+                                color = colorOf(s.changePct), fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold, fontFamily = NumFont
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                text = String.format(java.util.Locale.CHINA, "%+.2f  %+.2f%%", s.change, s.changePct),
+                                color = colorOf(s.changePct), fontSize = 12.sp, fontFamily = NumFont
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
