@@ -71,8 +71,11 @@ private val COLOR_SUB = Color(0xFF888888)
 private fun colorOf(pct: Double): Color =
     if (pct > 0.000001) COLOR_UP else if (pct < -0.000001) COLOR_DOWN else COLOR_FLAT
 
-/** 行情数字专用字体：Oswald（窄体、敦实，最接近同花顺的 DIN 数字感） */
-private val NumFont = FontFamily(Font(R.font.oswald))
+/** 行情数字字体开关：
+ *  - 现在 = FontFamily.Default（系统默认字体，测试"是不是系统字更接近同花顺"）
+ *  - 想换回 Oswald：改成 FontFamily(Font(R.font.oswald)) 即可（字体文件仍在 res/font/）
+ */
+private val NumFont = FontFamily.Default
 
 @Composable
 fun IndexBar() {
