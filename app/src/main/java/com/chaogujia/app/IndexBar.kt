@@ -1179,6 +1179,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
     // 刷新
     var loading by remember { mutableStateOf(false) }
     var lastUpdate by remember { mutableStateOf("") }
+    // 分时走势缓存： code -> (trends, preClose)
+    var trendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
 
     // 加载分组
     LaunchedEffect(token) {
@@ -1191,7 +1193,19 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
         while (true) {
             loading = true
             try {
-                stocks = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
+                val list = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
+                stocks = list
+                // 拉取每只股票的分时走势（逐只请求，失败跳过）
+                val m = HashMap<String, Pair<List<DetailTrend>, Double>>()
+                for (s in list) {
+                    try {
+                        val d = withContext(Dispatchers.IO) { Api.detail(s.code) }
+                        if (d != null && d.trends.isNotEmpty()) {
+                            m[s.code] = d.trends to d.base.preClose
+                        }
+                    } catch (e: Exception) { }
+                }
+                if (m.isNotEmpty()) trendMap = m
                 val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.CHINA)
                     .format(java.util.Date())
                 lastUpdate = now
@@ -1304,6 +1318,16 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             Spacer(Modifier.height(2.dp))
                             Text(s.code, color = Color(0xFF888888), fontSize = 11.sp)
                             Spacer(Modifier.height(6.dp))
+                            // 分时走势：从左向右逐点延伸的折线（涨红跌绿 + 昨收基准线）
+                            val tr = trendMap[s.code]
+                            MiniMinuteChart(
+                                trends = tr?.first ?: emptyList(),
+                                preClose = tr?.second ?: 0.0,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(46.dp)
+                            )
+                            Spacer(Modifier.height(6.dp))
                             Text(
                                 text = String.format(java.util.Locale.CHINA, "%.2f", s.price),
                                 color = colorOf(s.changePct), fontSize = 20.sp,
@@ -1319,5 +1343,63 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * 多股同列卡片里的迷你分时走势图。
+ * 一条从左向右逐点延伸的折线：开盘时点少、靠左；随交易推进逐步铺满整栏。
+ * 涨（相对昨收）红、跌绿、平灰；含昨收基准水平线；无成交量。
+ */
+@Composable
+private fun MiniMinuteChart(
+    trends: List<DetailTrend>,
+    preClose: Double,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) return@Canvas
+        if (trends.size < 2) return@Canvas
+
+        var maxP = preClose
+        var minP = preClose
+        trends.forEach { p ->
+            if (p.price > maxP) maxP = p.price
+            if (p.price < minP) minP = p.price
+        }
+        var range = maxP - minP
+        if (range <= 0.0) range = if (maxP > 0) maxP * 0.01 else 1.0
+        val pad = range * 0.08
+        val top = maxP + pad
+        val bot = minP - pad
+        val span = (top - bot).let { if (it <= 0.0) 1.0 else it }
+        fun yOf(p: Double): Float = (h * (1.0 - (p - bot) / span)).toFloat()
+
+        drawLine(
+            color = Color(0xFFDDDDDD),
+            start = Offset(0f, yOf(preClose)),
+            end = Offset(w, yOf(preClose)),
+            strokeWidth = 1f
+        )
+
+        val total = 240f
+        fun xOf(i: Int): Float = ((i.toFloat() / total).coerceIn(0f, 1f)) * w
+
+        val last = trends.last().price
+        val lineColor = when {
+            last > preClose -> Color(0xFFE64A3B)
+            last < preClose -> Color(0xFF19A05A)
+            else -> Color(0xFF9E9E9E)
+        }
+
+        val path = Path()
+        trends.forEachIndexed { i, p ->
+            val x = xOf(i)
+            val y = yOf(p.price)
+            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path = path, color = lineColor, style = Stroke(width = 1.6f))
     }
 }
