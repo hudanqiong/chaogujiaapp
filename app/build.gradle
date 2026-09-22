@@ -16,6 +16,21 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 固定签名：保证每次 CI 构建签名一致，可直接覆盖安装（升级），登录态保留
+            def ksFile = rootProject.file('app/cgj-fixed-debug.keystore')
+            if (ksFile.exists()) {
+                signingConfigs {
+                    fixedDebug {
+                        storeFile ksFile
+                        storePassword 'cgjfixed123'
+                        keyAlias 'cgjdebug'
+                        keyPassword 'cgjfixed123'
+                    }
+                }
+                signingConfig signingConfigs.fixedDebug
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'

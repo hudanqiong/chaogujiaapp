@@ -24,6 +24,21 @@ jobs:
         with:
           gradle-version: '8.7'
 
+      - name: Ensure fixed debug keystore
+        run: |
+          if [ ! -f app/cgj-fixed-debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore app/cgj-fixed-debug.keystore \
+              -alias cgjdebug \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass cgjfixed123 -keypass cgjfixed123 \
+              -dname "CN=Chaogujia Debug, OU=Dev, O=Chaogujia, L=City, ST=State, C=CN"
+            echo "NOTE: keystore generated fresh in this run."
+          else
+            echo "NOTE: using existing keystore from repo."
+          fi
+          keytool -list -keystore app/cgj-fixed-debug.keystore -storepass cgjfixed123 | head -5
+
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon --stacktrace > full_build_log.txt 2>&1 || (cat full_build_log.txt; exit 1)
 
@@ -33,6 +48,14 @@ jobs:
         with:
           name: build-log
           path: full_build_log.txt
+          if-no-files-found: warn
+
+      - name: Upload fixed keystore
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fixed-keystore
+          path: app/cgj-fixed-debug.keystore
           if-no-files-found: warn
 
       - name: Upload APK
