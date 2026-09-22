@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
@@ -539,6 +540,25 @@ private fun TopActionButton(
 /** 列表左侧「名称/代码」固定列宽度（dp），表头与数据行共用 */ 
 internal val WATCH_FIXED_W = 96
 
+/**
+ * 名称列可用文字宽度（dp）= 名称列宽 − 左内边距 16dp。
+ * 用于按名称字数自适应字号。
+ */
+internal const val WATCH_NAME_TEXT_W = 80f
+
+/**
+ * 股票名称自适应字号：常规字号 15sp。
+ * A 股名称一般 3~5 字（5 字 × 15sp = 75 ≤ 80 恰好放下）。
+ * 超过 5 字（如 ETF/基金等长名）按「可用宽度 ÷ 字数」等比缩小，最小缩到 7.5sp（15sp 的一半）。
+ * 返回该名称最终使用的字号（sp）。
+ */
+internal fun watchNameFontSize(name: String): Float {
+    val n = name.length
+    if (n <= 5 || n == 0) return 15f
+    val fit = WATCH_NAME_TEXT_W / n           // 单字可占宽度
+    return fit.coerceIn(7.5f, 15f)
+}
+
 /** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
 internal val WATCH_COLS_ENTRY_W = 120
 
@@ -637,8 +657,9 @@ private fun StockRow(
                 Text(
                     text = s.name,
                     color = COLOR_TEXT,
-                    fontSize = 15.sp,
-                    maxLines = 1
+                    fontSize = watchNameFontSize(s.name).sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
