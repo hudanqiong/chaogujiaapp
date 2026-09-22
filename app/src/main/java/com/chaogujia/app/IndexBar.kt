@@ -20,6 +20,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -115,14 +116,21 @@ fun IndexBar() {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
         Column(Modifier.fillMaxWidth().background(Color.White)) {
 
-            // ================= 顶部两排版工具条 =================
+            // ================= 顶部两排版工具条（红条）=================
             TopBar(
                 quote = quote,
                 expanded = expanded,
                 onToggle = { expanded = !expanded }
             )
 
+            // 红条与下方内容区之间的分割线（明显的一条横线）
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = Color(0xFFDDDDDD)
+            )
+
             // ================= 展开：详情大面板 =================
+            // 面板顶部紧贴红条底部的分割线，从该处向下展开
             if (expanded) {
                 IndexDetailPanel(
                     secid = secid,
@@ -183,8 +191,8 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit) 
                 Spacer(Modifier.width(6.dp))
                 Text(
                     text = if (expanded) "▲" else "▼",
-                    color = COLOR_SUB,
-                    fontSize = 10.sp
+                    color = Color(0xFF111111),
+                    fontSize = 12.sp
                 )
             }
         }
