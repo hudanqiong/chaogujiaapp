@@ -290,7 +290,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                         Modifier
                             .align(Alignment.CenterStart)
                             .padding(start = WATCH_FIXED_W.dp)
-                            .fillMaxWidth()
+                            .width(WATCH_COLS_ENTRY_W.dp)
                             .fillMaxHeight()
                             .background(Color.White)
                             .clickable(
@@ -493,6 +493,9 @@ private fun TopActionButton(
 /** 列表左侧「名称/代码」固定列宽度（dp），表头与数据行共用 */ 
 internal val WATCH_FIXED_W = 110
 
+/** 表头中层「多股同列」入口宽度；其后留白给后续功能，「涨幅」列标题显示在最右 */
+internal val WATCH_COLS_ENTRY_W = 120
+
 /**
  * 自选股票行。
  * 布局：左侧「名称/代码」固定不动；右侧统计列横向可滑动（与表头共用 [hScroll]）；
@@ -533,15 +536,25 @@ private fun StockRow(
                             horizontalAlignment = Alignment.End,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
-                                color = colorOf(s.changePct),
-                                fontSize = 14.sp,
-                                fontFamily = NumFont,
-                                textAlign = TextAlign.End,
-                                maxLines = 1
-                            )
+                            // 上行：涨跌幅 —— 长方形微圆角色块底 + 白字，整体右对齐
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(colorOf(s.changePct))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                                    color = Color.White,
+                                    fontSize = 13.sp,
+                                    fontFamily = NumFont,
+                                    textAlign = TextAlign.End,
+                                    maxLines = 1
+                                )
+                            }
                             Spacer(Modifier.height(2.dp))
+                            // 下行：最新价 —— 灰色，右对齐
                             Text(
                                 text = String.format(Locale.CHINA, "%.2f", s.price),
                                 color = COLOR_SUB,
