@@ -2,6 +2,7 @@ package com.chaogujia.app
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,7 +39,8 @@ fun MemberHeaderBar(
     username: String = "",
     isMember: Boolean = false,
     levelName: String = "普通用户",
-    expireAt: String = ""
+    expireAt: String = "",
+    onOpenSearch: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -57,7 +59,7 @@ fun MemberHeaderBar(
             "index" -> MemberInfoRow(username, isMember, levelName, expireAt)
 
             // 自选页：同花顺自选 + 三图标
-            "watch" -> WatchHeaderRow()
+            "watch" -> WatchHeaderRow(onOpenSearch)
 
             // 其他页面：什么都不放（红条高度已写死，依然与其他页一致）
             else -> Unit
@@ -147,7 +149,7 @@ private val ICON_BIG = 25.dp      // 图1、图3
 private val ICON_SMALL = 24.dp    // 图2
 
 @Composable
-private fun WatchHeaderRow() {
+private fun WatchHeaderRow(onOpenSearch: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -187,8 +189,10 @@ private fun WatchHeaderRow() {
             Spacer(Modifier.width(6.dp))
             Image(
                 painter = painterResource(R.drawable.ic_watch_right),
-                contentDescription = null,
-                modifier = Modifier.size(ICON_BIG),
+                contentDescription = "搜索",
+                modifier = Modifier
+                    .size(ICON_BIG)
+                    .clickable { onOpenSearch() },   // ★ 点最右图标 → 全屏搜索页
                 contentScale = ContentScale.FillBounds
             )
         }

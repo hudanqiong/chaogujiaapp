@@ -56,6 +56,7 @@ fun ChaoGuJiaApp() {
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var showLogin by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     var targetTab by remember { mutableStateOf("index") }
 
     // 会员信息（5 页共用，由 MainActivity 统一拉）
@@ -92,7 +93,8 @@ fun ChaoGuJiaApp() {
                 username = uname,
                 isMember = member.isMember,
                 levelName = member.levelName,
-                expireAt = member.expireAt
+                expireAt = member.expireAt,
+                onOpenSearch = { showSearch = true }   // ★ 点自选页红条最右图标 → 全屏搜索页
             )
         },
         bottomBar = {
@@ -162,6 +164,13 @@ fun ChaoGuJiaApp() {
                 "news" -> EmptyScreen()
             }
 
+            // ★ 全屏搜索页：点自选页红条最右图标弹出，盖住整个内容区
+            if (showSearch) {
+                SearchPage(
+                    token = token,
+                    onClose = { showSearch = false }
+                )
+            }
             if (showLogin) {
                 LoginScreen(
                     onSuccess = { tk, un ->
