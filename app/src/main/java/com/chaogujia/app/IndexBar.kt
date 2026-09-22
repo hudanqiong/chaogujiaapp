@@ -71,11 +71,11 @@ private val COLOR_SUB = Color(0xFF888888)
 private fun colorOf(pct: Double): Color =
     if (pct > 0.000001) COLOR_UP else if (pct < -0.000001) COLOR_DOWN else COLOR_FLAT
 
-/** 行情数字字体开关：
- *  - 现在 = FontFamily.Default（系统默认字体，测试"是不是系统字更接近同花顺"）
- *  - 想换回 Oswald：改成 FontFamily(Font(R.font.oswald)) 即可（字体文件仍在 res/font/）
+/** 行情数字字体开关（已定稿 = Lato）：
+ *  - 选 Lato 的原因：6/9 尾巴长度最接近同花顺（经 4 批对比页实机挑选）
+ *  - 想换别的：改成 FontFamily(Font(R.font.xxx)) 即可
  */
-private val NumFont = FontFamily.Default
+private val NumFont = FontFamily(Font(R.font.lato))
 
 @Composable
 fun IndexBar() {
@@ -510,61 +510,5 @@ private fun fmtAmount(v: Double): String {
         v >= 1e8 -> String.format(Locale.CHINA, "%.0f亿", v / 1e8)
         v >= 1e4 -> String.format(Locale.CHINA, "%.0f万", v / 1e4)
         else -> String.format(Locale.CHINA, "%.0f", v)
-    }
-}
-/* ==================== 字体对比页（临时调试用，选完删除） ==================== */
-
-/**
- * 字体对比页：每个字体显示「粗(Medium) / 细(Light)」两行 0123456789，
- * 外加一个 80sp 超大的 6/9 尾巴对比区，用户一屏看全，
- * 专挑「6/9 尾巴最短最直 + 整体像同花顺」的那一个。
- */
-@Composable
-fun FontComparePage() {
-    // 候选字体清单；第一个 Roboto 是上一版胜出者，作为基准
-    val candidates: List<Pair<String, FontFamily>> = listOf(
-        "系统默认" to FontFamily.Default,
-        "Roboto(上版胜出)" to FontFamily(Font(R.font.roboto)),
-        "Open Sans" to FontFamily(Font(R.font.opensans)),
-        "Lato" to FontFamily(Font(R.font.lato)),
-        "Source Sans 3" to FontFamily(Font(R.font.sourcesans3))
-    )
-
-    androidx.compose.foundation.layout.Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.White)
-            .verticalScroll(rememberScrollState())
-            .padding(12.dp)
-    ) {
-        Text("字体对比 (比 6/9 尾巴长短 + 粗细)", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(12.dp))
-        for ((label, ff) in candidates) {
-            Text("【$label】", color = Color(0xFF888888), fontSize = 11.sp)
-            // 粗体行
-            Text(
-                text = "0123456789  (粗)",
-                color = Color.Black,
-                fontSize = 26.sp,
-                fontFamily = ff,
-                fontWeight = FontWeight.Medium
-            )
-            // 细体行
-            Text(
-                text = "0123456789  (细)",
-                color = Color.Black,
-                fontSize = 26.sp,
-                fontFamily = ff,
-                fontWeight = FontWeight.Light
-            )
-            // 6 和 9 超大，方便精确判断"尾巴长短/弯度"
-            Text(
-                text = "6  9",
-                color = Color(0xFFF5222D),
-                fontSize = 80.sp,
-                fontFamily = ff
-            )
-            Spacer(Modifier.height(20.dp))
-        }
     }
 }
