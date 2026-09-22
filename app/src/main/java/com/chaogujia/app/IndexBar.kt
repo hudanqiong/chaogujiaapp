@@ -298,7 +298,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(50.dp)
                         .background(Color.White)
                 ) {
                     // 下层：统计列（从固定列右缘起铺，随列表同步横滑；表头本身不响应手指拖动）
@@ -637,7 +637,7 @@ private fun StockRow(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(44.dp)
+                .height(50.dp)
         ) {
             // 下层：统计列（从固定列右缘起铺，与表头同步横滑）
             Row(
