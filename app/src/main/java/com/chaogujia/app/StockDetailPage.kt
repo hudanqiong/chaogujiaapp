@@ -164,6 +164,8 @@ fun StockDetailPage(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
+            // detail-overlay-swallow：吞掉自身空白区点击，阻止穿透到下层 IndexBar 触发「编辑表头」
+            .pointerInput(Unit) { detectTapGestures { /* 空白区：无操作，仅拦截 */ } }
     ) {
         // ================= 顶部红条（仅独立使用时自绘） =================
         // 被 App 级红条托管时（showOwnHeader=false）跳过，避免出现第二条红条 / 图标重复。
