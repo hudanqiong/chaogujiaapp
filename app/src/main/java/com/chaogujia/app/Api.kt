@@ -876,6 +876,8 @@ object Api {
                     "&fields2=f51,f52,f53,f54,f55,f56,f57,f58" +
                     "&klt=" + klt + "&fqt=1&beg=0&end=20500101&lmt=100000"
                 val rawEm = Net.getRaw(emUrl)
+                android.util.Log.i("CGJ_TURNOVER_DEBUG", "URL=" + emUrl)
+                android.util.Log.i("CGJ_TURNOVER_DEBUG", "RAW=" + (rawEm?.take(400) ?: "null"))
                 if (!rawEm.isNullOrEmpty()) {
                     val jo = JSONObject(rawEm)
                     val klines = jo.optJSONObject("data")?.optJSONArray("klines")
