@@ -14,3 +14,11 @@ local.properties
 _backend_probe/
 *.bak_*
 *.bak.*
+
+# 构建产物/临时文件（不入库）
+*.zip
+*.apk
+apk_x/
+*.png~
+kline_test.png
+orderbook.php

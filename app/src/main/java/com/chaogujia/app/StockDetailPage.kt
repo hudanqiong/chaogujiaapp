@@ -1191,7 +1191,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.72f)
-                .padding(end = 46.dp)
+                .padding(start = 2.dp, end = 34.dp)
         ) {
             KLineCanvas(
                 line = show,
@@ -1224,7 +1224,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                 midV = (show.maxOf { it.high } + show.minOf { it.low }) / 2,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .width(46.dp)
+                    .width(34.dp)
                     .fillMaxHeight()
             )
             // ===== 缩放 / 平移圆形按钮：浮在主图（分时/K线主图）底部 =====
@@ -1232,7 +1232,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(end = 46.dp, bottom = 4.dp)
+                    .padding(end = 34.dp, bottom = 4.dp)
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1269,7 +1269,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.28f)
-                .padding(end = 46.dp, top = 4.dp)
+                .padding(start = 2.dp, end = 34.dp, top = 4.dp)
         ) {
             KLineVolumeCanvas(
                 line = show,
