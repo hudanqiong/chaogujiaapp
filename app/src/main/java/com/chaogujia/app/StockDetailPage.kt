@@ -1205,7 +1205,7 @@ private fun KLineCanvas(
             val yHigh = yOf(k.high)
             val yLow = yOf(k.low)
             drawLine(c, Offset(cx, yHigh), Offset(cx, yLow), strokeWidth = 1.4f)
-            // 实体
+            // 实体：涨=空心（描边）、跌=实心（同花顺风格）
             val yO = yOf(k.open)
             val yC = yOf(k.close)
             val yTop = min(yO, yC)
@@ -1213,7 +1213,8 @@ private fun KLineCanvas(
             drawRect(
                 color = c,
                 topLeft = Offset(cx - bw / 2, yTop),
-                size = Size(bw, bh)
+                size = Size(bw, bh),
+                style = if (up) Stroke(width = 1.2f) else Fill
             )
         }
 
