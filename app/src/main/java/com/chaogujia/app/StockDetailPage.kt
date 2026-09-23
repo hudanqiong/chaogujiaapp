@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
@@ -95,6 +98,8 @@ fun StockDetailPage(
 
     // 详情数据
     var detail by remember { mutableStateOf<StockDetail?>(null) }
+    // K线选中的柱子下标（对应 detail.line 的下标；null=未选中，头部显示最新一天）
+    var selK by remember { mutableStateOf<Int?>(null) }
     // 所属概念（含实时涨跌幅）
     var concept by remember { mutableStateOf<Api.Concept?>(null) }
     // 是否已加自选（用于底部“自选”按钮）
@@ -123,6 +128,7 @@ fun StockDetailPage(
         val k = if (period == "minute") "day" else period
         val d = withContext(Dispatchers.IO) { Api.detail(code, k, 320) }
         if (d != null) detail = d
+        selK = null   // 换股票/换周期 → 取消 K 线选中
         loading = false
     }
 
@@ -153,10 +159,11 @@ fun StockDetailPage(
         }
 
         // ================= 头部数据区 =================
-        DetailHeadData(detail)
+        // selK：K线被选中的柱子下标（null=未选中，显示最新一天）
+        DetailHeadData(detail, selK)
 
         // ================= 标签栏 =================
-        PeriodTabs(period) { period = it }
+        PeriodTabs(period) { period = it; selK = null }
 
         // ================= 图表区（占满剩余） =================
         Box(
@@ -167,7 +174,7 @@ fun StockDetailPage(
             when (period) {
                 "minute" -> MinuteChart(detail)
                 "fiveday" -> FiveDayChart(detail)
-                else -> KLineChart(detail)
+                else -> KLineChart(detail, selK) { selK = it }
             }
             if (loading && detail == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -314,8 +321,22 @@ private fun DetailHeaderBar(
 //   列3：量比 / 换 / 额
 // ============================================================
 @Composable
-private fun DetailHeadData(d: StockDetail?) {
+private fun DetailHeadData(d: StockDetail?, selK: Int? = null) {
     val b = d?.base
+    val line = d?.line ?: emptyList()
+    // 选中的那根柱子（越界则回退为未选中）
+    val kp: KLinePoint? = selK?.takeIf { it in line.indices }?.let { line[it] }
+
+    if (kp != null) {
+        DetailHeadSelected(d, line, selK!!, kp)
+    } else {
+        DetailHeadLatest(b)
+    }
+}
+
+/** 未选中：显示今天快照（原逻辑，3 行 × 3 列） */
+@Composable
+private fun DetailHeadLatest(b: StockBase?) {
     val price = b?.price ?: 0.0
     val chg = b?.change ?: 0.0
     val pct = b?.changePct ?: 0.0
@@ -382,6 +403,132 @@ private fun DetailHeadData(d: StockDetail?) {
                 color
             )
         }
+    }
+}
+
+/** 选中某根柱子：左大字=那天收盘/涨跌；右侧 2 行 × 3 列（高·低 / 开·换 / 量·额）；下方全屏标签条 */
+@Composable
+private fun DetailHeadSelected(d: StockDetail?, line: List<KLinePoint>, idx: Int, kp: KLinePoint) {
+    // 那天涨跌：前收 = 上一根收盘（第一根用自身开盘近似）
+    val prevClose = if (idx > 0) line[idx - 1].close else kp.open
+    val chg = kp.close - prevClose
+    val pct = if (prevClose > 0) chg / prevClose * 100.0 else 0.0
+    val color = when {
+        chg > 0 -> RED_UP
+        chg < 0 -> GREEN_DOWN
+        else -> GRAY_FLAT
+    }
+
+    // 估算历史换手率：流通股 = 今日流通市值(亿)*1e8 / 今日价；换手% = vol(手)*100 / 流通股 * 100
+    val b = d?.base
+    val floatShares = if (b != null && b.price > 0 && b.floatCap > 0) b.floatCap * 1e8 / b.price else 0.0
+    val turnoverEst = if (floatShares > 0) kp.vol * 100.0 / floatShares * 100.0 else Double.NaN
+    // 估算成交额(万)：vol(手) * 100 * 均价(≈(开+收+高+低)/4)
+    val avgP = (kp.open + kp.close + kp.high + kp.low) / 4.0
+    val amountEst = kp.vol * 100.0 * avgP / 10000.0
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 左：那天收盘价（大字） + 那天涨跌额/幅
+            Column(modifier = Modifier.width(110.dp)) {
+                Text(
+                    text = fmtNum(kp.close),
+                    color = color,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = DSpNumFont
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "${fmtSigned(chg)}  ${fmtSigned(pct)}%",
+                    color = color,
+                    fontSize = 13.sp,
+                    fontFamily = DSpNumFont
+                )
+            }
+
+            // 右：2 行 × 3 列（列1 高/低、列2 开/换、列3 量/额）
+            Row(modifier = Modifier.weight(1f)) {
+                DetailCol(
+                    Modifier.weight(1f),
+                    listOf(
+                        "高" to fmtNum(kp.high),
+                        "低" to fmtNum(kp.low)
+                    ),
+                    color
+                )
+                DetailCol(
+                    Modifier.weight(1f),
+                    listOf(
+                        "开" to fmtNum(kp.open),
+                        "换" to (if (turnoverEst.isNaN()) "--" else fmtPct(turnoverEst))
+                    ),
+                    color
+                )
+                DetailCol(
+                    Modifier.weight(1f),
+                    listOf(
+                        "量" to fmtVolWan(kp.vol),
+                        "额" to fmtAmt(amountEst)
+                    ),
+                    color
+                )
+            }
+        }
+
+        // ===== 全屏标签条：2024/10/22  至今涨幅 113.83%  473周期 =====
+        val lastClose = line.lastOrNull()?.close ?: kp.close
+        val sincePct = if (kp.close > 0) (lastClose - kp.close) / kp.close * 100.0 else 0.0
+        val nPeriod = line.lastIndex - idx
+        val sinceColor = when {
+            sincePct > 0 -> RED_UP
+            sincePct < 0 -> GREEN_DOWN
+            else -> GRAY_FLAT
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp)
+                .background(Color(0xFFF2F3F5), shape = RoundedCornerShape(4.dp))
+                .padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(kp.date, color = TEXT_MAIN, fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text(
+                "至今涨幅 ",
+                color = TEXT_SUB,
+                fontSize = 12.sp
+            )
+            Text(
+                "${if (sincePct > 0) "+" else ""}${String.format(java.util.Locale.CHINA, "%.2f", sincePct)}%",
+                color = sinceColor,
+                fontSize = 12.sp,
+                fontFamily = DSpNumFont
+            )
+            Spacer(Modifier.width(12.dp))
+            Text(
+                "$nPeriod 周期",
+                color = TEXT_SUB,
+                fontSize = 12.sp,
+                fontFamily = DSpNumFont
+            )
+        }
+    }
+}
+
+/** 成交量（手）：<1万显示 X手；>=1万显示 X.XX万手 */
+private fun fmtVolWan(volHand: Double): String {
+    if (volHand <= 0) return "--"
+    return if (volHand >= 10000) {
+        String.format(java.util.Locale.CHINA, "%.2f万", volHand / 10000.0)
+    } else {
+        String.format(java.util.Locale.CHINA, "%.0f", volHand)
     }
 }
 
@@ -818,8 +965,15 @@ private const val K_DEFAULT_VISIBLE = 60
 /** 点击 ＋/－ 按钮时按比例跳档 */
 private const val K_BTN_ZOOM_STEP = 1.25f
 
+/** 竖线颜色（深灰） */
+private val K_CROSS_COLOR = Color(0xFF666666)
+
+/** 已知窗口右端下标 right、窗口根数 visible 时，窗口左端下标 */
+private fun startOf(right: Int, visible: Int, size: Int): Int =
+    (right - visible + 1).coerceAtLeast(0).coerceAtMost(size - 1)
+
 @Composable
-private fun KLineChart(d: StockDetail?) {
+private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) -> Unit = {}) {
     val line = d?.line ?: emptyList()
     if (line.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -855,6 +1009,12 @@ private fun KLineChart(d: StockDetail?) {
         ) {
             KLineCanvas(
                 line = show,
+                selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices },
+                onPick = { local ->
+                    // 点同一根 → 取消选中；否则选中该根（映射回全局下标）
+                    val g = start + local
+                    onSelect(if (selIdx == g) null else g)
+                },
                 onZoom = { factor ->
                     // factor > 1 放大（根数变少），< 1 缩小（根数变多）
                     val nv = (visible / factor).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
@@ -887,7 +1047,10 @@ private fun KLineChart(d: StockDetail?) {
                 .weight(0.28f)
                 .padding(end = 46.dp, top = 4.dp)
         ) {
-            KLineVolumeCanvas(show)
+            KLineVolumeCanvas(
+                line = show,
+                selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
+            )
         }
         // 底部：左=最早日期，中=按钮栏，右=最新日期
         Row(
@@ -907,26 +1070,57 @@ private fun KLineChart(d: StockDetail?) {
                 rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
             }
             KLineButton(text = "◀") {
-                rightIndex = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
+                val nr = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
+                rightIndex = nr
+                // 若已选中，跟随移动选中框
+                selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
             }
             KLineButton(text = "▶") {
-                rightIndex = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
+                val nr = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
+                rightIndex = nr
+                selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
             }
             Spacer(Modifier.weight(1f))
-            Text(show.last().date, color = TEXT_SUB, fontSize = 10.sp)
+            Text(
+                selIdx?.takeIf { it in line.indices }?.let { line[it].date } ?: show.last().date,
+                color = if (selIdx != null) Color(Config.COLOR_PRIMARY) else TEXT_SUB,
+                fontSize = 10.sp
+            )
         }
     }
 }
 
-/** K线底部小按钮 */
+/**
+ * K线底部小按钮。
+ * 短按 = 执行 1 档；长按 = 每 70ms 连续执行（用于连续缩放/平移）。
+ */
 @Composable
 private fun KLineButton(text: String, onClick: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    // 用 rememberUpdatedState 保证 pointerInput 内始终调用最新 lambda（避免闭包捕获旧状态）
+    val curOnClick by rememberUpdatedState(onClick)
     Box(
         modifier = Modifier
             .padding(horizontal = 3.dp)
             .size(width = 40.dp, height = 24.dp)
             .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
-            .clickable { onClick() },
+            .pointerInput(text) {
+                detectTapGestures(
+                    onPress = {
+                        // 先立即执行一次
+                        curOnClick()
+                        val job = scope.launch {
+                            delay(320) // 长按判定延迟
+                            while (isActive) {
+                                curOnClick()
+                                delay(70)
+                            }
+                        }
+                        tryAwaitRelease()
+                        job.cancel()
+                    }
+                )
+            },
         contentAlignment = Alignment.Center
     ) {
         Text(text, color = TEXT_MAIN, fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -936,22 +1130,40 @@ private fun KLineButton(text: String, onClick: () -> Unit) {
 @Composable
 private fun KLineCanvas(
     line: List<KLinePoint>,
+    selLocal: Int? = null,
+    onPick: (Int) -> Unit = {},
     onZoom: (Float) -> Unit = {},
     onPan: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var lastSlot by remember { mutableFloatStateOf(0f) }
+    val curPick by rememberUpdatedState(onPick)
+    val curZoom by rememberUpdatedState(onZoom)
+    val curPan by rememberUpdatedState(onPan)
     Canvas(
         modifier = modifier
             .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    if (lastSlot > 0f) {
-                        // 手指向右拖(pan.x>0) → K线右移 → 看到更早历史 → rightIndex 变小
-                        val moved = (pan.x / lastSlot).toInt()
-                        if (moved != 0) onPan(moved)
+                detectTransformGestures(
+                    onGesture = { _, pan, zoom, _ ->
+                        if (lastSlot > 0f) {
+                            // 手指向右拖(pan.x>0) → K线右移 → 看到更早历史 → rightIndex 变小
+                            val moved = (pan.x / lastSlot).toInt()
+                            if (moved != 0) curPan(moved)
+                        }
+                        if (zoom != 1f) curZoom(zoom)
                     }
-                    if (zoom != 1f) onZoom(zoom)
-                }
+                )
+            }
+            .pointerInput(Unit) {
+                // 点选柱子（单击）
+                detectTapGestures(
+                    onTap = { off ->
+                        if (lastSlot > 0f && line.isNotEmpty()) {
+                            val i = (off.x / lastSlot).toInt().coerceIn(0, line.size - 1)
+                            curPick(i)
+                        }
+                    }
+                )
             }
     ) {
         val w = size.width
@@ -997,11 +1209,23 @@ private fun KLineCanvas(
                 size = Size(bw, bh)
             )
         }
+
+        // ===== 选中竖线（深灰、贯穿） =====
+        val sel = selLocal
+        if (sel != null && sel in line.indices) {
+            val cx = sel * slot + slot / 2
+            drawLine(
+                color = K_CROSS_COLOR,
+                start = Offset(cx, 0f),
+                end = Offset(cx, h),
+                strokeWidth = 1.5f
+            )
+        }
     }
 }
 
 @Composable
-private fun KLineVolumeCanvas(line: List<KLinePoint>) {
+private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
@@ -1018,6 +1242,17 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>) {
                 color = if (up) RED_UP.copy(alpha = 0.55f) else GREEN_DOWN.copy(alpha = 0.55f),
                 topLeft = Offset(cx - bw / 2, h - vh),
                 size = Size(bw, vh)
+            )
+        }
+        // ===== 选中竖线（与主图对齐） =====
+        val sel = selLocal
+        if (sel != null && sel in line.indices) {
+            val cx = sel * slot + slot / 2
+            drawLine(
+                color = K_CROSS_COLOR,
+                start = Offset(cx, 0f),
+                end = Offset(cx, h),
+                strokeWidth = 1.5f
             )
         }
     }
