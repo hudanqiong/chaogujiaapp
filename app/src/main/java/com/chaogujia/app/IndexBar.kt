@@ -411,7 +411,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                         }
                     }
                     // 上层：固定列「名称 / 代码」区，带白底，盖住滑过来的统计列
-                    // 非持仓股分组：显示两个 24dp 图标（①表头管理页 ②列表排序）
+                    // 非持仓股分组：显示两个 18dp 图标（①表头管理页 ②列表排序），左滑后变「编辑表头 [图标1]」
                     // 持仓股分组(-2)：暂仍显示原文字，后续单独实现
                     Box(
                         Modifier
@@ -421,30 +421,67 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                             .background(Color.White)
                     ) {
                         if (selectedGroup != -2) {
-                            Row(
-                                modifier = Modifier.align(Alignment.CenterStart),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_watch_add),
-                                    contentDescription = "编辑表头",
-                                    modifier = Modifier
-                                        .padding(start = 10.dp)
-                                        .size(24.dp)
-                                        .clickable {
-                                            // TODO: 进入「表头管理页」（交互口径待定）
-                                        }
-                                )
-                                Image(
-                                    painter = painterResource(id = R.drawable.ic_watch_share),
-                                    contentDescription = "排序",
-                                    modifier = Modifier
-                                        .padding(start = 16.dp)
-                                        .size(24.dp)
-                                        .clickable {
-                                            // 排序：暂不接逻辑（空按钮）
-                                        }
-                                )
+                            // 左滑(hScroll.value>0)时：图标2隐藏，显示「编辑表头 [图标1]」
+                            // 未左滑：显示两个 18dp 图标（点击无视觉反馈）
+                            if (hScroll.value == 0) {
+                                Row(
+                                    modifier = Modifier.align(Alignment.CenterStart),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.ic_watch_add),
+                                        contentDescription = "编辑表头",
+                                        modifier = Modifier
+                                            .padding(start = 12.dp)
+                                            .size(18.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                // TODO: 进入「表头管理页」（交互口径待定）
+                                            }
+                                    )
+                                    Image(
+                                        painter = painterResource(id = R.drawable.ic_watch_share),
+                                        contentDescription = "排序",
+                                        modifier = Modifier
+                                            .padding(start = 18.dp)
+                                            .size(18.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                // 排序：暂不接逻辑（空按钮）
+                                            }
+                                    )
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier.align(Alignment.CenterStart),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "编辑表头",
+                                        color = COLOR_TEXT,
+                                        fontSize = 13.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        modifier = Modifier.padding(start = 12.dp)
+                                    )
+                                    Image(
+                                        painter = painterResource(id = R.drawable.ic_watch_add),
+                                        contentDescription = "编辑表头",
+                                        modifier = Modifier
+                                            .padding(start = 6.dp)
+                                            .size(18.dp)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) {
+                                                // TODO: 进入「表头管理页」（交互口径待定）
+                                            }
+                                    )
+                                }
                             }
                         } else {
                             Text(
