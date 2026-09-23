@@ -1315,6 +1315,43 @@ private fun computeMA(line: List<KLinePoint>, period: Int): DoubleArray {
     return out
 }
 
+/**
+ * MACD 指标：EMA12 / EMA26 / DIF / DEA(9) / MACD 柱。
+ * 口径与同花顺一致：
+ *   EMA(n) 递归平滑（首值取首个收盘价）
+ *   DIF  = EMA12 - EMA26
+ *   DEA  = EMA(DIF, 9)
+ *   MACD = (DIF - DEA) * 2
+ * 注意：必须传入「全量」line 计算（EMA 递归与历史有关，
+ *      只算可见窗口会导致值全错），绘制时再按窗口切片。
+ */
+private class MacdResult(
+    val dif: DoubleArray,
+    val dea: DoubleArray,
+    val macd: DoubleArray
+)
+
+private fun ema(src: DoubleArray, n: Int): DoubleArray {
+    val out = DoubleArray(src.size)
+    if (src.isEmpty() || n <= 0) return out
+    val k = 2.0 / (n + 1)
+    out[0] = src[0]
+    for (i in 1 until src.size) out[i] = src[i] * k + out[i - 1] * (1 - k)
+    return out
+}
+
+private fun computeMACD(line: List<KLinePoint>): MacdResult {
+    val n = line.size
+    if (n == 0) return MacdResult(DoubleArray(0), DoubleArray(0), DoubleArray(0))
+    val close = DoubleArray(n) { line[it].close }
+    val e12 = ema(close, 12)
+    val e26 = ema(close, 26)
+    val dif = DoubleArray(n) { e12[it] - e26[it] }
+    val dea = ema(dif, 9)
+    val macd = DoubleArray(n) { (dif[it] - dea[it]) * 2.0 }
+    return MacdResult(dif, dea, macd)
+}
+
 /** 已知窗口右端下标 right、窗口根数 visible 时，窗口左端下标 */
 private fun startOf(right: Int, visible: Int, size: Int): Int =
     (right - visible + 1).coerceAtLeast(0).coerceAtMost(size - 1)
@@ -1359,11 +1396,21 @@ private fun KLineChart(
     val chip = remember(d?.code, line.size) { computeChipDist(line, d?.base) }
     val chipW = if (showChip && chip != null) 72.dp else 0.dp
 
+    // ===== MACD：必须用「全量」line 计算（EMA 递归依赖历史），再按可见窗口切片 =====
+    val macdFull = remember(d?.code, line.size) { computeMACD(line) }
+    val macdShow = remember(macdFull, start, end) {
+        MacdResult(
+            macdFull.dif.copyOfRange(start, end + 1),
+            macdFull.dea.copyOfRange(start, end + 1),
+            macdFull.macd.copyOfRange(start, end + 1)
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(top = 6.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.72f)
+                .weight(0.58f)
                 .padding(start = 2.dp, end = 2.dp)
         ) {
             KLineCanvas(
@@ -1466,11 +1513,25 @@ private fun KLineChart(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.28f)
+                .weight(0.21f)
                 .padding(start = 2.dp, end = 2.dp, top = 4.dp)
         ) {
             KLineVolumeCanvas(
                 line = show,
+                selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
+            )
+        }
+        // ===== MACD 副图 =====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.21f)
+                .padding(start = 2.dp, end = 2.dp, top = 2.dp)
+        ) {
+            KLineMacdCanvas(
+                dif = macdShow.dif,
+                dea = macdShow.dea,
+                macd = macdShow.macd,
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
             )
         }
@@ -1755,6 +1816,69 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
                 end = Offset(cx, h),
                 strokeWidth = 1.5f
             )
+        }
+    }
+}
+
+/**
+ * MACD 副图（同花顺风格）。
+ * dif/dea/macd 由 computeMACD 对「全量」数据预计算后按可见窗口切片传入，
+ * 保证 EMA 递归与历史一致。
+ * 绘制：MACD 柱（红正/绿负，零轴上下）+ DIF 线（白）+ DEA 线（黄）。
+ */
+@Composable
+private fun KLineMacdCanvas(
+    dif: DoubleArray,
+    dea: DoubleArray,
+    macd: DoubleArray,
+    selLocal: Int? = null
+) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val n = dif.size
+        if (n == 0) return@Canvas
+        val slot = w / n
+        val bw = max(slot * 0.7f, 1f)
+        var maxAbs = 1e-9
+        for (i in 0 until n) {
+            maxAbs = maxOf(maxAbs, kotlin.math.abs(dif[i]), kotlin.math.abs(dea[i]), kotlin.math.abs(macd[i]))
+        }
+        val midY = h / 2f
+        val scale = (h / 2f * 0.92f) / maxAbs.toFloat()
+        // 零轴
+        drawLine(Color(0xFF444444), Offset(0f, midY), Offset(w, midY), strokeWidth = 1.0f)
+        // MACD 柱
+        for (i in 0 until n) {
+            val cx = i * slot + slot / 2
+            val m = macd[i]
+            val bh = (kotlin.math.abs(m) * scale).toFloat()
+            if (bh < 0.5f) continue
+            drawRect(
+                color = if (m >= 0) RED_UP else GREEN_DOWN,
+                topLeft = Offset(cx - bw / 2, if (m >= 0) midY - bh else midY),
+                size = Size(bw, bh),
+                style = Fill
+            )
+        }
+        // DIF 线（白）、DEA 线（黄）
+        fun poly(vals: DoubleArray, c: Color, sw: Float) {
+            var prev: Offset? = null
+            for (i in 0 until n) {
+                val cx = i * slot + slot / 2
+                val cy = (midY - (vals[i] * scale).toFloat()).coerceIn(0f, h)
+                val cur = Offset(cx, cy)
+                prev?.let { drawLine(c, it, cur, strokeWidth = sw) }
+                prev = cur
+            }
+        }
+        poly(dea, Color(0xFFFFD24A), 1.2f)
+        poly(dif, Color(0xFFFFFFFF), 1.2f)
+        // 选中竖线
+        val sel = selLocal
+        if (sel != null && sel in 0 until n) {
+            val cx = sel * slot + slot / 2
+            drawLine(K_CROSS_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.5f)
         }
     }
 }
