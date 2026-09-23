@@ -1864,7 +1864,7 @@ private fun KLineMacdCanvas(
         val n = dif.size
         if (n == 0) return@Canvas
         val slot = w / n
-        val bw = max(slot * 0.7f, 1f)
+        val bw = max(slot * 0.85f, 1.6f)
         var maxAbs = 1e-9
         for (i in 0 until n) {
             maxAbs = maxOf(maxAbs, kotlin.math.abs(dif[i]), kotlin.math.abs(dea[i]), kotlin.math.abs(macd[i]))
@@ -1878,7 +1878,7 @@ private fun KLineMacdCanvas(
             val cx = i * slot + slot / 2
             val m = macd[i]
             val bh = (kotlin.math.abs(m) * scale).toFloat()
-            if (bh < 0.5f) continue
+            if (bh < 0.4f) continue
             drawRect(
                 color = if (m >= 0) RED_UP else GREEN_DOWN,
                 topLeft = Offset(cx - bw / 2, if (m >= 0) midY - bh else midY),
@@ -1886,19 +1886,22 @@ private fun KLineMacdCanvas(
                 style = Fill
             )
         }
-        // DIF 线（白）、DEA 线（黄）
+        // DIF 红线（上攻线）、DEA 黑线；线加粗、左右端点拉满整幅（到底到边）
         fun poly(vals: DoubleArray, c: Color, sw: Float) {
             var prev: Offset? = null
+            // 端点对齐：i=0 -> x=0，i=n-1 -> x=w，线贯穿整个副图宽度，不留左右空隙
+            val step = if (n > 1) w / (n - 1) else 0f
             for (i in 0 until n) {
-                val cx = i * slot + slot / 2
-                val cy = (midY - (vals[i] * scale).toFloat()).coerceIn(0f, h)
+                val cx = if (n > 1) i * step else w / 2f
+                // 不做 coerceIn 到 [0,h]，仅夹到允许的上下边界（含极值贴边），保证"到底"贯穿
+                val cy = (midY - (vals[i] * scale).toFloat())
                 val cur = Offset(cx, cy)
                 prev?.let { drawLine(c, it, cur, strokeWidth = sw) }
                 prev = cur
             }
         }
-        poly(dea, Color(0xFFFFD24A), 1.2f)
-        poly(dif, Color(0xFFFFFFFF), 1.2f)
+        poly(dea, Color(0xFF111111), 2.2f)   // 黑线
+        poly(dif, Color(0xFFE64A3B), 2.2f)   // 红线（上攻线）
         // 选中竖线
         val sel = selLocal
         if (sel != null && sel in 0 until n) {
