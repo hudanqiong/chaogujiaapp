@@ -94,3 +94,42 @@ K线换手率「估算→真值」改造验证结论（方案C：同花顺）
   - 未选中态：标签保留，值回落末根 DIF 0.xxx / MACD -0.552 OK
   - 截图 /sdcard/macd_label_verify.png
   - logcat: K线(同花顺) 成功: 140 根
+
+八、P1-c：MACD 副图加粗 + 红黑双线（提交 a3bb828）
+------------------------------------------------
+需求：MACD 线太细 -> 加粗；DIF/DEA 改红黑双线；线要"到底"（画满全图宽高方向）。
+
+改动（app/src/main/java/com/chaogujia/app/StockDetailPage.kt，KLineMacdCanvas）：
+1) 加粗：
+   - 柱宽 val bw = max(slot * 0.7f, 1f)   -> max(slot * 0.85f, 1.6f)
+   - 柱高过滤 if (bh < 0.5f)              -> if (bh < 0.4f)
+   - 折线线宽 1.2f                        -> 2.2f
+2) 红黑双线（DIF=红 / DEA=黑，A股习惯）：
+   - DIF: 0xFFFFFFFF(白) -> 0xFFE64A3B(红，上攻线)
+   - DEA: 0xFFFFD24A(黄) -> 0xFF111111(黑，另一条)
+3) "到底到边"：
+   - x 坐标由 i*slot + slot/2 改为端点拉满：
+     step = w/(n-1)，i=0 -> x=0，i=n-1 -> x=w
+   - 移除 cy 的 coerceIn(0f, h)，线可画到副图上下边界
+   - 绘制顺序：先黑(DEA)后红(DIF)，红线在上层
+
+构建/装机：artifact chaogujia-debug-apk (id 10764509648, 15817882B)
+           -> app-debug.apk (16265638B) -> pm install -r -d Success
+
+真机像素验证（伊利 600887 日K，选中 20260818，截图 macd_thick_v3.png 346279B）：
+  MACD 副图实际位置 y 1990..2185（画布宽 1264，padding start/end 2dp）
+  RED(DIF  0xFFE64A3B)  cnt=27971  x=7..1256  y=1990..2174   -> 到底到边 OK
+  BLK(DEA  0xFF111111)  cnt= 1782  x=7..1256  y=2008..2167   -> 到底到边 OK
+  GRN(绿柱 0xFF306612)  cnt=15791  x=9..1212  y=1990..2184   -> 正常
+  线宽抽样：x=800 纯线段处垂直连续 2px，x=1000 处 16px（柱+线）-> 2.2f 生效
+  UI 标签：MACD(12,26,9) / MACD -0.449（与 5a0c5c7 口径一致，未回退）
+
+排障记录（重要）：
+  首张截图 /sdcard/macd_thick_verify.png 扫描 R=0，误判红线未渲染。
+  实为截图拍到了"自选股列表页"（UI 自动化点击未进详情页），页面无 MACD 副图。
+  重新走 am force-stop -> 自选 tab -> 伊利 -> 日K -> 画布选中，等 K 线加载完成
+  (logcat Api:I "K线(同花顺) 成功: 140 根") 后截图，红线/黑线全部命中。
+  教训：像素验证前必须先用 OCR/UI dump 确认当前页面确实是目标页，再扫图。
+
+待确认：用户原话"黑线是上攻线"，本实现按 A股习惯取 DIF=红(上攻)/DEA=黑。
+        若用户本意黑线=上攻，则需 DIF/DEA 颜色对调。
