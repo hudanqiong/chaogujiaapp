@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -1499,10 +1500,13 @@ private fun DragBar(
             .fillMaxWidth()
             .height(height)
             .onGloballyPositioned { widthPx = it.size.width.coerceAtLeast(1) }
+            // 只响应「横向」拖动，避免在竖向滚动列表时误触（竖向手势交给 LazyColumn）
             .pointerInput(Unit) {
-                detectDragGestures(
+                detectHorizontalDragGestures(
                     onDragStart = { off -> onFraction((off.x / widthPx).coerceIn(0f, 1f)) },
-                    onDrag = { change, _ -> onFraction((change.position.x / widthPx).coerceIn(0f, 1f)) }
+                    onHorizontalDrag = { change, _ ->
+                        onFraction((change.position.x / widthPx).coerceIn(0f, 1f))
+                    }
                 )
             }
             .pointerInput(Unit) {
@@ -1657,52 +1661,17 @@ fun FontComparePage() {
         modifier = Modifier.fillMaxSize().background(Color.White).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        item {
-            Text("数字字体对比（同花顺扒出）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-            Text("重点看 6 和 9 的尾巴方向。哪套最像同花顺，就选哪套",
-                fontSize = 11.sp, color = Color(0xFF888888))
-            Spacer(Modifier.height(4.dp))
-        }
-        items(NUM_CANDS) { c ->
-            val fam = c.font ?: FontFamily.Default
-            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                Text(c.label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
-                Spacer(Modifier.height(3.dp))
-                // 大号数字（看 6/9 形态）
-                Text(
-                    text = "6  9",
-                    fontSize = 40.sp,
-                    color = RED_UP,
-                    fontFamily = fam
-                )
-                // 全部数字
-                Text(
-                    text = "0123456789",
-                    fontSize = 26.sp,
-                    color = Color(0xFF222222),
-                    fontFamily = fam
-                )
-                // 实际行情串
-                Text(
-                    text = "3952.30  +0.35%",
-                    fontSize = 22.sp,
-                    color = RED_UP,
-                    fontFamily = fam
-                )
-                HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
-            }
-        }
+        // ===== HSV 连续取色器（放在最前，冷启动即可直接拖拽调绿）=====
+        item { GreenPickerCard() }
         item {
             Spacer(Modifier.height(10.dp))
             HorizontalDivider(color = Color(0xFFE8E8E8))
             Spacer(Modifier.height(10.dp))
-            Text("↓ 下跌绿色对比（挑一个告诉我编号）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+            Text("↓ 下跌绿色候选（也可点色块快速跳到某个绿）", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
             Text("看哪个最像同花顺的跌绿、又不偏黑。用同花顺金融体渲染。",
                 fontSize = 11.sp, color = Color(0xFF888888))
             Spacer(Modifier.height(4.dp))
         }
-        // ===== HSV 连续取色器：拖动滑条调绿，上方实时对照效果 =====
-        item { GreenPickerCard() }
         items(DOWN_CANDS) { c ->
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
