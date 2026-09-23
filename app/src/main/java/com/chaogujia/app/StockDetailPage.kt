@@ -1497,7 +1497,8 @@ private fun KLineCanvas(
             val yTop = min(yO, yC)
             val yBot = max(yO, yC)
             val bh = max(abs(yC - yO), 1.2f)
-            val sw = 2.6f   // 描边线宽（加粗）
+            val sw = 2.6f   // 影线线宽
+            val barSw = 3.8f // 涨柱（空心）描边线宽（加粗，同花顺观感）
             // 影线：只画上下两段，不穿过实体中心（同花顺观感）
             if (yHigh < yTop) drawLine(c, Offset(cx, yHigh), Offset(cx, yTop), strokeWidth = sw)
             if (yLow > yBot) drawLine(c, Offset(cx, yBot), Offset(cx, yLow), strokeWidth = sw)
@@ -1506,7 +1507,7 @@ private fun KLineCanvas(
                 color = c,
                 topLeft = Offset(cx - bw / 2, yTop),
                 size = Size(bw, bh),
-                style = if (up) Stroke(width = sw) else Fill
+                style = if (up) Stroke(width = barSw) else Fill
             )
         }
 
@@ -1558,7 +1559,7 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
                 color = if (up) RED_UP else GREEN_DOWN,
                 topLeft = Offset(cx - bw / 2, h - vh),
                 size = Size(bw, vh),
-                style = if (up) Stroke(width = 2.0f) else Fill
+                style = if (up) Stroke(width = 3.0f) else Fill
             )
         }
         // ===== 选中竖线（与主图对齐） =====
