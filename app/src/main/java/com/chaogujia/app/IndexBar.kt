@@ -355,7 +355,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                             .horizontalScroll(hScroll, enabled = false),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 第一个元素：多股同列入口（宽 = 中间区 midW），随横滑一起左移、钻入名称列下方
+                        // 第一个元素：多股同列入口（宽 = 中间区 midW），随横滑一起左移、钻入名称列下方。
+                        // 内容右对齐（贴入口块右缘）：左滑时先露出右侧空隙，再逐步被名称列盖住，
+                        // 避免"滑动一点点入口就整块消失"的突兀感。
                         Row(
                             Modifier
                                 .width(midW.dp)
@@ -365,7 +367,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) { showColumns = true }
-                                .padding(start = 12.dp),
+                                .padding(end = 12.dp),
+                            horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -399,6 +402,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                 text = col.title,
                                 color = COLOR_SUB,
                                 fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
                                 modifier = Modifier.width(col.width.dp).padding(horizontal = 10.dp),
                                 textAlign = if (col.key == "pctPrice") TextAlign.End else TextAlign.Center
                             )

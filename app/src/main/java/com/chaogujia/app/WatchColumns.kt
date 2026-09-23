@@ -79,7 +79,7 @@ object WatchColumnRegistry {
     val AMOUNT = WatchColumn(
         key = "amount",
         title = "成交额",
-        width = 76,
+        width = 96,
         value = { fmtAmount(it.amount) }
     )
 
@@ -87,7 +87,7 @@ object WatchColumnRegistry {
     val AUC_PCT = WatchColumn(
         key = "aucPct",
         title = "竞价涨幅%",
-        width = 72,
+        width = 104,
         value = { String.format(Locale.CHINA, "%+.2f%%", it.aucPct) },
         colorMode = WatchColumn.ColorMode.UP_DOWN
     )
@@ -96,7 +96,7 @@ object WatchColumnRegistry {
     val AUC_AMOUNT = WatchColumn(
         key = "aucAmount",
         title = "竞价金额",
-        width = 76,
+        width = 96,
         value = { fmtAmount(it.aucAmount) }
     )
 
@@ -108,7 +108,7 @@ object WatchColumnRegistry {
 
     /** 默认显示的列 key（顺序敏感）：只默认显示「涨幅」合并列（上百分比 / 下价格） */
     // 默认不启用任何横滑统计列（「涨幅」已作为右侧固定列单独渲染）
-    val DEFAULT_KEYS: List<String> = listOf(AMOUNT.key, AUC_PCT.key, AUC_AMOUNT.key)
+    val DEFAULT_KEYS: List<String> = listOf(AUC_PCT.key, AUC_AMOUNT.key, AMOUNT.key)
 
     /** 按 key 取列定义 */
     fun byKey(key: String): WatchColumn? = ALL.firstOrNull { it.key == key }
@@ -125,7 +125,7 @@ object WatchColumnPrefs {
     private const val KEY_VER = "ver"
 
     /** 当前列配置版本。改列定义时 +1，可触发老配置一次性迁移。 */
-    private const val CUR_VER = 4
+    private const val CUR_VER = 5
 
     /** 读用户配置；没存过则返回默认 */
     fun load(ctx: android.content.Context): List<String> {
