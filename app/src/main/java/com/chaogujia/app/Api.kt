@@ -201,7 +201,8 @@ data class KLinePoint(
     val close: Double = 0.0,
     val high: Double = 0.0,
     val low: Double = 0.0,
-    val vol: Double = 0.0
+    val vol: Double = 0.0,
+    val amount: Double = 0.0
 )
 
 /** 五日分时中的一天：[日期, 当天分时点] */
@@ -812,7 +813,7 @@ object Api {
                 }
             }
             // K线
-            val line = ArrayList<KLinePoint>()
+            var line = ArrayList<KLinePoint>()
             val ln = o.optJSONObject("line")?.optJSONArray("points")
             if (ln != null) {
                 for (i in 0 until ln.length()) {
@@ -824,9 +825,48 @@ object Api {
                             close = p.optDouble(2, 0.0),
                             high = p.optDouble(3, 0.0),
                             low = p.optDouble(4, 0.0),
-                            vol = p.optDouble(5, 0.0)
+                            vol = p.optDouble(5, 0.0),
+                            amount = p.optDouble(6, 0.0)
                         )
                     )
+                }
+            }
+            // ===== 方案 B：前端（手机）直连东财，获取全历史 + 成交额真值，覆盖后端 K 线 =====
+            val market = o.optString("market", "")
+            run {
+                val emkt = if (market == "sh") "1" else "0"
+                val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
+                val klt = when (k) { "week" -> 102; "month" -> 103; else -> 101 }
+                val emUrl = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" +
+                    emkt + "." + pure +
+                    "&fields1=f1,f2,f3,f4,f5" +
+                    "&fields2=f51,f52,f53,f54,f55,f56,f57,f58" +
+                    "&klt=" + klt + "&fqt=1&beg=0&end=20500101&lmt=100000"
+                val rawEm = Net.getRaw(emUrl)
+                if (!rawEm.isNullOrEmpty()) {
+                    val jo = JSONObject(rawEm)
+                    val klines = jo.optJSONObject("data")?.optJSONArray("klines")
+                    if (klines != null && klines.length() > 0) {
+                        val em = ArrayList<KLinePoint>(klines.length())
+                        for (i in 0 until klines.length()) {
+                            val row = klines.optString(i, "")
+                            if (row.isEmpty()) continue
+                            val f = row.split(",")
+                            if (f.size < 6) continue
+                            em.add(
+                                KLinePoint(
+                                    date = f[0],
+                                    open = f[1].toDoubleOrNull() ?: 0.0,
+                                    close = f[2].toDoubleOrNull() ?: 0.0,
+                                    high = f[3].toDoubleOrNull() ?: 0.0,
+                                    low = f[4].toDoubleOrNull() ?: 0.0,
+                                    vol = f[5].toDoubleOrNull() ?: 0.0,  // 与后端同口径（手）
+                                    amount = (f.getOrNull(6)?.toDoubleOrNull() ?: 0.0) / 10000.0  // 元 -> 万元
+                                )
+                            )
+                        }
+                        if (em.isNotEmpty()) line = em
+                    }
                 }
             }
             StockDetail(

@@ -67,6 +67,24 @@ object Net {
         }
     }
 
+    /**
+     * 直连外网 GET（不走 base()、不带 token），用于前端直接请求东财 K 线等第三方接口。
+     * 失败返回 null（不抛）。
+     */
+    fun getRaw(url: String): String? {
+        return try {
+            val b = Request.Builder().url(url)
+                .header("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
+                .header("Referer", "https://quote.eastmoney.com/")
+            client.newCall(b.build()).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                resp.body?.string()
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** POST JSON 请求，可带 token */
     fun postJson(url: String, json: String, token: String? = null, withTokenParam: Boolean = true): String {
         val finalUrl = if (withTokenParam) withToken(url, token) else url

@@ -424,9 +424,9 @@ private fun DetailHeadSelected(d: StockDetail?, line: List<KLinePoint>, idx: Int
     val b = d?.base
     val floatShares = if (b != null && b.price > 0 && b.floatCap > 0) b.floatCap * 1e8 / b.price else 0.0
     val turnoverEst = if (floatShares > 0) kp.vol * 100.0 / floatShares * 100.0 else Double.NaN
-    // 估算成交额(万)：vol(手) * 100 * 均价(≈(开+收+高+低)/4)
+    // 成交额(万)：优先用东财真值 kp.amount（万元）；无则回退估算 vol(手) * 100 * 均价(≈(开+收+高+低)/4)
     val avgP = (kp.open + kp.close + kp.high + kp.low) / 4.0
-    val amountEst = kp.vol * 100.0 * avgP / 10000.0
+    val amountEst = if (kp.amount > 0.0) kp.amount else kp.vol * 100.0 * avgP / 10000.0
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -961,7 +961,7 @@ private fun FiveDayVolumeCanvas(days: List<DetailDay>) {
 
 /** 可视根数上下限：放大最大 27 根/屏；缩到最小 ≈320 根/屏（柱子几乎连成一条线，同花顺观感） */
 private const val K_MIN_VISIBLE = 27
-private const val K_MAX_VISIBLE = 320
+private const val K_MAX_VISIBLE = 1500
 private const val K_DEFAULT_VISIBLE = 60
 /** 点击 ＋/－ 按钮时按比例跳档 */
 private const val K_BTN_ZOOM_STEP = 1.25f
