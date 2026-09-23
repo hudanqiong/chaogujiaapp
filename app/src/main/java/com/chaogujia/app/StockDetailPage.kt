@@ -452,10 +452,10 @@ private fun DetailHeadSelected(d: StockDetail?, line: List<KLinePoint>, idx: Int
         else -> GRAY_FLAT
     }
 
-    // 估算历史换手率：流通股 = 今日流通市值(亿)*1e8 / 今日价；换手% = vol(手)*100 / 流通股 * 100
+    // 换手率：优先取东财 f58 真值(kp.turnover)；无则估算(流通股 = 今日流通市值(亿)*1e8 / 今日价；换手% = vol(手)*100 / 流通股 * 100)
     val b = d?.base
     val floatShares = if (b != null && b.price > 0 && b.floatCap > 0) b.floatCap * 1e8 / b.price else 0.0
-    val turnoverEst = if (floatShares > 0) kp.vol * 100.0 / floatShares * 100.0 else Double.NaN
+    val turnoverEst = if (kp.turnover > 0.0) kp.turnover else if (floatShares > 0) kp.vol * 100.0 / floatShares * 100.0 else Double.NaN
     // 成交额(万)：优先用东财真值 kp.amount（万元）；无则回退估算 vol(手) * 100 * 均价(≈(开+收+高+低)/4)
     val avgP = (kp.open + kp.close + kp.high + kp.low) / 4.0
     val amountEst = if (kp.amount > 0.0) kp.amount else kp.vol * 100.0 * avgP / 10000.0

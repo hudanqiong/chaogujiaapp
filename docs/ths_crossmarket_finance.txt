@@ -1,0 +1,64 @@
+========================================================
+同花顺 Web 接口 - 跨市场验证 + F10财务 + 5日分时
+生成: 2026-09-23  来源: 实测 curl
+========================================================
+
+【一、跨市场验证结果 (K线/分时/F10 全通)】
+  K线 https://d.10jqka.com.cn/v6/line/hs_{code}/01/last.js
+  000981 山子高科 len=10091(日K)
+  600519 贵州茅台 len=11457
+  300750 宁德时代 len=12023
+  688981 中芯国际 len=12216
+  000001 平安银行 len=10603
+  430047 诺思兰德 len=201(北交所数据缺失→hs前缀不覆盖北交所)
+  分时 https://d.10jqka.com.cn/v6/time/hs_{code}/last.js 同_span全通
+  F10  https://basic.10jqka.com.cn/mobile/{code}/company.html 全通且UTF-8
+  结论: 沪深主板/创业板/科创板 均用 hs_ 前缀, 通用
+
+【二、重要代码纠正】
+  000980 = 众泰汽车 (之前误当山子高科)
+  000981 = 山子高科 (正确代码)
+
+【三、K线 data 列结构(实为9列)】
+  日期,开,高,低,收,成交量,成交额,换手率,空,空
+  样例: 20260305,4.52,4.59,4.48,4.53,395914050,1796109100.00,4.162,,,
+  注: 第8列=换手率(4.162=4.162%), 后两列实测为空
+  复权: 不加参数即默认, ?fq=1/?fq=2 实测无变化(参数无效)
+
+【四、F10 财务专页 PC版(重要!真静态GBK)】
+  URL: https://basic.10jqka.com.cn/{code}/finance.html
+  返回: GBK编码, ~461KB, 必须 iconv -f gbk -t utf-8
+  含字段(实测):
+    净利润/净利润(元)/净利润同比增长率
+    净资产收益率(-12.12%)/净资产收益率-摊薄(1.07%)
+    扣非净利润同比增长率/每股净资产/每股收益
+    净利润现金含量/净利润差额
+
+【五、F10 公司资料页 PC版(更全,GBK)】
+  URL: https://basic.10jqka.com.cn/{code}/company.html  (~182KB)
+  URL: https://basic.10jqka.com.cn/{code}/          (~238KB)
+  均为GBK, 需iconv
+
+【六、新发现: 5日分时/盘后分时接口】
+  5日分时: https://d.10jqka.com.cn/v6/time/hs_{code}/last5.js
+    keys: name,open,stop,isTrading,rt,tradeTime,pre,date,data,
+          dotsCount,dates,afterTradeTime,marketType
+    data: 时分,现价,成交量,均价,累计量 (同1日分时)
+  盘后分时: https://d.10jqka.com.cn/v6/time/hs_{code}/defer/last.js
+
+【七、不可用项(里程碑级诚实记录)】
+  mobile/{code}/finance.html  → JS壳异步, 无静态内容(勿用)
+  mobile/{code}/main.html     → 空(0字节)
+  api/stock/finance/{code}/main → 空
+  basicapi/... → 404
+  资金流接口(多域名多路径) → 全502/空, 同花顺无公开资金流接口
+  time/{code}/{yyyyMMdd}/last.js → 空(历史分时需另寻)
+
+【八、炒股家可用数据源清单(最终版)】
+  1. K线全周期: /v6/line/hs_{code}/{周期码}/last.js
+     周期码 01日 11周 21月 40=30分 50=60分 60=1分
+     9列: 日期,开,高,低,收,量,额,换手
+  2. 分时: /v6/time/hs_{code}/last.js (白) + last5.js(5日) + defer(盘后)
+  3. F10公司资料: basic.10jqka.com.cn/mobile/{code}/company.html (UTF-8)
+  4. F10财务报表: basic.10jqka.com.cn/{code}/finance.html (GBK,信息全)
+========================================================

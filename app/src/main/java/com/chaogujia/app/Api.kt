@@ -202,7 +202,8 @@ data class KLinePoint(
     val high: Double = 0.0,
     val low: Double = 0.0,
     val vol: Double = 0.0,
-    val amount: Double = 0.0
+    val amount: Double = 0.0,
+    val turnover: Double = 0.0    // 换手率(%)：东财 f58 真值；无数据为 0
 )
 
 /** 五日分时中的一天：[日期, 当天分时点] */
@@ -893,7 +894,8 @@ object Api {
                                     high = f[3].toDoubleOrNull() ?: 0.0,
                                     low = f[4].toDoubleOrNull() ?: 0.0,
                                     vol = f[5].toDoubleOrNull() ?: 0.0,  // 与后端同口径（手）
-                                    amount = (f.getOrNull(6)?.toDoubleOrNull() ?: 0.0) / 10000.0  // 元 -> 万元
+                                    amount = (f.getOrNull(6)?.toDoubleOrNull() ?: 0.0) / 10000.0,  // 元 -> 万元
+                                    turnover = f.getOrNull(7)?.toDoubleOrNull() ?: 0.0  // 换手率(%): 东财 f58
                                 )
                             )
                         }

@@ -1,0 +1,34 @@
+############################################################
+# 同花顺 K线数据接口（实测可用,高价值）
+# 验证: 2026-09-23
+############################################################
+
+【日K历史接口】
+GET https://d.10jqka.com.cn/v6/line/hs_{code}/01/last.js
+ Header: Referer: https://stockpage.10jqka.com.cn/
+ code 不带市场前缀,如 000980
+
+返回(JSONP,前缀 quotebridge_v6_line_hs_xxx_01_last):
+  year: 每年交易日数
+  total: 总条数(000980=6115)
+  num: 本次返回条数(140)
+  rt: 交易时段 "0930-1130,1300-1500"
+  start: 起始日期
+  name: 股票名
+  data: 分号分隔的日K,每条逗号分隔:
+    日期,开,高,低,收,成交量,成交额,换手,..,..,..
+    例: 20260304,2.71,2.79,2.61,2.73,89708987,244559040.00,1.779
+
+=> 炒股家K线可直接用这套(比腾讯/东财字段更清晰)
+
+【其他可用同花顺WEB】
+  https://basic.10jqka.com.cn/mobile/{code}/company.html  公司资料(gbk)
+  https://basic.10jqka.com.cn/{code}/company.html         F10公司概况(gbk)
+
+【不可用/404】
+  basic.10jqka.com.cn/api/stock/hangye/hangye_comp.php
+  basic.10jqka.com.cn/basicapi/hangye/comp/
+  basic.10jqka.com.cn/000980/hangye.html
+
+【注】000980=众泰汽车 (山子高科实为000981)
+############################################################
