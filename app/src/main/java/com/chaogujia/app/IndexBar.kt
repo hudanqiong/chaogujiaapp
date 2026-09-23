@@ -26,6 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.Checkbox
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -143,6 +146,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
 
     // 「多股同列」全屏页是否显示
     var showColumns by remember { mutableStateOf(false) }
+
+    // 「编辑表头」列勾选框是否显示
+    var showColEditor by remember { mutableStateOf(false) }
 
     // ===== 自选分组标签 =====
     // 当前选中的分组 key：负数为内置组（-1 自选股 / -2 持仓股），>=0 为用户自建组 id
@@ -438,7 +444,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null
                                             ) {
-                                                // TODO: 进入「表头管理页」（交互口径待定）
+                                                showColEditor = true
                                             }
                                     )
                                     Image(
@@ -478,7 +484,7 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                                 interactionSource = remember { MutableInteractionSource() },
                                                 indication = null
                                             ) {
-                                                // TODO: 进入「表头管理页」（交互口径待定）
+                                                showColEditor = true
                                             }
                                     )
                                 }
@@ -544,6 +550,134 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 token = token,
                 onClose = { showColumns = false }
             )
+        }
+
+        // ================= 「编辑表头」列勾选框 =================
+        if (showColEditor) {
+            ColumnEditorDialog(
+                keys = colKeys,
+                onToggle = { k, on ->
+                    val next = if (on) (colKeys + k).distinct() else colKeys.filter { it != k }
+                    colKeys = next
+                    WatchColumnPrefs.save(ctx, next)
+                },
+                onReset = {
+                    colKeys = WatchColumnRegistry.DEFAULT_KEYS
+                    WatchColumnPrefs.save(ctx, colKeys)
+                },
+                onClose = { showColEditor = false }
+            )
+        }
+    }
+}
+
+/* ---------------- 「编辑表头」列勾选框 ---------------- */
+
+/**
+ * 列勾选框（从简版）：全屏半透明遮罩 + 白卡内容。
+ * - 列出 ALL 中除固定列(PCT_PRICE)外的所有列，Checkbox 即时勾选
+ * - 顶部搜索框按标题过滤（列多时好用）
+ * - 底部按钮：重置默认 / 完成
+ */
+@Composable
+private fun ColumnEditorDialog(
+    keys: List<String>,
+    onToggle: (String, Boolean) -> Unit,
+    onReset: () -> Unit,
+    onClose: () -> Unit
+) {
+    val allCols = remember { WatchColumnRegistry.ALL.filter { it.key != WatchColumnRegistry.PCT_PRICE.key } }
+    var kw by remember { mutableStateOf("") }
+    val shown = remember(kw) {
+        if (kw.isBlank()) allCols else allCols.filter { it.title.contains(kw.trim()) || it.key.contains(kw.trim(), true) }
+    }
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color(0x66000000)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth(0.92f)
+                    .fillMaxHeight(0.82f)
+                    .background(Color.White, RoundedCornerShape(12.dp))
+                    .padding(12.dp)
+            ) {
+                // 标题栏
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("编辑表头", color = COLOR_TEXT, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.weight(1f))
+                    Text("共 ${keys.size} 列", color = COLOR_SUB, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                // 搜索框（用简单边框 Box + BasicTextField 实现）
+                var kwEdit by remember { mutableStateOf(kw) }
+                androidx.compose.foundation.text.BasicTextField(
+                    value = kwEdit,
+                    onValueChange = { kwEdit = it; kw = it },
+                    singleLine = true,
+                    textStyle = androidx.compose.ui.text.TextStyle(color = COLOR_TEXT, fontSize = 14.sp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) { inner ->
+                    if (kwEdit.isEmpty()) Text("搜索列名…", color = COLOR_SUB, fontSize = 14.sp)
+                    inner()
+                }
+                Spacer(Modifier.height(8.dp))
+                // 列列表
+                LazyColumn(Modifier.weight(1f)) {
+                    items(shown, key = { it.key }) { c ->
+                        val checked = keys.contains(c.key)
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { onToggle(c.key, !checked) }
+                                .padding(vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { v -> onToggle(c.key, v == true) }
+                            )
+                            Text(c.title, color = COLOR_TEXT, fontSize = 14.sp)
+                            Spacer(Modifier.weight(1f))
+                            Text(c.key, color = COLOR_SUB, fontSize = 11.sp)
+                        }
+                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFF2F2F2))
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                // 底部按钮
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "重置默认",
+                        color = COLOR_UP,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onReset() }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "完成",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(COLOR_UP)
+                            .clickable { onClose() }
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
+                    )
+                }
+            }
         }
     }
 }
