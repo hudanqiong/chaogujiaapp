@@ -1,0 +1,36 @@
+K线换手率「估算→真值」改造验证结论（方案C：同花顺）
+=========================================================
+生成时间: 2026-09-24
+提交: c1b054a (origin/main)
+构建: GitHub Actions run 35886069161 -> success
+
+一、数据源
+  URL : https://d.10jqka.com.cn/v6/line/hs_{6位纯代码}/{周期码}/last.js
+  Header: Referer: https://stockpage.10jqka.com.cn/
+  周期码: 01=日K  11=周K  21=月K
+  返回: JSONP, data 以 ';' 分行 ',' 分列
+  字段: 日期,开,高,低,收,成交量(股),成交额(元),换手率(%),...
+  第8列 = 真换手率
+  注: 该接口在 Ubuntu 侧 HTTP 200 可用(10530 字节, num=140);
+      东财 push2his 同侧 HTTP 000 不通, 故降级为 fallback。
+
+二、代码改动
+  Api.kt: 主链路由东财改为同花顺(thsCode 映射 day/week/month);
+          新增 parseThsKline(raw): 剥离 JSONP 前缀解析 data;
+          失败/为空时走 fetchKlineFallback 降级(东财/腾讯/新浪)。
+  Net.kt: getRaw(url, referer="https://quote.eastmoney.com/")
+          新增 referer 参数, 向后兼容。
+  StockDetailPage.kt: turnoverEst = 真值优先, 估算兜底。
+
+三、真机验证
+  logcat: "K线(同花顺) 成功: 140 根" (多条)
+  UI  : 选中 20260817 -> 「换 0.93% / 量 5850.61万 / 额 14.78亿」
+
+四、数值比对(伊利股份 600887)
+  日期        同花顺真值   UI显示   旧估算
+  20260817    0.930%      0.93%    --
+  20260818    0.927%      0.93%    0.9266%
+  close/vol/amount 亦与 UI 逐位吻合。
+
+结论: 方案C 全链路闭环, K线换手率已由估算值切换为同花顺真值。
+遗留: ChipCanvas(筹码分布, StockDetailPage.kt:1948) 仍用估算公式, 未改。
