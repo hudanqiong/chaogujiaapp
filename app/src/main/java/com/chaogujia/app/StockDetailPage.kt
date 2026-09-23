@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -1041,14 +1042,13 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     .width(46.dp)
                     .fillMaxHeight()
             )
-            // ===== 缩放 / 平移按钮行：半透明叠层，压在主图（分时/K线主图）底部 =====
+            // ===== 缩放 / 平移圆形按钮：浮在主图（分时/K线主图）底部 =====
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(end = 46.dp)
-                    .background(Color(0xB3FFFFFF)) // 70% 白，半透明
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(end = 46.dp, bottom = 4.dp)
+                    .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
@@ -1095,8 +1095,9 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
 }
 
 /**
- * K线底部小按钮。
- * 短按 = 执行 1 档；长按 = 每 70ms 连续执行（用于连续缩放/平移）。
+ * K线缩放/平移圆形小按钮（同花顺风格）。
+ * 外观：圆形、灰色半透明底、居中符号。
+ * 短按 = 执行 1 档；长按 = 每 70ms 连续执行。
  */
 @Composable
 private fun KLineButton(text: String, onClick: () -> Unit) {
@@ -1105,9 +1106,10 @@ private fun KLineButton(text: String, onClick: () -> Unit) {
     val curOnClick by rememberUpdatedState(onClick)
     Box(
         modifier = Modifier
-            .padding(horizontal = 3.dp)
-            .size(width = 40.dp, height = 24.dp)
-            .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
+            .padding(horizontal = 4.dp)
+            .size(30.dp)
+            // 圆形灰底半透明：0x66111111 ≈ 40% 深灰
+            .background(Color(0x66111111), shape = CircleShape)
             .pointerInput(text) {
                 detectTapGestures(
                     onPress = {
@@ -1127,7 +1129,7 @@ private fun KLineButton(text: String, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = TEXT_MAIN, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
     }
 }
 
