@@ -223,6 +223,38 @@ data class StockDetail(
     val line: List<KLinePoint> = emptyList()
 )
 
+/** 五档中的一档：[价格, 数量(手)] */
+data class OrderLevel(
+    val price: Double = 0.0,
+    val vol: Double = 0.0
+)
+
+/** 逐笔成交一笔 */
+data class DealItem(
+    val no: Int = 0,
+    val time: String = "",
+    val price: Double = 0.0,
+    val change: Double = 0.0,
+    val vol: Double = 0.0,       // 手
+    val amount: Double = 0.0,    // 元
+    val dir: String = "M"        // B=买 S=卖 M=中性
+)
+
+/** 五档盘口 + 成交明细（orderbook.php） */
+data class OrderBook(
+    val code: String = "",
+    val name: String = "",
+    val price: Double = 0.0,
+    val prevClose: Double = 0.0,
+    val open: Double = 0.0,
+    val volume: Double = 0.0,
+    val outer: Double = 0.0,     // 外盘（主动买，手）
+    val inner: Double = 0.0,     // 内盘（主动卖，手）
+    val bids: List<OrderLevel> = emptyList(),  // 买1~买5
+    val asks: List<OrderLevel> = emptyList(),  // 卖1~卖5
+    val deals: List<DealItem> = emptyList()
+)
+
 object Api {
 
     private fun base(url: String) = Config.BASE_URL + url
@@ -975,5 +1007,68 @@ object Api {
         }
         android.util.Log.w("Api", "K线 fallback 全部失败: $sym $k（东财/腾讯/新浪均无数据）")
         return ArrayList()
+    }
+
+    /**
+     * 五档盘口 + 成交明细（orderbook.php）
+     * @param code 股票代码（6 位纯代码或带前缀均可）
+     * @param p    逐笔页码，从 1 开始（每页 70 条），默认 1（最新一页）
+     * @param n    返回逐笔条数，1~70，默认 20
+     */
+    fun orderbook(code: String, p: Int = 1, n: Int = 20): OrderBook? {
+        return try {
+            val url = base("orderbook.php?code=") + code + "&p=" + p + "&n=" + n
+            val raw = Net.get(url)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return null
+            val d = o.optJSONObject("data") ?: return null
+
+            val bids = ArrayList<OrderLevel>()
+            d.optJSONArray("bids")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val j = arr.optJSONObject(i) ?: continue
+                    bids.add(OrderLevel(j.optDouble("price", 0.0), j.optDouble("vol", 0.0)))
+                }
+            }
+            val asks = ArrayList<OrderLevel>()
+            d.optJSONArray("asks")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val j = arr.optJSONObject(i) ?: continue
+                    asks.add(OrderLevel(j.optDouble("price", 0.0), j.optDouble("vol", 0.0)))
+                }
+            }
+            val deals = ArrayList<DealItem>()
+            d.optJSONArray("deals")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val j = arr.optJSONObject(i) ?: continue
+                    deals.add(
+                        DealItem(
+                            no = j.optInt("no", 0),
+                            time = j.optString("time", ""),
+                            price = j.optDouble("price", 0.0),
+                            change = j.optDouble("change", 0.0),
+                            vol = j.optDouble("vol", 0.0),
+                            amount = j.optDouble("amount", 0.0),
+                            dir = j.optString("dir", "M")
+                        )
+                    )
+                }
+            }
+            OrderBook(
+                code = d.optString("code", code),
+                name = d.optString("name", ""),
+                price = d.optDouble("price", 0.0),
+                prevClose = d.optDouble("prevClose", 0.0),
+                open = d.optDouble("open", 0.0),
+                volume = d.optDouble("volume", 0.0),
+                outer = d.optDouble("outer", 0.0),
+                inner = d.optDouble("inner", 0.0),
+                bids = bids,
+                asks = asks,
+                deals = deals
+            )
+        } catch (e: Exception) {
+            null
+        }
     }
 }

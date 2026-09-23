@@ -7,8 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -602,12 +604,30 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit) {
 }
 
 // ============================================================
-// 分时图：上=价格曲线（含昨收基准线 + 均价线），下=分时量
+// 分时图 + 右侧盘口栏（对标同花顺）
+//   左：上=价格曲线（含昨收基准线 + 均价线），下=分时量
+//   右：上=五档盘口（卖5→卖1 / 买1→买5），下=逐笔成交明细
 // ============================================================
 @Composable
 private fun MinuteChart(d: StockDetail?) {
     val trends = d?.trends ?: emptyList()
     val preClose = d?.base?.preClose ?: 0.0
+
+    // ===== 五档盘口 + 成交明细（3 秒轮询）=====
+    val code = d?.code ?: ""
+    var ob by remember { mutableStateOf<OrderBook?>(null) }
+    LaunchedEffect(code) {
+        if (code.isEmpty()) return@LaunchedEffect
+        while (isActive) {
+            try {
+                val r = withContext(Dispatchers.IO) { Api.orderbook(code, 1, 20) }
+                if (r != null) ob = r
+            } catch (_: Exception) {
+                // 忽略单次失败，保持上一次数据
+            }
+            delay(3000)
+        }
+    }
 
     if (trends.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -616,41 +636,205 @@ private fun MinuteChart(d: StockDetail?) {
         return
     }
 
-    // 屏幕右侧留 46dp 给价格轴
-    Column(
+    // 外层左右分栏：左侧分时图（62），右侧盘口栏（38）
+    Row(
         modifier = Modifier.fillMaxSize().padding(top = 6.dp)
     ) {
-        // 上部价格图（占 70%）
-        Box(
+        // ================= 左侧：分时图 =================
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.7f)
-                .padding(end = 46.dp)
+                .weight(MINUTE_CHART_RATIO)
+                .fillMaxHeight()
         ) {
-            MinutePriceCanvas(trends, preClose)
-            // 右侧价格刻度（最高/中/最低）
-            PriceAxis(
-                maxV = trends.maxOf { it.price },
-                minV = trends.minOf { it.price },
-                midV = preClose,
+            // 上部价格图（占 70%）
+            Box(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(46.dp)
-                    .fillMaxHeight()
-            )
+                    .fillMaxWidth()
+                    .weight(0.7f)
+                    .padding(end = 40.dp)
+            ) {
+                MinutePriceCanvas(trends, preClose)
+                // 右侧价格刻度（最高/中/最低）
+                PriceAxis(
+                    maxV = trends.maxOf { it.price },
+                    minV = trends.minOf { it.price },
+                    midV = preClose,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(40.dp)
+                        .fillMaxHeight()
+                )
+            }
+            // 下部量图（占 30%）
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.3f)
+                    .padding(end = 40.dp, top = 4.dp)
+            ) {
+                MinuteVolumeCanvas(trends)
+            }
+            // 时间轴
+            TimeAxis()
         }
-        // 下部量图（占 30%）
-        Box(
+
+        // ================= 右侧：五档盘口 + 成交明细 =================
+        OrderBookPanel(
+            ob = ob,
+            preClose = preClose,
+            modifier = Modifier
+                .weight(1f - MINUTE_CHART_RATIO)
+                .fillMaxHeight()
+                .padding(start = 4.dp, end = 2.dp)
+        )
+    }
+}
+
+// ============================================================
+// 布局比例常量（便于微调）
+// ============================================================
+private const val MINUTE_CHART_RATIO = 0.62f   // 左侧分时图宽度占比
+private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度
+private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
+
+// ============================================================
+// 右侧盘口栏：上=五档（卖5→卖1，买1→买5），下=逐笔成交明细
+// ============================================================
+@Composable
+private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier = Modifier) {
+    Column(modifier = modifier) {
+        // ---------- 五档盘口 ----------
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.3f)
-                .padding(end = 46.dp, top = 4.dp)
+                .height(ORDERBOOK_TOP_HEIGHT)
         ) {
-            MinuteVolumeCanvas(trends)
+            val asks = ob?.asks ?: emptyList()
+            val bids = ob?.bids ?: emptyList()
+            val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
+            // 卖5 → 卖1（列表下标 4 → 0，倒序）
+            for (i in 4 downTo 0) {
+                OrderLevelRow(
+                    label = "卖" + (i + 1),
+                    lv = asks.getOrNull(i),
+                    preClose = pc,
+                    isAsk = true
+                )
+            }
+            // 买1 → 买5（正序）
+            for (i in 0 until 5) {
+                OrderLevelRow(
+                    label = "买" + (i + 1),
+                    lv = bids.getOrNull(i),
+                    preClose = pc,
+                    isAsk = false
+                )
+            }
         }
-        // 时间轴
-        TimeAxis()
+        // 分隔线
+        Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
+        // 明细表头
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("时间", color = TEXT_SUB, fontSize = 9.sp,
+                modifier = Modifier.weight(1.15f), textAlign = TextAlign.Start)
+            Text("价格", color = TEXT_SUB, fontSize = 9.sp,
+                modifier = Modifier.weight(0.85f), textAlign = TextAlign.End)
+            Text("手数", color = TEXT_SUB, fontSize = 9.sp,
+                modifier = Modifier.weight(0.85f), textAlign = TextAlign.End)
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
+        // ---------- 逐笔成交明细（最新在上，可滚动） ----------
+        val deals = ob?.deals ?: emptyList()
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            deals.forEach { d ->
+                DealRow(d, pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose)
+            }
+        }
     }
+}
+
+/** 五档单行：左标签 + 中价格 + 右手数 */
+@Composable
+private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean) {
+    val price = lv?.price ?: 0.0
+    val vol = lv?.vol ?: 0.0
+    val priceColor = when {
+        price <= 0 -> TEXT_SUB
+        price > preClose -> RED_UP
+        price < preClose -> GREEN_DOWN
+        else -> TEXT_MAIN
+    }
+    val labelColor = if (isAsk) GREEN_DOWN else RED_UP
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ORDERBOOK_TOP_HEIGHT / 10)
+            .padding(horizontal = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label, color = labelColor, fontSize = ORDERBOOK_FONT,
+            fontFamily = DSpNumFont,
+            modifier = Modifier.width(26.dp), textAlign = TextAlign.Start
+        )
+        Text(
+            if (price > 0) fmtNum2(price) else "--",
+            color = priceColor, fontSize = ORDERBOOK_FONT,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+        )
+        Text(
+            if (vol > 0) fmtVol(vol) else "--",
+            color = TEXT_MAIN, fontSize = ORDERBOOK_FONT,
+            fontFamily = DSpNumFont,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+        )
+    }
+}
+
+/** 逐笔成交单行：时间 / 价格 / 手数 */
+@Composable
+private fun DealRow(d: DealItem, pc: Double) {
+    val color = when {
+        d.price > pc -> RED_UP
+        d.price < pc -> GREEN_DOWN
+        else -> GRAY_FLAT
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 1.dp, vertical = 0.5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            d.time, color = TEXT_SUB, fontSize = 10.sp,
+            fontFamily = DSpNumFont,
+            modifier = Modifier.weight(1.15f), textAlign = TextAlign.Start
+        )
+        Text(
+            fmtNum2(d.price), color = color, fontSize = 10.sp,
+            fontFamily = DSpNumFont,
+            modifier = Modifier.weight(0.85f), textAlign = TextAlign.End
+        )
+        Text(
+            fmtVol(d.vol), color = color, fontSize = 10.sp,
+            fontFamily = DSpNumFont,
+            modifier = Modifier.weight(0.85f), textAlign = TextAlign.End
+        )
+    }
+}
+
+/** 手数格式化：>=1万 显示为 x.xx万 */
+private fun fmtVol(v: Double): String {
+    return if (v >= 10000) String.format("%.2f万", v / 10000.0) else v.toLong().toString()
 }
 
 @Composable
