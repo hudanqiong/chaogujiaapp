@@ -50,10 +50,20 @@ private val TICK_GREEN = Color(0x3319A05A)   // 蜡烛绿（半透明填充）
  *
  * 入口：搜索结果行点击进入（携带整条列表，支持左右切换上一只/下一只）。
  *
+ * ★ 导航栈改造后：
+ *  - 详情状态由 MainActivity（App 级）托管，红条由 MainActivity 统一渲染，本页默认不再自绘红条
+ *    （showOwnHeader=false），从而消除"两条红条 / 图标重复"问题。
+ *  - 下标受控：外部通过 index + onIndexChange 控制当前股票，本页不再自带 idx 状态。
+ *  - 名称回吐：当前股票名/代码变化时通过 onNameChange 通知外部更新红条。
+ *
  * @param token    登录 token（用于右上角搜索页入口，可空）
  * @param list     当前列表（搜索结果/自选列表）
- * @param index    当前股票在 list 中的下标
- * @param onClose  返回回调
+ * @param index    当前股票在 list 中的下标（受控）
+ * @param showOwnHeader 是否自绘顶部红条（默认 true，独立使用本页时用；
+ *                      被 App 级托管时应传 false，避免红条重复）
+ * @param onIndexChange 下标变化回调（受控模式；◀▶ 切换时通知外部）
+ * @param onNameChange  当前股票名称变化回调（供外部红条显示）
+ * @param onClose  返回回调（返回上一步）
  * @param onOpenSearch 点右上角放大镜 → 打开搜索页
  */
 @Composable
@@ -61,12 +71,21 @@ fun StockDetailPage(
     token: String,
     list: List<StockItem>,
     index: Int,
+    showOwnHeader: Boolean = true,
+    onIndexChange: (Int) -> Unit = {},
+    onNameChange: (String) -> Unit = {},
     onClose: () -> Unit,
     onOpenSearch: () -> Unit = {}
 ) {
-    // 当前下标（可左右切换）
-    var idx by remember { mutableStateOf(index.coerceIn(0, max(0, list.size - 1))) }
+    // 当前下标（受控：以外部 index 为准，内部只做边界保护）
+    val idx = index.coerceIn(0, max(0, list.size - 1))
     val current: StockItem? = list.getOrNull(idx)
+
+    // 下标变化 → 向外回吐（受控模式）
+    fun setIdx(next: Int) {
+        val n = next.coerceIn(0, max(0, list.size - 1))
+        if (n != index) onIndexChange(n)
+    }
 
     // 当前周期：minute / day / week / month
     var period by remember { mutableStateOf("minute") }
@@ -104,22 +123,31 @@ fun StockDetailPage(
         loading = false
     }
 
+    // 名称/代码变化 → 回吐给外部（红条显示用）
+    LaunchedEffect(current?.code, detail?.name) {
+        val nm = (detail?.name?.ifEmpty { null }) ?: current?.name ?: ""
+        if (nm.isNotEmpty()) onNameChange(nm)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // ================= 顶部红条 =================
-        DetailHeaderBar(
-            name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
-            code = current?.code ?: "",
-            canPrev = idx > 0,
-            canNext = idx < list.size - 1,
-            onBack = onClose,
-            onPrev = { if (idx > 0) idx-- },
-            onNext = { if (idx < list.size - 1) idx++ },
-            onOpenSearch = onOpenSearch
-        )
+        // ================= 顶部红条（仅独立使用时自绘） =================
+        // 被 App 级红条托管时（showOwnHeader=false）跳过，避免出现第二条红条 / 图标重复。
+        if (showOwnHeader) {
+            DetailHeaderBar(
+                name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
+                code = current?.code ?: "",
+                canPrev = idx > 0,
+                canNext = idx < list.size - 1,
+                onBack = onClose,
+                onPrev = { setIdx(idx - 1) },
+                onNext = { setIdx(idx + 1) },
+                onOpenSearch = onOpenSearch
+            )
+        }
 
         // ================= 头部数据区 =================
         DetailHeadData(detail)

@@ -15,9 +15,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/** 顶栏数字字体（同花顺金融体，与详情页/搜索页保持一致） */
+private val HSpNumFont = FontFamily(Font(R.font.ths_regular))
 
 /**
  * 红条固定总高度：所有页面（首页/自选/行情/交易/资讯）统一使用。
@@ -40,7 +46,15 @@ fun MemberHeaderBar(
     isMember: Boolean = false,
     levelName: String = "普通用户",
     expireAt: String = "",
-    onOpenSearch: () -> Unit = {}
+    onOpenSearch: () -> Unit = {},
+    // ===== 详情页模式（current == "detail"）专用参数 =====
+    detailName: String = "",
+    detailCode: String = "",
+    detailCanPrev: Boolean = false,
+    detailCanNext: Boolean = false,
+    onDetailBack: () -> Unit = {},
+    onDetailPrev: () -> Unit = {},
+    onDetailNext: () -> Unit = {}
 ) {
     Box(
         modifier = Modifier
@@ -61,8 +75,126 @@ fun MemberHeaderBar(
             // 自选页：同花顺自选 + 三图标
             "watch" -> WatchHeaderRow(onOpenSearch)
 
+            // ★ 详情页：唯一红条 [←返回] ◀名称/代码▶ [图二][图三]
+            "detail" -> DetailHeaderRow(
+                name = detailName,
+                code = detailCode,
+                canPrev = detailCanPrev,
+                canNext = detailCanNext,
+                onBack = onDetailBack,
+                onPrev = onDetailPrev,
+                onNext = onDetailNext,
+                onOpenSearch = onOpenSearch
+            )
+
             // 其他页面：什么都不放（红条高度已写死，依然与其他页一致）
             else -> Unit
+        }
+    }
+}
+
+/**
+ * 详情页顶栏（唯一红条）：
+ *   [← 返回上一步]  ◀ 股票名/代码 ▶  [图二 ic_watch_mid][图三 ic_watch_right → 搜索]
+ *
+ * 注意：这是全 App 唯一的一条详情红条。
+ *      原先详情页内部自己画的第二条红条已删除，功能全部合并到这里。
+ *      - 左上角 ← ：返回上一步（历史回退，非固定回自选页）
+ *      - ◀ ▶    ：切换上/下一只股票（同一页内切换，不改变层级）
+ *      - 图二   ：仅展示
+ *      - 图三   ：点开全屏搜索页
+ */
+private val D_ICON_BIG = 25.dp
+private val D_ICON_SMALL = 24.dp
+
+@Composable
+private fun DetailHeaderRow(
+    name: String,
+    code: String,
+    canPrev: Boolean,
+    canNext: Boolean,
+    onBack: () -> Unit,
+    onPrev: () -> Unit,
+    onNext: () -> Unit,
+    onOpenSearch: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        // 左侧：返回箭头（返回上一步）
+        Text(
+            text = "←",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .clickable { onBack() }
+        )
+
+        // 中间：◀ 名称/代码 ▶
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "◀",
+                color = if (canPrev) Color.White else Color.White.copy(alpha = 0.35f),
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable(enabled = canPrev) { onPrev() }
+                    .padding(horizontal = 6.dp)
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = name,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = code,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                    fontFamily = HSpNumFont,
+                    maxLines = 1
+                )
+            }
+            Text(
+                text = "▶",
+                color = if (canNext) Color.White else Color.White.copy(alpha = 0.35f),
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable(enabled = canNext) { onNext() }
+                    .padding(horizontal = 6.dp)
+            )
+        }
+
+        // 右侧：图二 + 图三（与自选页位置一致）
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_watch_mid),
+                contentDescription = null,
+                modifier = Modifier.height(D_ICON_SMALL),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(6.dp))
+            Image(
+                painter = painterResource(R.drawable.ic_watch_right),
+                contentDescription = "搜索",
+                modifier = Modifier
+                    .size(D_ICON_BIG)
+                    .clickable { onOpenSearch() },
+                contentScale = ContentScale.FillBounds
+            )
         }
     }
 }

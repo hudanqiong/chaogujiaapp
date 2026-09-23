@@ -45,7 +45,9 @@ private val SpNumFont = FontFamily(Font(R.font.ths_regular))
 @Composable
 fun SearchPage(
     token: String,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    // ★ 点结果行 → 状态提升到 App 级，由 MainActivity 统一打开详情页
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
 ) {
     var kw by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<StockItem>>(emptyList()) }
@@ -59,8 +61,7 @@ fun SearchPage(
     var history by remember { mutableStateOf<List<String>>(emptyList()) }
     // 操作提示（加入成功/失败）
     var toast by remember { mutableStateOf("") }
-    // 详情页下标（非空 = 正在看某只股票的详情）
-    var detailIdx by remember { mutableStateOf<Int?>(null) }
+    // 详情页状态已提升到 MainActivity（App 级覆盖层 + 统一红条），本页不再自持 detailIdx
 
     val focusRequester = remember { FocusRequester() }
     val scope = rememberCoroutineScope()
@@ -95,18 +96,7 @@ fun SearchPage(
         }
     }
 
-    // ================= 详情页（覆盖在搜索页之上） =================
-    val openIdx = detailIdx
-    if (openIdx != null && openIdx in results.indices) {
-        StockDetailPage(
-            token = token,
-            list = results,
-            index = openIdx,
-            onClose = { detailIdx = null },
-            onOpenSearch = { detailIdx = null }   // 已在本页，等同返回
-        )
-        return
-    }
+    // ================= 详情页已提升到 MainActivity（App 级覆盖层 + 统一红条） =================
 
     Column(
         modifier = Modifier
@@ -238,7 +228,8 @@ fun SearchPage(
                         added = addedCodes.contains(s.code),
                         onOpen = {
                             // 点左侧整块 → 打开详情页（携带整条列表 + 当前下标，支持左右切换）
-                            detailIdx = results.indexOfFirst { it.code == s.code }
+                            val i = results.indexOfFirst { it.code == s.code }
+                            if (i >= 0) onOpenDetail(results, i)
                         },
                         onToggle = {
                             if (addedCodes.contains(s.code)) {

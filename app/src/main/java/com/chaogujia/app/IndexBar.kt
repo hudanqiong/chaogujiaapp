@@ -133,7 +133,12 @@ private fun isPreOpenReset(): Boolean {
 private val NumFont = FontFamily(Font(R.font.ths_regular))
 
 @Composable
-fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
+fun IndexBar(
+    token: String? = null,
+    onOpenNews: () -> Unit = {},
+    // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页（红条也由 MainActivity 渲染）
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
+) {
     // 顶部当前选中指数
     var secid by remember { mutableStateOf("1.000001") }
     var quote by remember { mutableStateOf<IndexQuote?>(null) }
@@ -198,9 +203,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
         } catch (e: Exception) { /* 拉不到则沿用内置列，不影响使用 */ }
     }
     val activeCols = remember(colKeys, dynFields) { WatchColumnRegistry.resolveDyn(colKeys) }
+    // 点列表行进详情页：状态已提升到 MainActivity（App 级），这里不再自持 detailIdx
 
-    // 点列表行进详情页：记录当前看的是第几只（null = 没进详情页）
-    var detailIdx by remember { mutableStateOf<Int?>(null) }
 
     // 拉一次分组列表
     LaunchedEffect(token) {
@@ -285,20 +289,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
         }
     }
 // 顶部红条高度由内容自适应，面板紧贴其底部，无需硬编码
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
+Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
 
-        // ---------- 详情页分支：进了详情页就整屏显示，返回时退出 ----------
-        val openIdx = detailIdx
-        if (openIdx != null && openIdx in stocks.indices) {
-            StockDetailPage(
-                token = token.orEmpty(),
-                list = stocks,
-                index = openIdx,
-                onClose = { detailIdx = null },
-                onOpenSearch = { detailIdx = null }
-            )
-            return
-        }
+        // 详情页已提升到 MainActivity（App 级覆盖层 + 统一红条），这里不再渲染详情页
 
 
         // ---------- 主列：红条 + 分割线 +（展开时）面板 +（展开时）关闭遮罩 ----------
@@ -554,7 +547,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                     pctW = pctW,
                                     midW = midW,
                                     onOpen = {
-                                        detailIdx = stocks.indexOfFirst { it.code == s.code }
+                                        val i = stocks.indexOfFirst { it.code == s.code }
+                                        if (i >= 0) onOpenDetail(stocks, i)
                                     }
                                 )
                             }

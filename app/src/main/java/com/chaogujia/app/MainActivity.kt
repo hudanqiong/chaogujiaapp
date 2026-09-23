@@ -38,6 +38,16 @@ private data class TabItem(
     val checkedRes: Int
 )
 
+// ============ 轻量导航栈：详情页状态（App 级） ============
+// 记录"从哪一页、哪一批股票、第几只"进入详情页；null = 未打开详情页。
+// 这样红条由 MainActivity 统一渲染（全 App 唯一一条详情红条），
+// 返回时弹栈回到真正的来源页（自选 / 搜索 …）。
+data class DetailState(
+    val from: String,              // 来源页："watch" / "search" ...
+    val list: List<StockItem>,
+    val index: Int
+)
+
 @Composable
 fun ChaoGuJiaApp() {
     val tabs = listOf(
@@ -50,7 +60,6 @@ fun ChaoGuJiaApp() {
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE) }
-
     // 启动默认进"行情"页
     var current by remember { mutableStateOf("quote") }
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
@@ -58,6 +67,27 @@ fun ChaoGuJiaApp() {
     var showLogin by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var targetTab by remember { mutableStateOf("index") }
+
+    // ============ 轻量导航栈：详情页状态提升到 App 级 ============
+    var detail by remember { mutableStateOf<DetailState?>(null) }
+    // 详情页当前下标（受控；◀▶ 切换时更新）
+    var detailIdx by remember { mutableStateOf(0) }
+    // 详情页当前显示的名称（由 StockDetailPage 回吐，供红条显示）
+    var detailName by remember { mutableStateOf("") }
+
+    // 打开详情页：记录来源页 + 列表 + 下标，形成"栈帧"
+    fun openDetail(from: String, list: List<StockItem>, index: Int) {
+        detail = DetailState(from = from, list = list, index = index)
+        detailIdx = index
+        detailName = if (index in list.indices) list[index].name else ""
+    }
+    // 关闭详情页 = 返回上一步：弹栈，回到 from 指定的来源页
+    fun closeDetail() {
+        val from = detail?.from
+        detail = null
+        detailName = ""
+        if (from != null) current = from
+    }
 
     // 会员信息（5 页共用，由 MainActivity 统一拉）
     var member by remember { mutableStateOf(MemberInfo()) }
@@ -88,16 +118,36 @@ fun ChaoGuJiaApp() {
     Box(Modifier.fillMaxSize()) {
     Scaffold(
         topBar = {
-            // 红色会员顶栏：5 个 Tab 页面统一渲染，高度一致
-            // 内容按页面切换：首页=会员信息，自选页=同花顺自选+三图标，其他=空占位
-            MemberHeaderBar(
-                current = current,
-                username = uname,
-                isMember = member.isMember,
-                levelName = member.levelName,
-                expireAt = member.expireAt,
-                onOpenSearch = { showSearch = true }   // ★ 点自选页红条最右图标 → 全屏搜索页
-            )
+            // 红色会员顶栏：5 个 Tab 页面统一渲染，高度一致。
+            // ★ 详情页打开时，红条切换为 detail 模式（全 App 唯一一条详情红条），
+            //   内容 = [←返回] ◀名称/代码▶ [图二][图三]，不再出现第二条红条。
+            val d = detail
+            if (d != null) {
+                MemberHeaderBar(
+                    current = "detail",
+                    username = uname,
+                    isMember = member.isMember,
+                    levelName = member.levelName,
+                    expireAt = member.expireAt,
+                    onOpenSearch = { showSearch = true },
+                    detailName = detailName,
+                    detailCode = if (detailIdx in d.list.indices) d.list[detailIdx].code else "",
+                    detailCanPrev = detailIdx > 0,
+                    detailCanNext = detailIdx < d.list.size - 1,
+                    onDetailBack = { closeDetail() },
+                    onDetailPrev = { if (detailIdx > 0) detailIdx-- },
+                    onDetailNext = { if (detailIdx < d.list.size - 1) detailIdx++ }
+                )
+            } else {
+                MemberHeaderBar(
+                    current = current,
+                    username = uname,
+                    isMember = member.isMember,
+                    levelName = member.levelName,
+                    expireAt = member.expireAt,
+                    onOpenSearch = { showSearch = true }   // ★ 点自选页红条最右图标 → 全屏搜索页
+                )
+            }
         },
         bottomBar = {
             Row(
@@ -160,10 +210,31 @@ fun ChaoGuJiaApp() {
                 "watch" -> Box(Modifier.fillMaxSize().background(Color.White)) {
                     // 纯白背景层（红条与分割线由 IndexBar 内部绘制，详情面板 overlay 悬浮其上）
                     // 叠在最上方：顶部工具条 + 分割线 + （展开时）详情面板
-                    IndexBar(token = token, onOpenNews = { current = "news" })
+                    IndexBar(
+                        token = token,
+                        onOpenNews = { current = "news" },
+                        // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页
+                        onOpenDetail = { list, index -> openDetail("watch", list, index) }
+                    )
                 }
                 "trade" -> EmptyScreen()
                 "news" -> EmptyScreen()
+            }
+
+            // ★ 详情页：App 级覆盖层（位于红条下方的内容区）。
+            //   红条已由 MainActivity 的 detail 模式渲染，这里不再自绘红条。
+            val d = detail
+            if (d != null) {
+                StockDetailPage(
+                    token = token,
+                    list = d.list,
+                    index = detailIdx,
+                    showOwnHeader = false,
+                    onIndexChange = { detailIdx = it },
+                    onNameChange = { detailName = it },
+                    onClose = { closeDetail() },
+                    onOpenSearch = { showSearch = true }
+                )
             }
 
             if (showLogin) {
@@ -185,7 +256,9 @@ fun ChaoGuJiaApp() {
         if (showSearch) {
             SearchPage(
                 token = token,
-                onClose = { showSearch = false }
+                onClose = { showSearch = false },
+                // ★ 搜索页点股票 → 状态提升到 App 级；返回时先关搜索页再回来源页
+                onOpenDetail = { list, index -> openDetail("search", list, index) }
             )
         }
     }

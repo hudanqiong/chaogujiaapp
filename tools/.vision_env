@@ -1,0 +1,3 @@
+export VISION_KEY='7bf6e3a7bcb84395a30813872774d93a.MSx2pmg70qeN33Pd'
+export VISION_PROVIDER='zhipu'
+export VISION_MODEL='glm-4v-flash'
