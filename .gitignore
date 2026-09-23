@@ -22,3 +22,13 @@ apk_x/
 *.png~
 kline_test.png
 orderbook.php
+# 本地排查/验证临时脚本（不入库）
+cap_lhb.php
+iso_lhb.php
+iso_utf8.php
+scan_*.py
+doc_swap.py
+doc_thick.py
+patch_macd_label.py
+patch_macd_thick.py
+patch_swap.py
