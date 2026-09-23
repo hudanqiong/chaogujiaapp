@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
@@ -390,8 +391,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                         // 三列从右侧依次进入（只有名称列钉死）。
                         Text(
                             text = "涨幅",
-                            color = COLOR_SUB,
-                            fontSize = 12.sp,
+                            color = COLOR_TEXT,
+                            fontSize = 13.sp,
                             textAlign = TextAlign.End,
                             modifier = Modifier
                                 .width(pctW.dp)
@@ -400,8 +401,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                         for (col in activeCols) {
                             Text(
                                 text = col.title,
-                                color = COLOR_SUB,
-                                fontSize = 12.sp,
+                                color = COLOR_TEXT,
+                                fontSize = 13.sp,
                                 maxLines = 1,
                                 softWrap = false,
                                 modifier = Modifier.width(col.width.dp).padding(horizontal = 10.dp),
@@ -419,8 +420,8 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     ) {
                         Text(
                             text = "名称 / 代码",
-                            color = COLOR_SUB,
-                            fontSize = 12.sp,
+                            color = COLOR_TEXT,
+                            fontSize = 13.sp,
                             modifier = Modifier
                                 .align(Alignment.CenterStart)
                                 .padding(start = 16.dp)
@@ -802,6 +803,26 @@ private fun StockRow(
                     }
                 }
             }
+            // 名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
+            // 交互：与其它统计列同机制 —— 跟随横滑一起左移（translationX = -hScroll.value），
+            //      被上层名称列白底 Box 从右往左"一点一点盖住"，而不是用透明度淡出。
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(start = (fixedW + 8).dp, end = (pctW + 8).dp)
+                    .graphicsLayer { translationX = -hScroll.value.toFloat() }
+            ) {
+                MiniMinuteChart(
+                    trends = trend?.first ?: emptyList(),
+                    preClose = trend?.second ?: 0.0,
+                    reset = reset,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp)
+                )
+            }
+
             // 上层：固定列「名称 + 代码」，带白底（点击进详情页），盖住滑过来的统计列
             Column(
                 Modifier
@@ -826,27 +847,6 @@ private fun StockRow(
                     color = COLOR_SUB,
                     fontSize = 12.sp,
                     fontFamily = NumFont
-                )
-            }
-            // 最上层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
-            // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡。
-            // 交互：默认不滑动时显示分时图；用户左滑（hScroll.value>0）时随滑动淡出，
-            //      让下方统计列（成交额/竞价涨幅/竞价金额）露出。
-            val slideFade = (1f - (hScroll.value.toFloat() / 90f)).coerceIn(0f, 1f)
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .padding(start = (fixedW + 8).dp, end = (pctW + 8).dp)
-                    .alpha(slideFade)
-            ) {
-                MiniMinuteChart(
-                    trends = trend?.first ?: emptyList(),
-                    preClose = trend?.second ?: 0.0,
-                    reset = reset,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
                 )
             }
         }
