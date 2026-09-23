@@ -99,7 +99,13 @@ private fun colorOf(pct: Double): Color =
  *   - 涨跌幅色块 → 黑底 + "--"
  *   - 最新价     → 黑字 + "--"
  *   - 分时图     → 中间一条平虚线（无曲线）
- * 09:15（集合竞价）起恢复正常行情显示。
+ *
+ * 时段规则（A 股）：
+ *   08:45 – 09:15  重置时段（本函数返回 true）
+ *   09:15 – 09:25  集合竞价（返回 false）→ 正常更新真实数据；
+ *                  此期间上游分时可能只返回 1 个点，由 MiniMinuteChart 单独绘制
+ *   09:25 – 09:30  静默 5 分钟（返回 false）→ 不做特殊处理，保持现状
+ *   09:30 起       正式开盘（返回 false）→ 连续竞价，走势图自然铺开
  *
  * 注意：时间基准使用 [Net.serverNow]（服务器时间校正），避免手机时间不准导致误判。
  */
@@ -1563,14 +1569,48 @@ private fun MiniMinuteChart(
             return@Canvas
         }
 
-        // 数据未就绪：画一条浅灰占位提示线，让用户明确看到分时图的位置
-        if (trends.size < 2) {
+        // 无数据：画一条浅灰占位提示线，让用户明确看到分时图的位置
+        if (trends.isEmpty() || trends.first().price <= 0.0) {
             drawLine(
                 color = Color(0xFFEEEEEE),
                 start = Offset(0f, h / 2f),
                 end = Offset(w, h / 2f),
                 strokeWidth = 1.6f
             )
+            return@Canvas
+        }
+
+        // 集合竞价时段（约 09:15–09:30，连续竞价前）：上游只返回 1 个点，
+        // 此时不画空占位线，而是把该点（集合竞价价位）画在昨收基准线上，
+        // 让用户在开盘前也能看到集合竞价的价位水平与涨跌方向。
+        if (trends.size == 1) {
+            val p0 = trends.first().price
+            val range0 = if (preClose > 0) preClose * 0.01 else 1.0
+            val top0 = maxOf(preClose, p0) + range0 * 0.35
+            val bot0 = minOf(preClose, p0) - range0 * 0.35
+            val span0 = (top0 - bot0).let { if (it <= 0.0) 1.0 else it }
+            fun y1(p: Double): Float = (h * (1.0 - (p - bot0) / span0)).toFloat()
+            // 昨收基准线
+            drawLine(
+                color = Color(0xFFDDDDDD),
+                start = Offset(0f, y1(preClose)),
+                end = Offset(w, y1(preClose)),
+                strokeWidth = 1f
+            )
+            val c1 = when {
+                p0 > preClose -> Color(0xFFE64A3B)
+                p0 < preClose -> Color(0xFF19A05A)
+                else -> Color(0xFF9E9E9E)
+            }
+            // 从最左到该点的短线段（体现「开盘到现在」的走势方向）
+            drawLine(
+                color = c1,
+                start = Offset(0f, y1(preClose)),
+                end = Offset(w * 0.65f, y1(p0)),
+                strokeWidth = 2.4f
+            )
+            // 该点本身：实心圆点，醒目
+            drawCircle(color = c1, radius = 3.2f, center = Offset(w * 0.65f, y1(p0)))
             return@Canvas
         }
 
