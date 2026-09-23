@@ -1,0 +1,25 @@
+【K线换手率 f58 改为真值 —— 真机验证结论】2026-09-24
+
+一、代码改动（commit 88fd863，保留）
+  Api.kt:206   KLinePoint 新增 val turnover: Double = 0.0
+  Api.kt:898   东财解析补 turnover = f.getOrNull(7)?.toDoubleOrNull() ?: 0.0  (f58)
+  StockDetailPage.kt:458  turnoverEst = if (kp.turnover>0.0) kp.turnover else 估算
+
+二、真机实测（临时 log 验证，commit d3a82ab/5a0571d，已 revert 3408a5e/8b0d289）
+  日志: date=2026-08-18 f58=0.0 vol=583178.54 floatShares=6.29e9 est=0.9266 final=0.9266
+  原始响应: RAW=  (东财 push2his 返回空)
+  结论: 东财链路在本机不通 -> K线走 fallback(新浪 money.finance.sina.com.cn)
+        新浪K线无换手率列 -> kp.turnover=0 -> 显示值其实是***估算 0.93%***，不是 f58 真值！
+
+三、关键纠偏
+  上一轮"显示0.93%=f58生效"的推断【错误】；实际上东财整条链路不通，
+  换手率一直是估算值。f58 解析代码本身正确，但从未拿到数据。
+
+四、根因
+  1) 东财 push2his.eastmoney.com 在 Ubuntu 侧/手机 shell 侧/App 内 均返回空(HTTP 000 或空体)
+  2) App 自动 fallback 到腾讯/新浪，这些源无换手率字段
+
+五、待办
+  - 东财链路疑似被网络/UA/风控拦截，需排查：换域名(82.push2his)、加 Referer、或改为后端代理
+  - 若东财始终不通，可改用同花顺K线第8列真换手率(实测可用)作数据源
+  - ChipCanvas(:1948) 仍为估算，未同步
