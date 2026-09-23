@@ -3,6 +3,7 @@ package com.chaogujia.app
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -15,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -54,6 +56,15 @@ private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
 private val LINE_GRID = Color(0xFFEEEEEE)
 private val LINE_AXIS = Color(0xFFF0F0F0)
+// 均线图例“均线”按钮：浅灰底/近白，极淡
+private val MA_BTN_BG = Color(0xFFEDEDED)
+private val MA_BTN_FG = Color(0xFF9E9E9E)
+// 筹码按钮：关闭=黑灰近黑（与头部信息同调），打开=涨红
+private val CHIP_BTN_FG = Color(0xFF2A2A2A)
+private val CHIP_BTN_ON = Color(0xFFE64A3B)
+// 筹码峰：套牢盘（现价之上）=蓝，获利盘（现价之下）=红
+private val CHIP_TRAPPED = Color(0xFF3A7BD5)
+private val CHIP_PROFIT = Color(0xFFE64A3B)
 private val TICK_RED = Color(0x33E64A3B)     // 蜡烛红（半透明填充）
 private val TICK_GREEN = Color(0x3319A05A)   // 蜡烛绿（半透明填充）
 
@@ -106,6 +117,11 @@ fun StockDetailPage(
     var detail by remember { mutableStateOf<StockDetail?>(null) }
     // K线选中的柱子下标（对应 detail.line 的下标；null=未选中，头部显示最新一天）
     var selK by remember { mutableStateOf<Int?>(null) }
+        var maPeriods by remember { mutableStateOf(MA_DEFAULT_PERIODS) }
+        // 均线设置页显隐（父层持有，齿轮与 ⚙ 共用）
+        var showMaSetting by remember { mutableStateOf(false) }
+        // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
+        var showChip by remember { mutableStateOf(false) }
     // 所属概念（含实时涨跌幅）
     var concept by remember { mutableStateOf<Api.Concept?>(null) }
     // 是否已加自选（用于底部“自选”按钮）
@@ -169,7 +185,16 @@ fun StockDetailPage(
         DetailHeadData(detail, selK)
 
         // ================= 标签栏 =================
-        PeriodTabs(period) { period = it; selK = null }
+        PeriodTabs(period, onPick = { period = it; selK = null }, onGear = { showMaSetting = true })
+        // 均线参数（父层持有，供 KLineChart 与图例共享）
+        if (period == "day" || period == "week" || period == "month") MaLegend(maPeriods, showChip = showChip, onToggleChip = { showChip = !showChip })
+        if (showMaSetting) {
+            MaSettingDialog(
+                initial = maPeriods,
+                onDismiss = { showMaSetting = false },
+                onConfirm = { maPeriods = it; showMaSetting = false }
+            )
+        }
 
         // ================= 图表区（占满剩余） =================
         Box(
@@ -180,7 +205,7 @@ fun StockDetailPage(
             when (period) {
                 "minute" -> MinuteChart(detail)
                 "fiveday" -> FiveDayChart(detail)
-                else -> KLineChart(detail, selK) { selK = it }
+                else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
             }
             if (loading && detail == null) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -562,8 +587,71 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
 // ============================================================
 // 标签栏：分时 | 日K | 周K | 月K
 // ============================================================
+/** 均线图例：一行窄间距小字，每条用其自身颜色（M5 黑 / M10 橙 …） */
 @Composable
-private fun PeriodTabs(current: String, onPick: (String) -> Unit) {
+private fun MaLegend(
+    periods: List<Int>,
+    showChip: Boolean = false,
+    onToggleChip: () -> Unit = {}
+) {
+    if (periods.isEmpty()) return
+    // 图例展开/收起（点左侧“均线 ▾”按钮切换）
+    var expanded by remember { mutableStateOf(true) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 10.dp)
+            .padding(top = 0.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 左侧“均线”下拉按钮（浅灰，接近白，带向下小三角）
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(3.dp))
+                .background(MA_BTN_BG)
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("均线", fontSize = 10.sp, color = MA_BTN_FG, lineHeight = 12.sp)
+            Spacer(Modifier.width(2.dp))
+            Text(if (expanded) "▴" else "▾", fontSize = 8.sp, color = MA_BTN_FG)
+        }
+        Spacer(Modifier.width(8.dp))
+        if (expanded) {
+            periods.forEachIndexed { i, p ->
+                if (i > 0) Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "M$p",
+                    color = maColorOf(p),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 12.sp
+                )
+            }
+        }
+        // 最右端：筹码按钮（长方形空心，关闭黑灰 / 打开红色）
+        Spacer(Modifier.weight(1f))
+        val chipColor = if (showChip) CHIP_BTN_ON else CHIP_BTN_FG
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(2.dp))
+                .border(1.dp, chipColor, RoundedCornerShape(2.dp))
+                .clickable { onToggleChip() }
+                .padding(horizontal = 6.dp, vertical = 1.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "筹码",
+                fontSize = 10.sp,
+                color = chipColor,
+                lineHeight = 12.sp
+            )
+        }
+    }
+}
+
+private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() -> Unit)? = null) {
     val tabs = listOf(
         "minute" to "分时",
         "fiveday" to "五日",
@@ -599,6 +687,18 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit) {
                         .width(if (active) 26.dp else 0.dp)
                         .background(if (active) Color(Config.COLOR_PRIMARY) else Color.Transparent)
                 )
+            }
+        }
+        // 右侧齿轮：进入均线设置
+        if (onGear != null) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .clickable { onGear() }
+                    .padding(4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("⚙", fontSize = 18.sp, color = TEXT_SUB)
             }
         }
     }
@@ -1163,13 +1263,32 @@ private val K_CROSS_COLOR = Color(0xFF666666)
  */
 private val MA_DEFAULT_PERIODS = listOf(5, 10, 20, 60)
 private val MA_COLORS = listOf(
-    Color(0xFFF5A623), // 橙黄   MA5
-    Color(0xFF2E8BE6), // 蓝     MA10
+    Color(0xFF000000), // 黑     MA5（固定）
+    Color(0xFFF5A623), // 橙     MA10
     Color(0xFFB44DD8), // 紫     MA20
-    Color(0xFF2E7D32), // 墨绿   MA60
-    Color(0xFF8D6E63), // 棕     MA120（超出时循环）
-    Color(0xFFE91E63)  // 玫红
+    Color(0xFF2E8BE6), // 蓝     MA30
+    Color(0xFF306612), // 墨绿   MA60
+    Color(0xFFE91E63), // 玫红   MA120
+    Color(0xFF8D6E63)  // 棕     兜底
 )
+
+/** 参数值 -> 固定颜色。同一个参数（如 5）无论排在第几位，颜色永远一致。 */
+private val MA_PARAM_COLOR: Map<Int, Color> = mapOf(
+    5 to Color(0xFF000000),   // M5  黑（固定）
+    10 to Color(0xFFF5A623),  // M10 橙
+    20 to Color(0xFFB44DD8),  // M20 紫
+    30 to Color(0xFF2E8BE6),  // M30 蓝
+    60 to Color(0xFF306612),  // M60 墨绿
+    120 to Color(0xFFE91E63)  // M120 玫红
+)
+
+private val MA_FALLBACK_COLORS = listOf(
+    Color(0xFF8D6E63), Color(0xFFE91E63), Color(0xFF00838F), Color(0xFF6D4C41)
+)
+
+/** 取均线颜色：优先按参数精确匹配；未收录的参数按参数大小稳定取兜底色。 */
+internal fun maColorOf(period: Int): Color = MA_PARAM_COLOR[period]
+    ?: MA_FALLBACK_COLORS[(period / 10) % MA_FALLBACK_COLORS.size]
 
 /**
  * 计算均线：返回与 line 等长的数组，第 i 项为「最近 period 根收盘均值」。
@@ -1192,7 +1311,14 @@ private fun startOf(right: Int, visible: Int, size: Int): Int =
     (right - visible + 1).coerceAtLeast(0).coerceAtMost(size - 1)
 
 @Composable
-private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) -> Unit = {}) {
+private fun KLineChart(
+    d: StockDetail?,
+    selIdx: Int? = null,
+    maPeriods: List<Int> = MA_DEFAULT_PERIODS,
+    showChip: Boolean = false,
+    onMaPeriodsChange: (List<Int>) -> Unit = {},
+    onSelect: (Int?) -> Unit = {}
+) {
     val line = d?.line ?: emptyList()
     if (line.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1213,25 +1339,16 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
         rightIndex = line.lastIndex
     }
 
-    // ===== 均线（MA）参数：默认 5/10/20/60，可由「设置」弹窗自定义 =====
-    var maPeriods by remember(d?.code) { mutableStateOf(MA_DEFAULT_PERIODS) }
-    var showMaSetting by remember { mutableStateOf(false) }
-    if (showMaSetting) {
-        MaSettingDialog(
-            initial = maPeriods,
-            onDismiss = { showMaSetting = false },
-            onConfirm = { list ->
-                maPeriods = list
-                showMaSetting = false
-            }
-        )
-    }
 
     // 取当前窗口数据
     val n = visible.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
     val end = rightIndex.coerceIn((n - 1).coerceAtMost(line.lastIndex), line.lastIndex)
     val start = (end - n + 1).coerceAtLeast(0)
     val show = line.subList(start, end + 1)
+
+    // ===== 筹码峰：数据固定按最近120根推演一次（方案A：绘制时随价格轴缩放）=====
+    val chip = remember(d?.code, line.size) { computeChipDist(line, d?.base) }
+    val chipW = if (showChip && chip != null) 72.dp else 0.dp
 
     Column(modifier = Modifier.fillMaxSize().padding(top = 6.dp)) {
         Box(
@@ -1267,8 +1384,8 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     val ni = (rightIndex - moved).coerceIn(lo, line.lastIndex)
                     rightIndex = ni
                 },
-                // 底部留出叠层按钮行的高度，避免蜡烛图被半透明条压住
-                modifier = Modifier.fillMaxSize().padding(bottom = 26.dp)
+                // 底部留出叠层按钮行的高度，避免蜡烛图被半透明条压住；右侧让出筹码峰宽度
+                modifier = Modifier.fillMaxSize().padding(bottom = 26.dp, end = chipW)
             )
             PriceAxis(
                 maxV = show.maxOf { it.high },
@@ -1278,8 +1395,22 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     .align(Alignment.TopEnd)
                     .wrapContentWidth()
                     .fillMaxHeight()
-                    .padding(top = 2.dp)
+                    .padding(top = 2.dp, end = chipW)
             )
+            // ===== 右侧纵向筹码峰（方案A：与K线同高、同价格轴 → 联动缩放）=====
+            if (showChip && chip != null) {
+                ChipCanvas(
+                    chip = chip,
+                    topV = show.maxOf { it.high } * 1.05,
+                    botV = show.minOf { it.low } * 0.95,
+                    curPrice = d?.base?.price ?: show.last().close,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .width(72.dp)
+                        .fillMaxHeight()
+                        .padding(bottom = 26.dp)
+                )
+            }
             // ===== 缩放 / 平移圆形按钮：浮在主图（分时/K线主图）底部 =====
             Row(
                 modifier = Modifier
@@ -1289,7 +1420,6 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                KLineButton(text = "⚙") { showMaSetting = true }
                 Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
                 KLineButton(text = "−") {
@@ -1386,38 +1516,67 @@ private fun MaSettingDialog(
     onDismiss: () -> Unit,
     onConfirm: (List<Int>) -> Unit
 ) {
-    var text by remember { mutableStateOf(initial.joinToString(",")) }
+    // 每行一个输入框：默认 4 个（沿用初始参数），可点“＋增加一条”追加
+    val rows = remember {
+        mutableStateListOf<String>().apply {
+            val base = initial.ifEmpty { MA_DEFAULT_PERIODS }
+            base.forEach { add(it.toString()) }
+        }
+    }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { androidx.compose.material3.Text("均线设置", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
         text = {
-            Column {
-                androidx.compose.material3.Text(
-                    "填写均线参数，逗号分隔（如 5,10,20,60）",
-                    fontSize = 12.sp, color = TEXT_SUB
-                )
-                Spacer(Modifier.height(8.dp))
-                androidx.compose.material3.OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    singleLine = true,
-                    label = { androidx.compose.material3.Text("均线参数") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                rows.indices.forEach { i ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = rows[i],
+                            onValueChange = { v ->
+                                // 只允许数字
+                                rows[i] = v.filter { it.isDigit() }.take(4)
+                            },
+                            singleLine = true,
+                            placeholder = { androidx.compose.material3.Text("如 5", fontSize = 13.sp) },
+                            modifier = Modifier.width(96.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        androidx.compose.material3.Text("日线", fontSize = 14.sp, color = TEXT_MAIN)
+                        Spacer(Modifier.weight(1f))
+                        if (rows.size > 1) {
+                            androidx.compose.material3.Text(
+                                "删除", fontSize = 13.sp, color = GRAY_FLAT,
+                                modifier = Modifier.clickable { rows.removeAt(i) }.padding(6.dp)
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(6.dp))
-                androidx.compose.material3.Text(
-                    "最多 6 条；无效项自动忽略。",
-                    fontSize = 11.sp, color = TEXT_SUB
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { if (rows.size < 8) rows.add("") }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    androidx.compose.material3.Text("＋ 增加一条", fontSize = 14.sp, color = Color(Config.COLOR_PRIMARY))
+                }
             }
         },
         confirmButton = {
             androidx.compose.material3.TextButton(onClick = {
-                val list = text.split(",", "，", " ")
-                    .mapNotNull { it.trim().toIntOrNull() }
+                val list = rows.mapNotNull { it.trim().toIntOrNull() }
                     .filter { it > 0 }
                     .distinct()
-                    .take(6)
+                    .take(8)
                 onConfirm(if (list.isEmpty()) MA_DEFAULT_PERIODS else list)
             }) { androidx.compose.material3.Text("确定") }
         },
@@ -1428,7 +1587,6 @@ private fun MaSettingDialog(
         }
     )
 }
-
 @Composable
 private fun KLineCanvas(
     line: List<KLinePoint>,
@@ -1492,7 +1650,7 @@ private fun KLineCanvas(
         val slot = w / n
         lastSlot = slot
         // 缩到很小时保证柱宽至少 1px，视觉上连成一条线（同花顺观感）
-        val bw = max(slot * 0.82f, 1f)
+        val bw = max(slot * 0.92f, 1f)
 
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
@@ -1505,8 +1663,8 @@ private fun KLineCanvas(
             val yTop = min(yO, yC)
             val yBot = max(yO, yC)
             val bh = max(abs(yC - yO), 1.2f)
-            val sw = 2.6f   // 影线线宽
-            val barSw = 3.8f // 涨柱（空心）描边线宽（加粗，同花顺观感）
+            val sw = 3.2f   // 影线线宽
+            val barSw = 4.6f // 涨柱（空心）描边线宽（加粗，同花顺观感）
             // 影线：只画上下两段，不穿过实体中心（同花顺观感）
             if (yHigh < yTop) drawLine(c, Offset(cx, yHigh), Offset(cx, yTop), strokeWidth = sw)
             if (yLow > yBot) drawLine(c, Offset(cx, yBot), Offset(cx, yLow), strokeWidth = sw)
@@ -1522,7 +1680,7 @@ private fun KLineCanvas(
         // ===== 均线（MA）：叠在蜡烛之上，每条一种颜色 =====
         maList.forEachIndexed { mi, ma ->
             if (ma.isEmpty()) return@forEachIndexed
-            val color = MA_COLORS[mi % MA_COLORS.size]
+            val color = maColorOf(maPeriods.getOrElse(mi) { MA_DEFAULT_PERIODS.getOrElse(mi) { 5 } })
             val pathMA = Path()
             var started = false
             ma.forEachIndexed { i, v ->
@@ -1557,7 +1715,7 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val maxV = line.maxOf { it.vol }.coerceAtLeast(1e-6)
         val n = line.size
         val slot = w / n
-        val bw = max(slot * 0.82f, 1f)
+        val bw = max(slot * 0.92f, 1f)
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
@@ -1714,5 +1872,168 @@ private fun BottomAction(text: String, modifier: Modifier, onClick: () -> Unit) 
         contentAlignment = Alignment.Center
     ) {
         Text(text = text, color = TEXT_MAIN, fontSize = 13.sp, maxLines = 1)
+    }
+}
+
+// ===================== 筹码分布（筹码峰）算法 =====================
+// 无公开接口，按东财口径本地推演：日K线(OHLC) + 估算换手率。
+// 回看 CHIP_LOOKBACK 根，价格按三角分布铺开，历史筹码按换手率衰减。
+// 产出：150 档价格 + 占比（从低到高），便于画横向筹码柱。
+private const val CHIP_LOOKBACK = 120      // 回看K线根数（东财默认120）
+private const val CHIP_BINS = 150          // 价格档位
+
+private class ChipDist(
+    val prices: List<Double>,   // 每档价格（从低到高）
+    val ratios: List<Double>,   // 每档筹码占比（总和≈1）
+    val maxRatio: Double,       // 最大档占比（用于横向柱长归一化）
+    val avgCost: Double,        // 平均成本（累计50%处）
+    val profitRatio: Double     // 获利比例（现价之下筹码占比）
+)
+
+/**
+ * 计算筹码分布。
+ * @param line  日K线（含 OHLC + vol + amount）
+ * @param base  今日行情（用于估算流通股 / 换手率）
+ */
+private fun computeChipDist(line: List<KLinePoint>, base: StockBase?): ChipDist? {
+    if (line.size < 2) return null
+    val b = base ?: StockBase()
+    // 流通股（股）= 流通市值(亿)*1e8 / 现价；换手率% = 当日成交量(手)*100 / 流通股 * 100
+    val floatShares = if (b.price > 0 && b.floatCap > 0) b.floatCap * 1e8 / b.price else 0.0
+    if (floatShares <= 0) return null
+
+    // 取最近 CHIP_LOOKBACK 根
+    val start = maxOf(0, line.size - CHIP_LOOKBACK)
+    val seg = line.subList(start, line.size)
+
+    // 确定价格范围（稍留边）
+    var lo = Double.MAX_VALUE
+    var hi = -Double.MAX_VALUE
+    for (kp in seg) {
+        if (kp.low > 0 && kp.low < lo) lo = kp.low
+        if (kp.high > hi) hi = kp.high
+    }
+    if (hi <= lo || lo <= 0) return null
+    val span = hi - lo
+    val pad = span * 0.02
+    lo -= pad; hi += pad
+    val step = (hi - lo) / CHIP_BINS
+    if (step <= 0) return null
+
+    // 筹码数组（每档权重）
+    val hist = DoubleArray(CHIP_BINS)
+
+    // 按日期从旧到新推演
+    val turnoverRate = DoubleArray(seg.size)
+    for (i in seg.indices) {
+        val kp = seg[i]
+        // 换手率%（0~1 之间归一后使用，避免异常值）
+        var tr = kp.vol * 100.0 / floatShares * 100.0
+        if (tr.isNaN() || tr < 0) tr = 0.0
+        tr = tr.coerceIn(0.0, 100.0) / 100.0
+        turnoverRate[i] = tr
+    }
+
+    // 三角分布铺开当日成交：以当日均价为峰，[low,high] 为底
+    fun spread(dayIdx: Int, weight: Double) {
+        val kp = seg[dayIdx]
+        val dl = ((kp.low - lo) / step).toInt().coerceIn(0, CHIP_BINS - 1)
+        val dh = ((kp.high - lo) / step).toInt().coerceIn(0, CHIP_BINS - 1)
+        val mid = ((kp.open + kp.close + kp.high + kp.low) / 4.0 - lo) / step
+        for (k in dl..dh) {
+            // 三角分布：离峰越远权重越低
+            val d = kotlin.math.abs(k - mid)
+            val half = maxOf(0.5, kotlin.math.abs(dh - mid) + 0.5, kotlin.math.abs(mid - dl) + 0.5)
+            val w = (1.0 - d / (half + 1e-9)).coerceAtLeast(0.05)
+            hist[k] += weight * w
+        }
+    }
+
+    for (i in seg.indices) {
+        val tr = turnoverRate[i]
+        if (tr <= 0.0) {
+            // 无成交量：仅轻微衰减
+            for (k in 0 until CHIP_BINS) hist[k] *= 0.999
+            continue
+        }
+        // 历史筹码按换手率衰减
+        for (k in 0 until CHIP_BINS) hist[k] *= (1.0 - tr)
+        // 当日成交按换手率加入
+        val dayWeight = tr * seg[i].vol.coerceAtLeast(0.0)
+        if (dayWeight > 0) spread(i, dayWeight)
+    }
+
+    // 归一化
+    var total = 0.0
+    for (v in hist) total += v
+    if (total <= 0) return null
+    val ratios = List(CHIP_BINS) { hist[it] / total }
+    val prices = List(CHIP_BINS) { lo + step * (it + 0.5) }
+    val maxR = ratios.maxOrNull() ?: 0.0
+
+    // 平均成本：从低到高累计到 50% 处的价格
+    var acc = 0.0
+    var avgCost = prices.last()
+    for (k in 0 until CHIP_BINS) {
+        acc += ratios[k]
+        if (acc >= 0.5) { avgCost = prices[k]; break }
+    }
+    // 获利比例：现价之下的筹码占比
+    val cur = if (b.price > 0) b.price else seg.last().close
+    var profit = 0.0
+    for (k in 0 until CHIP_BINS) if (prices[k] <= cur) profit += ratios[k]
+
+    return ChipDist(prices, ratios, maxR, avgCost, profit)
+}
+
+/**
+ * 右侧纵向筹码峰（同花顺风格）。
+ * 方案A：不使用自己的纵坐标，而是复用 K 线主图的价格轴 topV/botV，
+ * 因此 K 线缩放时（窗口 max/min 变化）筹码峰高度同步缩放。
+ * 现价上方 = 套牢盘（蓝 CHIP_TRAPPED），下方 = 获利盘（红 CHIP_PROFIT）。
+ */
+@Composable
+private fun ChipCanvas(
+    chip: ChipDist,
+    topV: Double,
+    botV: Double,
+    curPrice: Double,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        if (h <= 0f || chip.prices.isEmpty()) return@Canvas
+        val sp = (topV - botV).coerceAtLeast(1e-6)
+        // 价格 -> y（与 KLineCanvas 完全同口径，保证联动缩放）
+        fun yOf(p: Double): Float = (h - ((p - botV) / sp) * h).toFloat()
+        // 每档中心 y 对应的柱子高度
+        val n = chip.prices.size
+        val barH = (h / n).coerceAtLeast(0.5f)
+        val maxBarW = w * 0.92f
+        // 从低到高绘制：柱左端贴 K 线主图（方案B），长度按占比归一化向右生长
+        chip.prices.forEachIndexed { i, p ->
+            val r = chip.ratios[i]
+            if (r <= 0.0) return@forEachIndexed
+            val len = (r / chip.maxRatio * maxBarW).toFloat().coerceAtLeast(0.6f)
+            val cy = yOf(p)
+            if (cy < -barH || cy > h + barH) return@forEachIndexed
+            val color = if (p > curPrice) CHIP_TRAPPED else CHIP_PROFIT
+            drawRect(
+                color = color,
+                topLeft = Offset(0f, cy - barH / 2f),
+                size = Size(len, barH)
+            )
+        }
+        // 现价水平基准线（贯穿筹码区域）
+        val yCur = yOf(curPrice)
+        if (yCur in 0f..h) {
+            drawLine(
+                color = Color(0xCC666666),
+                start = Offset(0f, yCur),
+                end = Offset(w, yCur),
+                strokeWidth = 1.5f
+            )
+        }
     }
 }
