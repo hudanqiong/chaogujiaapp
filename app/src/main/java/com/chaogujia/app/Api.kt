@@ -88,7 +88,13 @@ data class StockItem(
     val name: String = "",
     val price: Double = 0.0,
     val change: Double = 0.0,
-    val changePct: Double = 0.0
+    val changePct: Double = 0.0,
+    // 成交额（元，实时）
+    val amount: Double = 0.0,
+    // 集合竞价涨幅%（9:25 定格，快照）
+    val aucPct: Double = 0.0,
+    // 集合竞价金额（元，9:25 定格，快照）
+    val aucAmount: Double = 0.0
 )
 
 /** 大盘指数（index_quote.php） */
@@ -389,7 +395,10 @@ object Api {
                         name = p.optString("name", ""),
                         price = p.optString("price", "0").toDoubleOrNull() ?: 0.0,
                         change = p.optString("change", "0").toDoubleOrNull() ?: 0.0,
-                        changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0
+                        changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0,
+                        amount = p.optString("amount", "0").toDoubleOrNull() ?: 0.0,
+                        aucPct = p.optString("aucPct", "0").toDoubleOrNull() ?: 0.0,
+                        aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0
                     )
                 )
             }

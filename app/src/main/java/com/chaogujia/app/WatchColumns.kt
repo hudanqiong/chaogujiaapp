@@ -75,15 +75,40 @@ object WatchColumnRegistry {
         colorMode = WatchColumn.ColorMode.UP_DOWN
     )
 
+    /** 成交额（实时，元→亿/万） */
+    val AMOUNT = WatchColumn(
+        key = "amount",
+        title = "成交额",
+        width = 76,
+        value = { fmtAmount(it.amount) }
+    )
+
+    /** 竞价涨幅%（9:25 定格快照） */
+    val AUC_PCT = WatchColumn(
+        key = "aucPct",
+        title = "竞价涨幅",
+        width = 72,
+        value = { String.format(Locale.CHINA, "%+.2f%%", it.aucPct) },
+        colorMode = WatchColumn.ColorMode.UP_DOWN
+    )
+
+    /** 竞价金额（9:25 定格快照，元→万/亿） */
+    val AUC_AMOUNT = WatchColumn(
+        key = "aucAmount",
+        title = "竞价金额",
+        width = 76,
+        value = { fmtAmount(it.aucAmount) }
+    )
+
     /**
      * 所有可选列。以后扩充字段（如成交量/换手/市值）时在这里加。
      * 注意：扩展到 StockItem 里没有的字段时，需要先给 StockItem 加字段。
      */
-    val ALL: List<WatchColumn> = listOf(PCT_PRICE, PRICE, CHANGE_PCT, CHANGE)
+    val ALL: List<WatchColumn> = listOf(PCT_PRICE, PRICE, CHANGE_PCT, CHANGE, AMOUNT, AUC_PCT, AUC_AMOUNT)
 
     /** 默认显示的列 key（顺序敏感）：只默认显示「涨幅」合并列（上百分比 / 下价格） */
     // 默认不启用任何横滑统计列（「涨幅」已作为右侧固定列单独渲染）
-    val DEFAULT_KEYS: List<String> = emptyList()
+    val DEFAULT_KEYS: List<String> = listOf(AMOUNT.key, AUC_PCT.key, AUC_AMOUNT.key)
 
     /** 按 key 取列定义 */
     fun byKey(key: String): WatchColumn? = ALL.firstOrNull { it.key == key }
@@ -100,7 +125,7 @@ object WatchColumnPrefs {
     private const val KEY_VER = "ver"
 
     /** 当前列配置版本。改列定义时 +1，可触发老配置一次性迁移。 */
-    private const val CUR_VER = 2
+    private const val CUR_VER = 3
 
     /** 读用户配置；没存过则返回默认 */
     fun load(ctx: android.content.Context): List<String> {
@@ -127,5 +152,15 @@ object WatchColumnPrefs {
             val sp = ctx.getSharedPreferences(SP_NAME, android.content.Context.MODE_PRIVATE)
             sp.edit().putString(KEY_ORDER, keys.joinToString(",")).putInt(KEY_VER, CUR_VER).apply()
         } catch (e: Exception) { /* 忽略 */ }
+    }
+}
+
+/** 金额格式化：元 → 亿 / 万，保留 2 位小数；<=0 显示 "--" */
+fun fmtAmount(yuan: Double): String {
+    if (yuan <= 0.0) return "--"
+    return when {
+        yuan >= 1e8 -> String.format(Locale.CHINA, "%.2f亿", yuan / 1e8)
+        yuan >= 1e4 -> String.format(Locale.CHINA, "%.2f万", yuan / 1e4)
+        else        -> String.format(Locale.CHINA, "%.0f", yuan)
     }
 }
