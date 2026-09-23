@@ -1466,19 +1466,26 @@ private val NUM_CANDS: List<NumCand> = listOf(
     NumCand("DIN din_medium", FontFamily(Font(R.font.din_medium))),
 )
 
-/** 下跌绿候选：label + 颜色。挑一个最顺眼的，告诉我 label 前字母即可 */
+/**
+ * 下跌绿候选：label + 颜色。
+ * ⚠ 本组已按「从同花顺真机截图抠像素」重新校准（2026-09-23）：
+ *   - 同花顺 K线跌绿线条主色 = #66C63A（H≈101°，黄绿系）
+ *   - 同花顺 量柱跌绿       = #309818（H≈109°）
+ *   - 我们旧绿 #19A05A 是 H≈149° 的"青绿"，方向偏了 50°，故"怎么看都不像"。
+ * 现全部改为黄绿系（H 90~115）。
+ */
 private data class ColorCand(val label: String, val color: Color)
 private val DOWN_CANDS = listOf(
-    ColorCand("A 现状 19A05A（偏鲜）", Color(0xFF19A05A)),
-    ColorCand("B 2E8B57 海绿（沉稳）", Color(0xFF2E8B57)),
-    ColorCand("C 279B4B 草木绿", Color(0xFF279B4B)),
-    ColorCand("D 1E9E52 中和绿", Color(0xFF1E9E52)),
-    ColorCand("E 3A9E5F 灰调绿", Color(0xFF3A9E5F)),
-    ColorCand("F 00A854 经典跌绿(同花顺)", Color(0xFF00A854)),
-    ColorCand("G 4B9E6E 柔和莫兰迪", Color(0xFF4B9E6E)),
-    ColorCand("H 2F9E44 偏黄绿", Color(0xFF2F9E44)),
-    ColorCand("I 1B8A4B 深绿（更沉）", Color(0xFF1B8A4B)),
-    ColorCand("J 5AA469 低饱和绿", Color(0xFF5AA469)),
+    ColorCand("A 66C63A ★同花顺真机K线绿", Color(0xFF66C63A)),
+    ColorCand("B 60C038 ★同花顺真机量柱绿", Color(0xFF60C038)),
+    ColorCand("C 309818 同花顺量柱深绿", Color(0xFF309818)),
+    ColorCand("D 5ABF40 稍亮的黄绿", Color(0xFF5ABF40)),
+    ColorCand("E 3FAE2E 更沉的黄绿", Color(0xFF3FAE2E)),
+    ColorCand("F 00A854 旧候选(青绿,参考)", Color(0xFF00A854)),
+    ColorCand("G 19A05A 现状(青绿,对照)", Color(0xFF19A05A)),
+    ColorCand("H 4CB050 中性黄绿", Color(0xFF4CB050)),
+    ColorCand("I 2E9E38 深黄绿", Color(0xFF2E9E38)),
+    ColorCand("J 7ACB55 浅黄绿", Color(0xFF7ACB55)),
 )
 
 /**
@@ -1545,10 +1552,11 @@ private fun DragBar(
  */
 @Composable
 private fun GreenPickerCard() {
-    // 初始值 = 现状绿 19A05A
-    var hue by remember { mutableFloatStateOf(150f) }   // 0..360
-    var sat by remember { mutableFloatStateOf(0.75f) }   // 0..1
-    var valr by remember { mutableFloatStateOf(0.63f) }  // 0..1
+    // 初始值 = 从同花顺真机截图抠出的跌绿 #66C63A
+
+    var hue by remember { mutableFloatStateOf(101f) }   // 0..360  ← 同花顺真机绿 H≈101
+    var sat by remember { mutableFloatStateOf(0.71f) }   // 0..1
+    var valr by remember { mutableFloatStateOf(0.78f) }  // 0..1
     // 用 android.graphics.Color.HSVToColor 得到 ARGB（避免依赖 Compose 的 Color.hsv 实验 API）
     fun hsvColor(h: Float, s: Float, v: Float): Color {
         val argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s * 100f, v * 100f))
