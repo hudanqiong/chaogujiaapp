@@ -1053,7 +1053,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
             ) {
                 Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
-                KLineButton(text = "－") {
+                KLineButton(text = "−") {
                     visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
                     rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
                 }
@@ -1061,13 +1061,13 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     visible = (visible / K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
                     rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
                 }
-                KLineButton(text = "◀") {
+                KLineButton(text = "＜") {
                     val nr = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
                     rightIndex = nr
                     // 若已选中，跟随移动选中框
                     selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                 }
-                KLineButton(text = "▶") {
+                KLineButton(text = "＞") {
                     val nr = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
                     rightIndex = nr
                     selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
