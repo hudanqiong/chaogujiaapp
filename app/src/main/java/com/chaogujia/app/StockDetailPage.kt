@@ -601,8 +601,8 @@ private fun MaLegend(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp)
-            .padding(top = 0.dp, bottom = 2.dp),
+            .height(24.dp)
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 左侧均线标签（浅灰，纯展示）
@@ -626,8 +626,15 @@ private fun MaLegend(
                 lineHeight = 12.sp
             )
         }
-        // 最右端：筹码按钮（长方形空心，关闭黑灰 / 打开红色）
+        // 最右端：前复权说明 + 筹码按钮（长方形空心，关闭黑灰 / 打开红色）
         Spacer(Modifier.weight(1f))
+        Text(
+            text = "前复权",
+            fontSize = 10.sp,
+            color = TEXT_SUB,
+            lineHeight = 12.sp
+        )
+        Spacer(Modifier.width(8.dp))
         val chipColor = if (showChip) CHIP_BTN_ON else CHIP_BTN_FG
         Box(
             modifier = Modifier
@@ -695,7 +702,12 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
                     .padding(4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("⚙", fontSize = 18.sp, color = TEXT_SUB)
+                Image(
+                    painter = painterResource(R.drawable.aen),
+                    contentDescription = "均线设置",
+                    modifier = Modifier.size(20.dp),
+                    contentScale = ContentScale.Fit
+                )
             }
         }
     }
