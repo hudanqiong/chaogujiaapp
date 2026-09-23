@@ -34,3 +34,13 @@ K线换手率「估算→真值」改造验证结论（方案C：同花顺）
 
 结论: 方案C 全链路闭环, K线换手率已由估算值切换为同花顺真值。
 遗留: ChipCanvas(筹码分布, StockDetailPage.kt:1948) 仍用估算公式, 未改。
+
+五、筹码分布(ChipCanvas)同步改造 —— 提交 15ffa7c
+  computeChipDist: 换手率优先 kp.turnover(同花顺真值), 估算仅作兜底;
+  去掉 'floatShares<=0 直接 return null' 硬门槛。
+  真机验证: 伊利详情->日K->开筹码, 面板展开,
+            时间轴 20211029~20260923, logcat 'K线(同花顺) 成功: 140 根'。
+            选中 20260818: 高25.41/低25.05/开25.26/换0.93%/量5831.79万/额14.66亿
+            与同花顺真值(vol=58317854, amount=14.66亿, TURNOVER=0.927)逐位吻合。
+  构建: run 35887376752 -> success
+  截图: /sdcard/chip_verify.png
