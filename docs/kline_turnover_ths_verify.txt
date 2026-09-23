@@ -44,3 +44,33 @@ K线换手率「估算→真值」改造验证结论（方案C：同花顺）
             与同花顺真值(vol=58317854, amount=14.66亿, TURNOVER=0.927)逐位吻合。
   构建: run 35887376752 -> success
   截图: /sdcard/chip_verify.png
+
+六、P1：MACD 副图（提交 4b034a2）
+------------------------------------------------------------
+目标：K 线页新增 MACD 副图（同花顺口径），与主图/量图共享窗口。
+
+实现：
+  1. StockDetailPage.kt 新增：
+     - class MacdResult(dif, dea, macd)
+     - fun ema(src, n)：EMA 递归平滑 k=2/(n+1)
+     - fun computeMACD(line)：close 全量 -> EMA12/EMA26 -> DIF
+       -> DEA=EMA(DIF,9) -> MACD=(DIF-DEA)*2
+  2. 新增 @Composable KLineMacdCanvas(dif,dea,macd,selLocal)：
+     - 零轴居中；红(正)/绿(负) MACD 柱；DIF 白线、DEA 黄线；选中竖线同步。
+  3. 布局：StochDetail Column 三段 weight 0.58 / 0.21 / 0.21。
+     MACD 必须用「全量」line 计算再按 [start..end] 切片
+     （EMA 递归依赖历史，只算可见窗口会全错）。
+
+构建：workflow run 35888632290 (4b034a2) completed success
+      artifact chaogujia-debug-apk 10763952727
+
+真机验证（伊利 600887，日K）：
+  - 截图 /sdcard/macd_verify.png
+  - 像素扫描可见三段独立图形区：
+      主图 y 1010-1560（红绿蜡烛）
+      量图 y 1770-1960（绿柱为主）
+      MACD y 1990-2180：红柱(R)由 0->153 递增（零轴上方），
+            绿柱(G)由 70->14 递减（零轴下方），零轴约 y=2105
+  - 选中 20260818：开25.26/高25.41/低25.05/换0.93%/量5831.79万/额14.66亿
+    （与同花顺真值逐位吻合，未因新增副图而回退）
+  - logcat: K线(同花顺) 成功: 140 根
