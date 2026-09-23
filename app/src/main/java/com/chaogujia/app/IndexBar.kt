@@ -88,9 +88,9 @@ import androidx.compose.foundation.lazy.grid.items
  *       - 最右侧一竖列「指数快捷方块」（首字 + 实时涨跌幅%，可上下滑，点击切换）
  */
 
-/** 涨跌颜色：>=0 红，<0 绿 */
-private val COLOR_UP = Color(0xFFF5222D)    // 红（涨）——更鲜红
-private val COLOR_DOWN = Color(0xFF00B050)  // 绿（跌）——翠绿（同花顺）
+/** 涨跌颜色：>=0 红，<0 绿。统一引用 StockDetailPage 的全局唯一定义（改那里即全站生效） */
+private val COLOR_UP = RED_UP       // 红（涨）
+private val COLOR_DOWN = GREEN_DOWN // 绿（跌）
 private val COLOR_FLAT = Color(0xFF000000)  // 平——纯黑
 private val COLOR_TEXT = Color(0xFF222222)
 private val COLOR_SUB = Color(0xFF888888)
@@ -1463,12 +1463,16 @@ private val NUM_CANDS: List<NumCand> = listOf(
 /** 下跌绿候选：label + 颜色。挑一个最顺眼的，告诉我 label 前字母即可 */
 private data class ColorCand(val label: String, val color: Color)
 private val DOWN_CANDS = listOf(
-    ColorCand("① 现状 2E7D32（偏黑）", Color(0xFF2E7D32)),
-    ColorCand("② 00A05A（清新绿）", Color(0xFF00A05A)),
-    ColorCand("③ 00B050（翠绿·同花顺）", Color(0xFF00B050)),
-    ColorCand("④ 00C853（亮饱和绿）", Color(0xFF00C853)),
-    ColorCand("⑤ 3CB371（柔和中绿）", Color(0xFF3CB371)),
-    ColorCand("⑥ 1DB954（清新流行绿）", Color(0xFF1DB954)),
+    ColorCand("A 现状 19A05A（偏鲜）", Color(0xFF19A05A)),
+    ColorCand("B 2E8B57 海绿（沉稳）", Color(0xFF2E8B57)),
+    ColorCand("C 279B4B 草木绿", Color(0xFF279B4B)),
+    ColorCand("D 1E9E52 中和绿", Color(0xFF1E9E52)),
+    ColorCand("E 3A9E5F 灰调绿", Color(0xFF3A9E5F)),
+    ColorCand("F 00A854 经典跌绿(同花顺)", Color(0xFF00A854)),
+    ColorCand("G 4B9E6E 柔和莫兰迪", Color(0xFF4B9E6E)),
+    ColorCand("H 2F9E44 偏黄绿", Color(0xFF2F9E44)),
+    ColorCand("I 1B8A4B 深绿（更沉）", Color(0xFF1B8A4B)),
+    ColorCand("J 5AA469 低饱和绿", Color(0xFF5AA469)),
 )
 
 @Composable
@@ -1492,7 +1496,7 @@ fun FontComparePage() {
                 Text(
                     text = "6  9",
                     fontSize = 40.sp,
-                    color = Color(0xFFF5222D),
+                    color = RED_UP,
                     fontFamily = fam
                 )
                 // 全部数字
@@ -1506,7 +1510,7 @@ fun FontComparePage() {
                 Text(
                     text = "3952.30  +0.35%",
                     fontSize = 22.sp,
-                    color = Color(0xFFF5222D),
+                    color = RED_UP,
                     fontFamily = fam
                 )
                 HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
@@ -1547,6 +1551,41 @@ fun FontComparePage() {
                     color = c.color,
                     fontFamily = FontFamily(Font(R.font.ths_regular))
                 )
+                Spacer(Modifier.height(4.dp))
+                // K线场景预览：涨=红空心、跌=该候选绿实心；下方量柱同配色
+                Canvas(
+                    Modifier.fillMaxWidth().height(70.dp)
+                ) {
+                    val red = Color(0xFFE64A3B)
+                    val g = c.color
+                    val n = 14
+                    val slot = size.width / n
+                    val bwv = slot * 0.6f
+                    val up = listOf(true, false, true, true, false, true, false, false, true, true, false, true, true, false)
+                    for (i in 0 until n) {
+                        val cx = i * slot + slot / 2f
+                        val topY = 8f + (i % 5) * 6f
+                        val botY = 44f - (i % 3) * 5f
+                        val col = if (up[i]) red else g
+                        // 影线
+                        drawLine(col, Offset(cx, topY - 4f), Offset(cx, botY + 4f), strokeWidth = 2f)
+                        // 实体
+                        drawRect(
+                            color = col,
+                            topLeft = Offset(cx - bwv / 2, topY),
+                            size = Size(bwv, botY - topY),
+                            style = if (up[i]) Stroke(width = 2.2f) else Fill
+                        )
+                        // 量柱（下半区）：涨=空心、跌=实心
+                        val vh = 8f + (i % 4) * 4f
+                        drawRect(
+                            color = col,
+                            topLeft = Offset(cx - bwv / 2, size.height - vh),
+                            size = Size(bwv, vh),
+                            style = if (up[i]) Stroke(width = 1.6f) else Fill
+                        )
+                    }
+                }
                 HorizontalDivider(Modifier.padding(top = 6.dp), color = Color(0xFFEEEEEE))
             }
         }
@@ -1631,7 +1670,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             // ---------- 顶栏：关闭 + 标题 + 刷新状态 ----------
             Row(
                 Modifier.fillMaxWidth().height(48.dp)
-                    .background(Color(0xFFD32F2F)).padding(horizontal = 8.dp),
+                    .background(RED_UP).padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -1669,7 +1708,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             fontSize = 13.sp,
                             modifier = Modifier
                                 .background(
-                                    if (on) Color(0xFFD32F2F) else Color(0xFFF2F2F2),
+                                    if (on) RED_UP else Color(0xFFF2F2F2),
                                     androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
                                 )
                                 .clickable { gid = id }
@@ -1689,7 +1728,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier
                                 .background(
-                                    if (on) Color(0xFFD32F2F) else Color(0xFFF2F2F2),
+                                    if (on) RED_UP else Color(0xFFF2F2F2),
                                     androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                                 )
                                 .clickable { columns = n }
@@ -1827,8 +1866,8 @@ private fun MiniMinuteChart(
                 strokeWidth = 1f
             )
             val c1 = when {
-                p0 > preClose -> Color(0xFFE64A3B)
-                p0 < preClose -> Color(0xFF19A05A)
+                p0 > preClose -> RED_UP
+                p0 < preClose -> GREEN_DOWN
                 else -> Color(0xFF9E9E9E)
             }
             // 该点在横轴上的位置：按其时间（min/240）定位，早期靠左、随开盘向右成长
@@ -1874,8 +1913,8 @@ private fun MiniMinuteChart(
         val last = trends.last().price
         // 线色：相对昨收 涨红 / 跌绿 / 平灰 —— 线用纯色
         val lineColor = when {
-            last > preClose -> Color(0xFFE64A3B)
-            last < preClose -> Color(0xFF19A05A)
+            last > preClose -> RED_UP
+            last < preClose -> GREEN_DOWN
             else -> Color(0xFF9E9E9E)
         }
 

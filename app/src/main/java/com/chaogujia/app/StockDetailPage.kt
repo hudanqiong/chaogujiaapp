@@ -45,8 +45,9 @@ import kotlin.math.min
 private val DSpNumFont = FontFamily(Font(R.font.ths_regular))
 
 // ===== 颜色 =====
-private val RED_UP = Color(0xFFE64A3B)       // 涨：红
-private val GREEN_DOWN = Color(0xFF19A05A)   // 跌：绿
+// 全站涨跌配色单一源头：改这两处，全软件（K线/分时/盘口/涨跌幅/列表）同步生效
+internal val RED_UP = Color(0xFFE64A3B)       // 涨：红
+internal val GREEN_DOWN = Color(0xFF19A05A)   // 跌：绿
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
@@ -1154,6 +1155,37 @@ private const val K_BTN_ZOOM_STEP = 1.25f
 /** 竖线颜色（深灰） */
 private val K_CROSS_COLOR = Color(0xFF666666)
 
+/**
+ * 均线（MA）默认参数与配色。
+ * 每条参数对应一条均线，颜色按顺序循环分配。
+ * 后期可由用户在「设置」弹窗中自定义参数（如 5,10,20,60）。
+ */
+private val MA_DEFAULT_PERIODS = listOf(5, 10, 20, 60)
+private val MA_COLORS = listOf(
+    Color(0xFFF5A623), // 橙黄   MA5
+    Color(0xFF2E8BE6), // 蓝     MA10
+    Color(0xFFB44DD8), // 紫     MA20
+    Color(0xFF2E7D32), // 墨绿   MA60
+    Color(0xFF8D6E63), // 棕     MA120（超出时循环）
+    Color(0xFFE91E63)  // 玫红
+)
+
+/**
+ * 计算均线：返回与 line 等长的数组，第 i 项为「最近 period 根收盘均值」。
+ * 数据不足 period 的位置返回 Double.NaN（该点不画）。
+ */
+private fun computeMA(line: List<KLinePoint>, period: Int): DoubleArray {
+    val out = DoubleArray(line.size) { Double.NaN }
+    if (period <= 0 || line.isEmpty()) return out
+    var sum = 0.0
+    for (i in line.indices) {
+        sum += line[i].close
+        if (i >= period) sum -= line[i - period].close
+        if (i >= period - 1) out[i] = sum / period
+    }
+    return out
+}
+
 /** 已知窗口右端下标 right、窗口根数 visible 时，窗口左端下标 */
 private fun startOf(right: Int, visible: Int, size: Int): Int =
     (right - visible + 1).coerceAtLeast(0).coerceAtMost(size - 1)
@@ -1180,6 +1212,20 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
         rightIndex = line.lastIndex
     }
 
+    // ===== 均线（MA）参数：默认 5/10/20/60，可由「设置」弹窗自定义 =====
+    var maPeriods by remember(d?.code) { mutableStateOf(MA_DEFAULT_PERIODS) }
+    var showMaSetting by remember { mutableStateOf(false) }
+    if (showMaSetting) {
+        MaSettingDialog(
+            initial = maPeriods,
+            onDismiss = { showMaSetting = false },
+            onConfirm = { list ->
+                maPeriods = list
+                showMaSetting = false
+            }
+        )
+    }
+
     // 取当前窗口数据
     val n = visible.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
     val end = rightIndex.coerceIn(n - 1, line.lastIndex)
@@ -1195,6 +1241,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
         ) {
             KLineCanvas(
                 line = show,
+                maList = maPeriods.map { p -> computeMA(line, p).copyOfRange(start, end + 1) }.toTypedArray(),
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices },
                 onPick = { local ->
                     // 点同一根 → 取消选中；否则选中该根（映射回全局下标）
@@ -1237,6 +1284,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                KLineButton(text = "⚙") { showMaSetting = true }
                 Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
                 KLineButton(text = "−") {
@@ -1319,9 +1367,61 @@ private fun KLineButton(text: String, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 均线设置弹窗：用户填写均线参数（逗号分隔），如 5,10,20,60。
+ * 每个参数对应一条均线，颜色按 MA_COLORS 顺序自动分配。
+ */
 @Composable
-private fun KLineCanvas(
+private fun MaSettingDialog(
+    initial: List<Int>,
+    onDismiss: () -> Unit,
+    onConfirm: (List<Int>) -> Unit
+) {
+    var text by remember { mutableStateOf(initial.joinToString(",")) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("均线设置", fontSize = 16.sp, fontWeight = FontWeight.Bold) },
+        text = {
+            Column {
+                androidx.compose.material3.Text(
+                    "填写均线参数，逗号分隔（如 5,10,20,60）",
+                    fontSize = 12.sp, color = TEXT_SUB
+                )
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    label = { androidx.compose.material3.Text("均线参数") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                androidx.compose.material3.Text(
+                    "最多 6 条；无效项自动忽略。",
+                    fontSize = 11.sp, color = TEXT_SUB
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                val list = text.split(",", "，", " ")
+                    .mapNotNull { it.trim().toIntOrNull() }
+                    .filter { it > 0 }
+                    .distinct()
+                    .take(6)
+                onConfirm(if (list.isEmpty()) MA_DEFAULT_PERIODS else list)
+            }) { androidx.compose.material3.Text("确定") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                androidx.compose.material3.Text("取消")
+            }
+        }
+    )
+}
+
     line: List<KLinePoint>,
+    maList: Array<DoubleArray> = emptyArray(),
     selLocal: Int? = null,
     onPick: (Int) -> Unit = {},
     onZoom: (Float) -> Unit = {},
@@ -1394,7 +1494,7 @@ private fun KLineCanvas(
             val yTop = min(yO, yC)
             val yBot = max(yO, yC)
             val bh = max(abs(yC - yO), 1.2f)
-            val sw = 1.8f   // 描边线宽（加粗）
+            val sw = 2.6f   // 描边线宽（加粗）
             // 影线：只画上下两段，不穿过实体中心（同花顺观感）
             if (yHigh < yTop) drawLine(c, Offset(cx, yHigh), Offset(cx, yTop), strokeWidth = sw)
             if (yLow > yBot) drawLine(c, Offset(cx, yBot), Offset(cx, yLow), strokeWidth = sw)
@@ -1405,6 +1505,21 @@ private fun KLineCanvas(
                 size = Size(bw, bh),
                 style = if (up) Stroke(width = sw) else Fill
             )
+        }
+
+        // ===== 均线（MA）：叠在蜡烛之上，每条一种颜色 =====
+        maList.forEachIndexed { mi, ma ->
+            if (ma.isEmpty()) return@forEachIndexed
+            val color = MA_COLORS[mi % MA_COLORS.size]
+            val pathMA = Path()
+            var started = false
+            ma.forEachIndexed { i, v ->
+                if (v.isNaN()) return@forEachIndexed
+                val x = i * slot + slot / 2
+                val y = yOf(v)
+                if (!started) { pathMA.moveTo(x, y); started = true } else pathMA.lineTo(x, y)
+            }
+            if (started) drawPath(pathMA, color, style = Stroke(width = 2.2f))
         }
 
         // ===== 选中竖线（深灰、贯穿） =====
@@ -1435,10 +1550,12 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
             val vh = (k.vol / maxV * h).toFloat()
+            // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致
             drawRect(
-                color = if (up) RED_UP.copy(alpha = 0.55f) else GREEN_DOWN.copy(alpha = 0.55f),
+                color = if (up) RED_UP else GREEN_DOWN,
                 topLeft = Offset(cx - bw / 2, h - vh),
-                size = Size(bw, vh)
+                size = Size(bw, vh),
+                style = if (up) Stroke(width = 2.0f) else Fill
             )
         }
         // ===== 选中竖线（与主图对齐） =====
