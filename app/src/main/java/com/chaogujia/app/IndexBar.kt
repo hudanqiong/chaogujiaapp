@@ -391,25 +391,18 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                 textAlign = if (col.key == "pctPrice") TextAlign.End else TextAlign.Center
                             )
                         }
-                        // 与数据行保持一致的尾部补白：让表头 maxScroll 也正好 = midW，
-                        // 否则两处共用 hScroll 时 maxValue 会被较小者覆盖，出现滑动错位。
-                        Spacer(
-                            Modifier.width(
-                                (midW + pctW - activeCols.sumOf { it.width }).coerceAtLeast(0).dp
-                            )
+                        // 「涨幅」列标题 —— 并入横滑层末尾：第一屏在入口右侧可见，
+                        // 左滑时随入口/统计列一起左移（无钉死，只有名称列钉死）。
+                        Text(
+                            text = "涨幅",
+                            color = COLOR_SUB,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier
+                                .width(pctW.dp)
+                                .padding(end = 10.dp)
                         )
                     }
-                    // 「涨幅」列标题 —— 紧接「多股同列」右侧，独立成列，右对齐
-                    Text(
-                        text = "涨幅",
-                        color = COLOR_SUB,
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .width(pctW.dp)
-                            .padding(end = 10.dp)
-                    )
                     // 上层：固定列「名称 / 代码」，带白底，盖住滑过来的统计列
                     Box(
                         Modifier
@@ -691,9 +684,6 @@ private fun StockRow(
 ) {
     // 盘前重置时段（交易日 08:45–09:15）：全部显示平盘黑 + "--"，分时图重置
     val reset = isPreOpenReset()
-    // 尾部补白：让横向 maxScroll 正好等于 midW，滑到头入口完全消失、三列铺满。
-    val colsTotal = cols.sumOf { it.width }
-    val tailPad = (midW + pctW - colsTotal).coerceAtLeast(0)
     val c = if (reset) COLOR_FLAT else colorOf(s.changePct)
     Column(Modifier.fillMaxWidth()) {
         // Box 叠放：下层是可横滑的统计列（铺满整宽），上层是固定列（白底，盖在最上面）
@@ -761,9 +751,50 @@ private fun StockRow(
                         }
                     }
                 }
-                // 尾部补白：使横向可滚动量正好 = midW（滑到头时入口完全钻入名称列、
-                // 三列刚好铺满可视区），避免滑到底入口仍残留一截。
-                Spacer(Modifier.width(tailPad.dp))
+                // 「涨幅」列（上行涨跌幅色块 + 下行最新价）—— 并入横滑层末尾：
+                // 第一屏在入口右侧可见；左滑时随入口/统计列一起左移（不再钉死）。
+                Box(
+                    Modifier
+                        .width(pctW.dp)
+                        .fillMaxHeight()
+                        .background(Color.White)
+                        .padding(end = 10.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Box(
+                            Modifier
+                                .width(78.dp)
+                                .height(24.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(if (reset) COLOR_FLAT else colorOf(s.changePct)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (reset) "--"
+                                else if (s.changePct < -0.000001)
+                                    String.format(Locale.CHINA, "-%.2f%%", kotlin.math.abs(s.changePct))
+                                else
+                                    String.format(Locale.CHINA, "%.2f%%", kotlin.math.abs(s.changePct)),
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontFamily = NumFont,
+                                maxLines = 1
+                            )
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        Text(
+                            text = if (reset) "--" else String.format(Locale.CHINA, "%.2f", s.price),
+                            color = if (reset) COLOR_TEXT else COLOR_SUB,
+                            fontSize = 12.sp,
+                            fontFamily = NumFont,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
             // 上层：固定列「名称 + 代码」，带白底（点击进详情页），盖住滑过来的统计列
             Column(
@@ -790,53 +821,6 @@ private fun StockRow(
                     fontSize = 12.sp,
                     fontFamily = NumFont
                 )
-            }
-            // 上层：最右「涨幅」固定列 —— 上行涨跌幅（长方形微圆角色块底+白字），下行最新价（灰），整体贴右、垂直居中
-            Box(
-                Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(pctW.dp)
-                    .fillMaxHeight()
-                    .background(Color.White)
-                    .padding(end = 10.dp),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        Modifier
-                            .width(78.dp)
-                            .height(24.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(if (reset) COLOR_FLAT else colorOf(s.changePct)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            // 符号规则：涨（红）不显示「+」，跌（绿）显示「-」，平盘不带符号
-                            // 盘前重置时段：显示 "--"
-                            text = if (reset) "--"
-                            else if (s.changePct < -0.000001)
-                                String.format(Locale.CHINA, "-%.2f%%", kotlin.math.abs(s.changePct))
-                            else
-                                String.format(Locale.CHINA, "%.2f%%", kotlin.math.abs(s.changePct)),
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontFamily = NumFont,
-                            maxLines = 1
-                        )
-                    }
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        // 盘前重置时段：价格显示 "--" 且用黑色
-                        text = if (reset) "--" else String.format(Locale.CHINA, "%.2f", s.price),
-                        color = if (reset) COLOR_TEXT else COLOR_SUB,
-                        fontSize = 12.sp,
-                        fontFamily = NumFont,
-                        maxLines = 1
-                    )
-                }
             }
             // 最上层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
             // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡。

@@ -86,7 +86,7 @@ object WatchColumnRegistry {
     /** 竞价涨幅%（9:25 定格快照） */
     val AUC_PCT = WatchColumn(
         key = "aucPct",
-        title = "竞价涨幅",
+        title = "竞价涨幅%",
         width = 72,
         value = { String.format(Locale.CHINA, "%+.2f%%", it.aucPct) },
         colorMode = WatchColumn.ColorMode.UP_DOWN
@@ -125,7 +125,7 @@ object WatchColumnPrefs {
     private const val KEY_VER = "ver"
 
     /** 当前列配置版本。改列定义时 +1，可触发老配置一次性迁移。 */
-    private const val CUR_VER = 3
+    private const val CUR_VER = 4
 
     /** 读用户配置；没存过则返回默认 */
     fun load(ctx: android.content.Context): List<String> {
@@ -133,7 +133,7 @@ object WatchColumnPrefs {
             val sp = ctx.getSharedPreferences(SP_NAME, android.content.Context.MODE_PRIVATE)
             val ver = sp.getInt(KEY_VER, 1)
             if (ver < CUR_VER) {
-                // 老版本配置迁移：把「最新价 / 涨跌幅」两列合并为「涨幅」合并列
+                // 老版本配置迁移：重置为默认三列（成交额 / 竞价涨幅% / 竞价金额）
                 sp.edit().putInt(KEY_VER, CUR_VER).apply()
                 return WatchColumnRegistry.DEFAULT_KEYS
             }
