@@ -1602,15 +1602,17 @@ private fun MiniMinuteChart(
                 p0 < preClose -> Color(0xFF19A05A)
                 else -> Color(0xFF9E9E9E)
             }
+            // 该点在横轴上的位置：按其时间（min/240）定位，早期靠左、随开盘向右成长
+            val x1 = ((trends.first().min.toFloat() / 240f).coerceIn(0f, 1f)) * w
             // 从最左到该点的短线段（体现「开盘到现在」的走势方向）
             drawLine(
                 color = c1,
                 start = Offset(0f, y1(preClose)),
-                end = Offset(w * 0.65f, y1(p0)),
+                end = Offset(x1, y1(p0)),
                 strokeWidth = 2.4f
             )
             // 该点本身：实心圆点，醒目
-            drawCircle(color = c1, radius = 3.2f, center = Offset(w * 0.65f, y1(p0)))
+            drawCircle(color = c1, radius = 3.2f, center = Offset(x1, y1(p0)))
             return@Canvas
         }
 
@@ -1635,10 +1637,10 @@ private fun MiniMinuteChart(
             strokeWidth = 1f
         )
 
-        // x 轴按数据实际时间跨度（min 值域）自适应铺满整栏；
-        // A股全天约 240 分钟（含集合竞价可达 ~270），用实际末点保证对齐且铺满。
-        val maxMin = trends.maxOf { it.min }.toFloat().coerceAtLeast(1f)
-        fun xOf(i: Int): Float = ((trends[i].min.toFloat() / maxMin).coerceIn(0f, 1f)) * w
+        // x 轴固定为全天跨度（0 ~ 240 分钟，后端已折叠午休 11:30-13:00）。
+        // 这样行情从 09:30 起由左向右“一点一点”延伸，15:00 刚好铺满整栏；
+        // 不再用“当前已有数据的最大 min”作右边界，否则数据一出现就被拉满整栏。
+        fun xOf(i: Int): Float = ((trends[i].min.toFloat() / 240f).coerceIn(0f, 1f)) * w
 
         val last = trends.last().price
         // 线色：相对昨收 涨红 / 跌绿 / 平灰 —— 线用纯色
