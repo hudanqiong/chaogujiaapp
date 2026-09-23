@@ -1200,16 +1200,7 @@ private fun InfoRow(label: String, value: String, valueColor: Color) {
 /** 点数两位小数 */
 private fun fmt(v: Double): String = String.format(Locale.CHINA, "%.2f", v)
 
-/** 成交额：>=1万亿 显示「X.XX万亿」，>=1亿 显示「X亿」，否则「X万」 */
-private fun fmtAmount(v: Double): String {
-    if (v <= 0.0) return "--"
-    return when {
-        v >= 1e12 -> String.format(Locale.CHINA, "%.2f万亿", v / 1e12)
-        v >= 1e8 -> String.format(Locale.CHINA, "%.0f亿", v / 1e8)
-        v >= 1e4 -> String.format(Locale.CHINA, "%.0f万", v / 1e4)
-        else -> String.format(Locale.CHINA, "%.0f", v)
-    }
-}
+// fmtAmount 统一定义在 WatchColumns.kt（public），此处不再重复定义，避免 Conflicting overloads。
 
 /* ======================= 数字字体对比页（临时调试，挑完删除） ======================= */
 /*
