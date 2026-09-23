@@ -158,3 +158,86 @@ K线换手率「估算→真值」改造验证结论（方案C：同花顺）
 
 结论：MACD 副图最终形态 = 黑线上攻(快线DIF) + 红线(慢线DEA) + 涨红跌绿柱，
       线宽 2.2f、柱宽 0.85 slot、左右端点拉满整幅。
+
+================================================================================
+十、后端 lhb.php 龙虎榜接口（daily / detail / seat）
+================================================================================
+目标：为 App 提供"龙虎榜"数据后端接口，供后续 Kotlin 侧接入展示。
+文件：/root/cgj/lhb.php（24260 字节，PHP 8.3，php -l 通过，paren 471/471）
+数据源：东财 datacenter-web.eastmoney.com/api/data/v1/get
+  - 榜单单日汇总：RPT_DAILYBILLBOARD_DETAILSNEW
+    （SECURITY_CODE / SECURITY_NAME_ABBR / CLOSE_PRICE / CHANGE_RATE /
+      TURNOVERRATE / BILLBOARD_BUY_AMT / BILLBOARD_SELL_AMT /
+      BILLBOARD_NET_AMT / EXPLANATION 等）
+  - 买入席位：RPT_BILLBOARD_DAILYDETAILSBUY  （字段含 SECUCODE/OPERATEDEPT_NAME/BUY/SELL/NET）
+  - 卖出席位：RPT_BILLBOARD_DAILYDETAILSSELL
+  必需请求头：User-Agent + Referer: https://data.eastmoney.com/stock/tradedetail.html
+  坑：sortColumns 白名单不稳（传 NET_BUY_AMT 报 9501）；code 9201 = 空结果。
+
+三 action 契约：
+  [daily]  (默认) 参数 date/page/size/sort
+    - 缺省日期由 lhb_latest_date() 从"昨天"往前最多回看 15 天探测（当天盘中不出榜）
+    - 过滤 (TRADE_DATE='YYYY-MM-DD')，pageSize=500 全量后在 PHP 侧排序
+    - sort: net(默认,降序) / change / ratio / norm；再 array_slice 分页；缓存 300s
+  [detail] 参数 code
+    - 过滤 (SECUCODE="600887.SH")，同时查 BUY 与 SELL 两表，闭包 $absorb() 按日期累加
+    - 输出 buyAmt/sellAmt/netAmt/buySeat/sellSeat；缓存 600s
+  [seat]   参数 code + date（必填）
+    - 分查 BUY/SELL 表，按买入额/卖出额降序取前 5 席
+    - 输出 buy[]/sell[]/sumBuy/sumSell/sumNet + explain；缓存 600s
+  统一响应：{code:0,msg:'ok',data:{...}} / {code:1,msg:'...',data:}
+
+修复的两处功能缺陷：
+  1) detail 卖出额恒为 0 —— 原因：只查 BUY 表（该表只含买入额）。
+     修复：改为 BUY+SELL 双表合并，$sumSell 生效。
+  2) seat 名称缺失 —— 原因：BUY/SELL 表确实不含 SECURITY_NAME_ABBR。
+     修复：名称走腾讯行情兜底（lhb_symbol + lhb_name）。
+
+★ 关键教训：修复后回归"零输出"根因（本轮最大收获）
+  现象：detail/seat 无论何种参数均 stdout 0 字节 + stderr 0 字节 + exit=0。
+  排查路径：
+    ① grep -n 'exit' -> 退出点仅在 out()/fail()，排除提前退出；
+    ② 函数级隔离（截断路由前代码 eval 后直接调 lhb_query），
+       实测 BUY/SELL 各取回 85 条、R0_DATE/SECU 均正确 -> 取数层 OK；
+    ③ ob_start()+register_shutdown_function 捕获，CAPTURED_BYTES=15（仅
+       BEFORE_INCLUDE），无 fatal 无 AFTER_INCLUDE -> out() 干净退出但 echo 为空；
+    ④ php -m | grep mbstring -> 本机 php-cli 未装 mbstring。
+  根因：lhb_name() 原用 function_exists('mb_check_encoding') 作转码前置守卫，
+        无 mbstring 时守卫为 false -> GBK->UTF-8 转码被静默跳过 -> 腾讯返回的
+        GBK 原始字节流入数组 -> json_encode() 遇非法 UTF-8 返回 false ->
+        out() echo 空字符串 -> 零输出。
+        （daily 不受影响：其名称取自东财 SECURITY_NAME_ABBR，本就 UTF-8。）
+  修复（双管齐下，治标+治本）：
+    - 环境侧：apt-get install -y php-mbstring（本机可用）；
+    - 代码侧（patch_lhb_harden.py，LHB_HARDEN_OK len=24260，was 22841）：
+      ① out() 加固：附加 JSON_INVALID_UTF8_SUBSTITUTE（若常量存在），并用
+         lhb_scrub() 递归清洗非法字节后重试，最终失败也输出合法 JSON 错误对象；
+      ② 新增 lhb_scrub()：递归数组/字符串清洗，字符串非法时走 lhb_to_utf8；
+      ③ 新增 lhb_to_utf8()：不依赖 mbstring 的三级降级
+         mb_convert_encoding -> iconv('GBK','UTF-8//IGNORE') -> 自实现逐字节 GBK 校验
+         （非法字节替换为 '?'）；lhb_name() 改用 preg_match('//u',$raw) 判合法 UTF-8；
+      ④ 移除死代码 lhb_pages()（三路由均未调用）。
+
+回归验证（全部通过）：
+  - daily (size=3)  : code=0, date=2026-09-22, total=78, sort=net, 哈药股份首
+                      (netAmt=437722942.46)
+  - detail 600887   : name=伊利股份, total=12, pages=6,
+                      2018-10-24 buy=663016872.01 / sell=1133024565.1 /
+                      net=-470007693.09 / buySeat=5 / sellSeat=5
+                      （sellAmt 不再为 0，与历史真值逐项吻合）
+  - seat 600887 2018-10-24 : name=伊利股份,
+                      explain="有价格涨跌幅限制的日收盘价格跌幅偏离值达到7%的前三只证券",
+                      sumBuy=663016872.01 / sumSell=1133024565.1 / sumNet=-470007693.09
+                      买 5 席（沪股通专用 487134513.97 居首）
+                      卖 5 席（机构专用 312708529.22 居首）
+  - 错误路径：detail 无 code / seat 无 date / 未知 action / code 非法("ab")
+              四条均返回规范 JSON {"code":1,"msg":"...","data":}，不再零输出。
+  - 裸 PHP 兼容（php -n，mbstring/iconv/curl 全缺）：
+              MB=N ICONV=N CURL=N, NAME_UTF8=OK, JSON_OK=YES
+              （非法字节被替换为 ?，仍产出合法 UTF-8；对照带扩展环境 NAME=伊利股份）
+              RAW_JSON=FALSE 反证了"非法 UTF-8 -> json_encode 返回 false"根因判断。
+
+提交：0551a29 feat(backend): 新增 lhb.php 龙虎榜接口(daily/detail/seat) + 健壮性加固
+      （随附 patch_lhb_fix.py / patch_lhb_harden.py；.gitignore 排除本地排查脚本）
+待办：App 侧 Kotlin 接入（调用 daily/detail/seat 并展示）尚未启动。
+================================================================================
