@@ -1029,7 +1029,8 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     val ni = (rightIndex - moved).coerceIn(visible - 1, line.lastIndex)
                     rightIndex = ni
                 },
-                modifier = Modifier.fillMaxSize()
+                // 底部留出叠层按钮行的高度，避免蜡烛图被半透明条压住
+                modifier = Modifier.fillMaxSize().padding(bottom = 26.dp)
             )
             PriceAxis(
                 maxV = show.maxOf { it.high },
@@ -1040,6 +1041,44 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                     .width(46.dp)
                     .fillMaxHeight()
             )
+            // ===== 缩放 / 平移按钮行：半透明叠层，压在主图（分时/K线主图）底部 =====
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(end = 46.dp)
+                    .background(Color(0xB3FFFFFF)) // 70% 白，半透明
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
+                Spacer(Modifier.weight(1f))
+                KLineButton(text = "－") {
+                    visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                    rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+                }
+                KLineButton(text = "＋") {
+                    visible = (visible / K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                    rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+                }
+                KLineButton(text = "◀") {
+                    val nr = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
+                    rightIndex = nr
+                    // 若已选中，跟随移动选中框
+                    selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
+                }
+                KLineButton(text = "▶") {
+                    val nr = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
+                    rightIndex = nr
+                    selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
+                }
+                Spacer(Modifier.weight(1f))
+                Text(
+                    selIdx?.takeIf { it in line.indices }?.let { line[it].date } ?: show.last().date,
+                    color = if (selIdx != null) Color(Config.COLOR_PRIMARY) else TEXT_SUB,
+                    fontSize = 10.sp
+                )
+            }
         }
         Box(
             modifier = Modifier
@@ -1050,41 +1089,6 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
             KLineVolumeCanvas(
                 line = show,
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
-            )
-        }
-        // 底部：左=最早日期，中=按钮栏，右=最新日期
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(end = 46.dp, top = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
-            Spacer(Modifier.weight(1f))
-            KLineButton(text = "－") {
-                visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
-            }
-            KLineButton(text = "＋") {
-                visible = (visible / K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
-            }
-            KLineButton(text = "◀") {
-                val nr = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
-                rightIndex = nr
-                // 若已选中，跟随移动选中框
-                selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
-            }
-            KLineButton(text = "▶") {
-                val nr = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
-                rightIndex = nr
-                selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                selIdx?.takeIf { it in line.indices }?.let { line[it].date } ?: show.last().date,
-                color = if (selIdx != null) Color(Config.COLOR_PRIMARY) else TEXT_SUB,
-                fontSize = 10.sp
             )
         }
     }
