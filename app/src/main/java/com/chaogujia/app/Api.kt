@@ -183,12 +183,16 @@ data class StockBase(
     val amplitude: Double = 0.0    // 振幅 %
 )
 
-/** 分时点：[分钟序号, 价格, 量] */
+/** 分时点：[分钟序号, 价格, 累计量(手), 累计额(元)] */
 data class DetailTrend(
     val min: Int = 0,
     val price: Double = 0.0,
-    val vol: Double = 0.0
-)
+    val vol: Double = 0.0,
+    val amount: Double = 0.0
+) {
+    /** 均价 = 累计额 / (累计量 * 100)，量单位是手 */
+    val avg: Double get() = if (vol > 0) amount / (vol * 100.0) else price
+}
 
 /** K线点：[日期, 开, 收, 高, 低, 量] */
 data class KLinePoint(
@@ -200,6 +204,12 @@ data class KLinePoint(
     val vol: Double = 0.0
 )
 
+/** 五日分时中的一天：[日期, 当天分时点] */
+data class DetailDay(
+    val date: String = "",
+    val points: List<DetailTrend> = emptyList()
+)
+
 /** 个股详情（detail.php） */
 data class StockDetail(
     val code: String = "",
@@ -208,6 +218,7 @@ data class StockDetail(
     val k: String = "day",
     val base: StockBase = StockBase(),
     val trends: List<DetailTrend> = emptyList(),
+    val trends5: List<DetailDay> = emptyList(),
     val line: List<KLinePoint> = emptyList()
 )
 
@@ -658,6 +669,30 @@ object Api {
     fun delWatch(token: String?, code: String, gid: Int = 0): Res =
         post("watchlist.php", token, "action" to "del", "code" to code, "gid" to gid)
 
+    /** 概念归属+涨跌幅（concept.php）。返回 best(优先展示的概念) 与 list(全部概念)。 */
+    data class Concept(val name: String, val code: String, val pct: Double?, val price: Double?)
+    data class ConceptRes(val ok: Boolean, val best: Concept?, val list: List<Concept>)
+    fun concept(code: String): ConceptRes {
+        return try {
+            val raw = Net.get(base("concept.php?code=" + code))
+            val o = JSONObject(raw)
+            if (!o.optBoolean("ok", false)) return ConceptRes(false, null, emptyList())
+            fun parse(c: JSONObject): Concept {
+                val p = if (c.isNull("pct")) null else c.optDouble("pct")
+                val pr = if (c.isNull("price")) null else c.optDouble("price")
+                return Concept(c.optString("name"), c.optString("code"), p, pr)
+            }
+            val best = o.optJSONObject("best")?.let { parse(it) }
+            val arr = o.optJSONArray("list")
+            val lst = ArrayList<Concept>()
+            if (arr != null) for (i in 0 until arr.length()) {
+                arr.optJSONObject(i)?.let { lst.add(parse(it)) }
+            }
+            ConceptRes(true, best, lst)
+        } catch (e: Exception) {
+            ConceptRes(false, null, emptyList())
+        }
+    }
     /** 股票搜索（search.php）。kw 为空返回热门（最多 30 条）。无需登录。 */
     fun search(kw: String): List<StockItem> {
         return try {
@@ -746,9 +781,34 @@ object Api {
                         DetailTrend(
                             min = p.optInt(0, 0),
                             price = p.optDouble(1, 0.0),
-                            vol = p.optDouble(2, 0.0)
+                            vol = p.optDouble(2, 0.0),
+                            amount = p.optDouble(3, 0.0)
                         )
                     )
+                }
+            }
+            // 五日分时 trends5
+            val days5 = ArrayList<DetailDay>()
+            val t5 = o.optJSONArray("trends5")
+            if (t5 != null) {
+                for (di in 0 until t5.length()) {
+                    val dj = t5.optJSONObject(di) ?: continue
+                    val dpts = ArrayList<DetailTrend>()
+                    val dp = dj.optJSONArray("points")
+                    if (dp != null) {
+                        for (i in 0 until dp.length()) {
+                            val p = dp.optJSONArray(i) ?: continue
+                            dpts.add(
+                                DetailTrend(
+                                    min = p.optInt(0, 0),
+                                    price = p.optDouble(1, 0.0),
+                                    vol = p.optDouble(2, 0.0),
+                                    amount = p.optDouble(3, 0.0)
+                                )
+                            )
+                        }
+                    }
+                    days5.add(DetailDay(date = dj.optString("date", ""), points = dpts))
                 }
             }
             // K线
@@ -776,6 +836,7 @@ object Api {
                 k = o.optString("k", k),
                 base = bas,
                 trends = trends,
+                trends5 = days5,
                 line = line
             )
         } catch (e: Exception) {

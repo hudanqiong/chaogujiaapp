@@ -73,14 +73,31 @@ fun StockDetailPage(
 
     // 详情数据
     var detail by remember { mutableStateOf<StockDetail?>(null) }
+    // 所属概念（含实时涨跌幅）
+    var concept by remember { mutableStateOf<Api.Concept?>(null) }
+    // 是否已加自选（用于底部“自选”按钮）
+    var watched by remember { mutableStateOf<Boolean?>(null) }
     var loading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     // 切换股票 或 切换周期 → 拉数据
     // 注意：分时是同一份数据（trends），K线按周期取
+    // 切换股票 → 拉概念归属 + 自选状态
+    LaunchedEffect(current?.code) {
+        val code = current?.code ?: return@LaunchedEffect
+        concept = null
+        watched = null
+        val c = withContext(Dispatchers.IO) { Api.concept(code) }
+        if (c.ok) concept = c.best
+        val w = withContext(Dispatchers.IO) {
+            try { Api.allWatchCodes(token).contains(code) } catch (e: Exception) { false }
+        }
+        watched = w
+    }
     LaunchedEffect(current?.code, period) {
         val code = current?.code ?: return@LaunchedEffect
         loading = true
+        // 分时用 day 数据（同一份 trends）；五日分时 → k=fiveday；其余照原周期
         val k = if (period == "minute") "day" else period
         val d = withContext(Dispatchers.IO) { Api.detail(code, k, 320) }
         if (d != null) detail = d
@@ -115,10 +132,10 @@ fun StockDetailPage(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .navigationBarsPadding()
         ) {
             when (period) {
                 "minute" -> MinuteChart(detail)
+                "fiveday" -> FiveDayChart(detail)
                 else -> KLineChart(detail)
             }
             if (loading && detail == null) {
@@ -127,6 +144,24 @@ fun StockDetailPage(
                 }
             }
         }
+        // ================= 底部功能栏 =================
+        DetailBottomBar(
+            concept = concept,
+            watched = watched,
+            onOrder = { /* TODO 下单 */ },
+            onDiagnose = { /* TODO 诊股 */ },
+            onToggleWatch = {
+                val code = current?.code ?: return@DetailBottomBar
+                scope.launch {
+                    val isW = watched == true
+                    val r = withContext(Dispatchers.IO) {
+                        if (isW) Api.delWatch(token, code, 0) else Api.addWatch(token, code, 0)
+                    }
+                    if (r.ok) watched = !isW
+                }
+            },
+            onMore = { /* TODO 功能菜单 */ }
+        )
     }
 }
 
@@ -301,7 +336,7 @@ private fun DetailHeadData(d: StockDetail?) {
                 listOf(
                     "市值" to fmtCap(b?.mktCap),
                     "流通" to fmtCap(b?.floatCap),
-                    "市盈" to fmtPe(b?.pe)
+                    "市盈TTM" to fmtPe(b?.pe)
                 ),
                 color
             )
@@ -347,6 +382,7 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
 private fun PeriodTabs(current: String, onPick: (String) -> Unit) {
     val tabs = listOf(
         "minute" to "分时",
+        "fiveday" to "五日",
         "day" to "日K",
         "week" to "周K",
         "month" to "月K"
@@ -511,6 +547,20 @@ private fun MinutePriceCanvas(trends: List<DetailTrend>, preClose: Double) {
                 listOf(lineColor.copy(alpha = 0.18f), lineColor.copy(alpha = 0.02f))
             )
         )
+
+        // ===== 均价线（黄色，随累计均价）=====
+        val avgPath = Path()
+        var started = false
+        trends.forEachIndexed { i, t ->
+            val a = t.avg
+            if (a <= 0) return@forEachIndexed
+            val x = xOf(i)
+            val y = yOf(a)
+            if (!started) { avgPath.moveTo(x, y); started = true } else avgPath.lineTo(x, y)
+        }
+        if (started) {
+            drawPath(avgPath, Color(0xFFFFB300), style = Stroke(width = 1.8f))
+        }
     }
 }
 
@@ -560,6 +610,162 @@ private fun TimeAxis() {
         Text("09:30", color = TEXT_SUB, fontSize = 10.sp)
         Text("11:30", color = TEXT_SUB, fontSize = 10.sp)
         Text("15:00", color = TEXT_SUB, fontSize = 10.sp)
+    }
+}
+
+// ============================================================
+// 五日分时图：5 天分时横向拼接，上=价格曲线（含均价线），下=量柱，底部=日期
+// ============================================================
+@Composable
+private fun FiveDayChart(d: StockDetail?) {
+    val days = d?.trends5 ?: emptyList()
+    val preClose = d?.base?.preClose ?: 0.0
+    if (days.isEmpty() || days.all { it.points.isEmpty() }) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("暂无五日分时数据", color = TEXT_SUB, fontSize = 14.sp)
+        }
+        return
+    }
+    // 全周价格范围（所有天的所有点）
+    val allPts = days.flatMap { it.points }
+    val maxP = allPts.maxOf { it.price }
+    val minP = allPts.minOf { it.price }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(top = 6.dp)
+    ) {
+        // 上部价格图（占 70%）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.7f)
+                .padding(end = 46.dp)
+        ) {
+            FiveDayPriceCanvas(days, maxP, minP)
+            PriceAxis(
+                maxV = maxP,
+                minV = minP,
+                midV = if (preClose > 0) preClose else (maxP + minP) / 2,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(46.dp)
+                    .fillMaxHeight()
+            )
+        }
+        // 下部量图（占 30%）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.3f)
+                .padding(end = 46.dp, top = 4.dp)
+        ) {
+            FiveDayVolumeCanvas(days)
+        }
+        // 日期轴
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(end = 46.dp, top = 2.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            days.forEach { day ->
+                Text(shortDate(day.date), color = TEXT_SUB, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+/** 把 20260923 转成 09-23 */
+private fun shortDate(s: String): String {
+    if (s.length >= 8) return s.substring(4, 6) + "-" + s.substring(6, 8)
+    return s
+}
+
+@Composable
+private fun FiveDayPriceCanvas(days: List<DetailDay>, maxP: Double, minP: Double) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        if (days.isEmpty()) return@Canvas
+        var hi = maxP
+        var lo = minP
+        if (hi - lo < 1e-6) {
+            hi += 0.01
+            lo -= 0.01
+        }
+        val range = hi - lo
+        hi += range * 0.06
+        lo -= range * 0.06
+        val span = hi - lo
+        fun yOf(p: Double): Float = (h - ((p - lo) / span) * h).toFloat()
+        // 网格横线
+        for (k in 1..3) {
+            val y = h * k / 4f
+            drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+        }
+        val dayW = w / days.size
+        // 每天单独画分段，日与日之间画分隔竖线
+        days.forEachIndexed { di, day ->
+            val pts = day.points
+            val x0 = di * dayW
+            if (di > 0) {
+                drawLine(LINE_GRID, Offset(x0, 0f), Offset(x0, h), strokeWidth = 1f)
+            }
+            if (pts.size < 2) return@forEachIndexed
+            val n = max(pts.size - 1, 1)
+            fun xOf(i: Int): Float = x0 + (i.toFloat() / n) * dayW
+            // 相对每天首点判断涨跌着色
+            val first = pts.first().price
+            val last = pts.last().price
+            val lineColor = when {
+                last > first -> RED_UP
+                last < first -> GREEN_DOWN
+                else -> GRAY_FLAT
+            }
+            val path = Path()
+            pts.forEachIndexed { i, t ->
+                val x = xOf(i)
+                val y = yOf(t.price)
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, lineColor, style = Stroke(width = 2.0f))
+            // 均价线（黄色）
+            val avgPath = Path()
+            var started = false
+            pts.forEachIndexed { i, t ->
+                val a = t.avg
+                if (a <= 0) return@forEachIndexed
+                val x = xOf(i)
+                val y = yOf(a)
+                if (!started) { avgPath.moveTo(x, y); started = true } else avgPath.lineTo(x, y)
+            }
+            if (started) {
+                drawPath(avgPath, Color(0xFFFFB300), style = Stroke(width = 1.5f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun FiveDayVolumeCanvas(days: List<DetailDay>) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val maxV = days.flatMap { it.points }.maxOfOrNull { it.vol }?.coerceAtLeast(1e-6) ?: 1.0
+        val dayW = w / days.size.coerceAtLeast(1)
+        days.forEachIndexed { di, day ->
+            val pts = day.points
+            val x0 = di * dayW
+            val n = pts.size.coerceAtLeast(1)
+            val bw = dayW / n
+            pts.forEachIndexed { i, t ->
+                val vh = (t.vol / maxV * h).toFloat()
+                drawRect(
+                    color = Color(0xFF9AA0A6),
+                    topLeft = Offset(x0 + i * bw, h - vh),
+                    size = Size(max(bw - 0.6f, 0.6f), vh)
+                )
+            }
+        }
     }
 }
 
@@ -735,5 +941,88 @@ private fun fmtAmt(v: Double?): String {
         String.format(java.util.Locale.CHINA, "%.2f亿", v / 10000)
     } else {
         String.format(java.util.Locale.CHINA, "%.1f万", v)
+    }
+}
+// ============================================================
+// 底部功能栏：概念涨跌 + 下单 + 诊股 + 自选 + 功能
+// ============================================================
+@Composable
+private fun DetailBottomBar(
+    concept: Api.Concept?,
+    watched: Boolean?,
+    onOrder: () -> Unit,
+    onDiagnose: () -> Unit,
+    onToggleWatch: () -> Unit,
+    onMore: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .navigationBarsPadding()
+            .height(58.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 1) 概念按钮（动态：概念名 + 涨跌幅）
+        val cName = concept?.name ?: "概念"
+        val pct = concept?.pct
+        val pctColor = when {
+            pct == null -> GRAY_FLAT
+            pct > 0 -> RED_UP
+            pct < 0 -> GREEN_DOWN
+            else -> GRAY_FLAT
+        }
+        val pctTxt = when {
+            pct == null -> "--"
+            else -> (if (pct > 0) "+" else "") + String.format("%.2f", pct) + "%"
+        }
+        Column(
+            modifier = Modifier
+                .weight(1.35f)
+                .fillMaxHeight()
+                .clickable { onMore() },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = cName,
+                color = TEXT_MAIN,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = pctTxt,
+                color = pctColor,
+                fontSize = 11.sp,
+                fontFamily = DSpNumFont,
+                maxLines = 1
+            )
+        }
+        // 2) 下单
+        BottomAction("下单", Modifier.weight(1f), onOrder)
+        // 3) 诊股
+        BottomAction("诊股", Modifier.weight(1f), onDiagnose)
+        // 4) 自选 / 删自选
+        val wTxt = when (watched) {
+            true -> "删自选"
+            false -> "加自选"
+            else -> "自选"
+        }
+        BottomAction(wTxt, Modifier.weight(1f), onToggleWatch)
+        // 5) 功能
+        BottomAction("功能", Modifier.weight(1f), onMore)
+    }
+}
+
+@Composable
+private fun BottomAction(text: String, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text, color = TEXT_MAIN, fontSize = 13.sp, maxLines = 1)
     }
 }
