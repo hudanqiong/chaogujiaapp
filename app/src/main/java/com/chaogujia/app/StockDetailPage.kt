@@ -1886,7 +1886,7 @@ private fun KLineMacdCanvas(
                 style = Fill
             )
         }
-        // DIF 红线（上攻线）、DEA 黑线；线加粗、左右端点拉满整幅（到底到边）
+        // DIF 黑线（快线=上攻线）、DEA 红线（慢线）；线加粗、左右端点拉满整幅（到底到边）
         fun poly(vals: DoubleArray, c: Color, sw: Float) {
             var prev: Offset? = null
             // 端点对齐：i=0 -> x=0，i=n-1 -> x=w，线贯穿整个副图宽度，不留左右空隙
@@ -1900,8 +1900,8 @@ private fun KLineMacdCanvas(
                 prev = cur
             }
         }
-        poly(dea, Color(0xFF111111), 2.2f)   // 黑线
-        poly(dif, Color(0xFFE64A3B), 2.2f)   // 红线（上攻线）
+        poly(dea, Color(0xFFE64A3B), 2.2f)   // 红线（慢线 DEA）
+        poly(dif, Color(0xFF111111), 2.2f)   // 黑线（快线 DIF = 上攻线）
         // 选中竖线
         val sel = selLocal
         if (sel != null && sel in 0 until n) {
