@@ -74,3 +74,23 @@ K线换手率「估算→真值」改造验证结论（方案C：同花顺）
   - 选中 20260818：开25.26/高25.41/低25.05/换0.93%/量5831.79万/额14.66亿
     （与同花顺真值逐位吻合，未因新增副图而回退）
   - logcat: K线(同花顺) 成功: 140 根
+
+
+七、P1-b：MACD 副图数值标签（提交 5a0c5c7）
+------------------------------------------------------------
+目标：在 MACD 副图左上角显示 DIF / DEA / MACD 实时数值。
+实现：副图 Box 内叠加 Row 浮层（Alignment.TopStart）：
+      MACD(12,26,9) | DIF <val> | DEA <val> | MACD <val>
+      取值：选中时看选中那根；未选中时看最后一根（同花顺习惯）。
+      配色：DIF 白 0xFFFFFFFF；DEA 黄 0xFFFFD24A；
+            MACD 按正负取 RED_UP / GREEN_DOWN。
+      新增 fmtMacdNum(v)：3 位小数，正数带 + 号。
+
+构建：workflow run 35889817206 (5a0c5c7) completed success
+      artifact chaogujia-debug-apk 10764244365
+真机验证（伊利 600887，日K）：
+  - 选中态 UI dump：MACD(12,26,9) / DIF -0.058 / DEA +0.156 / MACD -0.429
+    口径自校验：MACD=(DIF-DEA)*2=(-0.058-0.156)*2=-0.428 approx -0.429 OK
+  - 未选中态：标签保留，值回落末根 DIF 0.xxx / MACD -0.552 OK
+  - 截图 /sdcard/macd_label_verify.png
+  - logcat: K线(同花顺) 成功: 140 根
