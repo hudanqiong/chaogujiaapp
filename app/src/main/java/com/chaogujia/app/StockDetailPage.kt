@@ -959,9 +959,9 @@ private fun FiveDayVolumeCanvas(days: List<DetailDay>) {
 //   - 柱实体宽 ≈ slot * 0.82（同花顺实测 37/45 ≈ 0.82）
 // ============================================================
 
-/** 可视根数上下限（同花顺实测：放大最大 27 根/屏、缩小最小 ≈106 根/屏） */
+/** 可视根数上下限：放大最大 27 根/屏；缩到最小 ≈320 根/屏（柱子几乎连成一条线，同花顺观感） */
 private const val K_MIN_VISIBLE = 27
-private const val K_MAX_VISIBLE = 106
+private const val K_MAX_VISIBLE = 320
 private const val K_DEFAULT_VISIBLE = 60
 /** 点击 ＋/－ 按钮时按比例跳档 */
 private const val K_BTN_ZOOM_STEP = 1.25f
@@ -1194,7 +1194,8 @@ private fun KLineCanvas(
         val n = line.size
         val slot = w / n
         lastSlot = slot
-        val bw = slot * 0.82f
+        // 缩到很小时保证柱宽至少 1px，视觉上连成一条线（同花顺观感）
+        val bw = max(slot * 0.82f, 1f)
 
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
@@ -1239,7 +1240,7 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val maxV = line.maxOf { it.vol }.coerceAtLeast(1e-6)
         val n = line.size
         val slot = w / n
-        val bw = slot * 0.82f
+        val bw = max(slot * 0.82f, 1f)
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
