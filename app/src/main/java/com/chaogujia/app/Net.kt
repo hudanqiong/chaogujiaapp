@@ -16,6 +16,36 @@ object Net {
         .build()
 
     /**
+     * 服务器时间校正偏移（毫秒）：
+     *   serverTimeOffset = 服务器当前时间 - 本机当前时间
+     * 开机/无网络时默认为 0，首次成功请求后即被更新。
+     * 所有涉及「08:45–09:15 重置时段」的判断都应使用 [serverNow] 而非本机时间。
+     */
+    @Volatile
+    private var serverTimeOffset: Long = 0L
+
+    /** 用 HTTP 响应头的 Date（RFC 1123, GMT）更新服务器时间偏移 */
+    private fun updateServerTime(resp: okhttp3.Response) {
+        try {
+            val dateStr = resp.header("Date") ?: return
+            val fmt = java.text.SimpleDateFormat(
+                "EEE, dd MMM yyyy HH:mm:ss 'GMT'", java.util.Locale.US
+            )
+            fmt.timeZone = java.util.TimeZone.getTimeZone("GMT")
+            val serverMs = fmt.parse(dateStr)?.time ?: return
+            serverTimeOffset = serverMs - System.currentTimeMillis()
+        } catch (_: Exception) {
+            // 解析失败则保持原偏移
+        }
+    }
+
+    /** 校正后的当前时间（毫秒） */
+    fun serverNow(): Long = System.currentTimeMillis() + serverTimeOffset
+
+    /** 当前服务器时间偏移（毫秒），调试用 */
+    fun serverTimeOffsetMs(): Long = serverTimeOffset
+
+    /**
      * token 三通道发送（与网页版 app.js 保持一致）：
      * ① URL 参数 ?token=xxx（主，因为 Apache 可能不透传 Authorization 头）
      * ② Authorization: Bearer xxx（备）
@@ -32,6 +62,7 @@ object Net {
         val b = Request.Builder().url(withToken(url, token))
         if (!token.isNullOrEmpty()) b.addHeader("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { resp ->
+            updateServerTime(resp)
             return resp.body?.string() ?: ""
         }
     }
@@ -42,6 +73,7 @@ object Net {
         val b = Request.Builder().url(finalUrl).post(json.toRequestBody(JSON))
         if (!token.isNullOrEmpty()) b.addHeader("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { resp ->
+            updateServerTime(resp)
             return resp.body?.string() ?: ""
         }
     }

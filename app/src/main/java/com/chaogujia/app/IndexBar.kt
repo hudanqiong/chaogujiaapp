@@ -93,6 +93,26 @@ private val COLOR_SUB = Color(0xFF888888)
 private fun colorOf(pct: Double): Color =
     if (pct > 0.000001) COLOR_UP else if (pct < -0.000001) COLOR_DOWN else COLOR_FLAT
 
+/**
+ * 是否处于「盘前数据重置时段」：每个交易日 08:45 – 09:15。
+ * 此期间自选列表所有股票统一显示为平盘态：
+ *   - 涨跌幅色块 → 黑底 + "--"
+ *   - 最新价     → 黑字 + "--"
+ *   - 分时图     → 中间一条平虚线（无曲线）
+ * 09:15（集合竞价）起恢复正常行情显示。
+ *
+ * 注意：时间基准使用 [Net.serverNow]（服务器时间校正），避免手机时间不准导致误判。
+ */
+private fun isPreOpenReset(): Boolean {
+    val cal = java.util.Calendar.getInstance()
+    cal.timeInMillis = Net.serverNow()
+    // 仅周一~周五（1=周日 … 7=周六）
+    val dow = cal.get(java.util.Calendar.DAY_OF_WEEK)
+    if (dow == java.util.Calendar.SATURDAY || dow == java.util.Calendar.SUNDAY) return false
+    val hm = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+    return hm in (8 * 60 + 45) until (9 * 60 + 15)   // 525 ~ 554
+}
+
 /** 行情数字字体开关（已定稿 = Lato）：
  *  - 选 Lato 的原因：6/9 尾巴长度最接近同花顺（经 4 批对比页实机挑选）
  *  - 想换别的：改成 FontFamily(Font(R.font.xxx)) 即可
@@ -128,6 +148,16 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
 
     // 自选列表分时走势缓存： code -> (trends, preClose)
     var watchTrendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
+
+    // 时间滴答：每 20 秒触发一次重组，保证「08:45–09:15 重置时段」到点自动切换
+    // （服务器时间偏移会在每次网络请求后更新，这里只需推动重组即可）
+    var clockTick by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            clockTick = Net.serverNow()
+            delay(20000)
+        }
+    }
 
     // ===== 股票列表「列配置」=====
     // 当前显示哪些统计列（默认：最新价 + 涨跌幅；以后可由用户自定义）
@@ -400,15 +430,18 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
                         items(stocks) { s ->
-                            StockRow(
-                                s = s,
-                                cols = activeCols,
-                                hScroll = hScroll,
-                                trend = watchTrendMap[s.code],
-                                onOpen = {
-                                    detailIdx = stocks.indexOfFirst { it.code == s.code }
-                                }
-                            )
+                            // key 里带上 clockTick：每 20 秒强制重建该行，保证重置时段到点切换
+                            androidx.compose.runtime.key(clockTick) {
+                                StockRow(
+                                    s = s,
+                                    cols = activeCols,
+                                    hScroll = hScroll,
+                                    trend = watchTrendMap[s.code],
+                                    onOpen = {
+                                        detailIdx = stocks.indexOfFirst { it.code == s.code }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -630,7 +663,9 @@ private fun StockRow(
     trend: Pair<List<DetailTrend>, Double>?,
     onOpen: () -> Unit
 ) {
-    val c = colorOf(s.changePct)
+    // 盘前重置时段（交易日 08:45–09:15）：全部显示平盘黑 + "--"，分时图重置
+    val reset = isPreOpenReset()
+    val c = if (reset) COLOR_FLAT else colorOf(s.changePct)
     Column(Modifier.fillMaxWidth()) {
         // Box 叠放：下层是可横滑的统计列（铺满整宽），上层是固定列（白底，盖在最上面）
         // 往左滑时，统计列会从左往右依次钻到固定列底下被遮住
@@ -648,7 +683,7 @@ private fun StockRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 for (col in cols) {
-                    val txt = col.value(s)
+                    val txt = if (reset && col.key == "changePct") "--" else col.value(s)
                     when (col.colorMode) {
                         WatchColumn.ColorMode.UP_DOWN -> {
                             // 涨跌幅用色块底，其余用带色文字
@@ -740,12 +775,14 @@ private fun StockRow(
                             .width(78.dp)
                             .height(24.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(colorOf(s.changePct)),
+                            .background(if (reset) COLOR_FLAT else colorOf(s.changePct)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             // 符号规则：涨（红）不显示「+」，跌（绿）显示「-」，平盘不带符号
-                            text = if (s.changePct < -0.000001)
+                            // 盘前重置时段：显示 "--"
+                            text = if (reset) "--"
+                            else if (s.changePct < -0.000001)
                                 String.format(Locale.CHINA, "-%.2f%%", kotlin.math.abs(s.changePct))
                             else
                                 String.format(Locale.CHINA, "%.2f%%", kotlin.math.abs(s.changePct)),
@@ -757,8 +794,9 @@ private fun StockRow(
                     }
                     Spacer(Modifier.height(3.dp))
                     Text(
-                        text = String.format(Locale.CHINA, "%.2f", s.price),
-                        color = COLOR_SUB,
+                        // 盘前重置时段：价格显示 "--" 且用黑色
+                        text = if (reset) "--" else String.format(Locale.CHINA, "%.2f", s.price),
+                        color = if (reset) COLOR_TEXT else COLOR_SUB,
                         fontSize = 12.sp,
                         fontFamily = NumFont,
                         maxLines = 1
@@ -777,6 +815,7 @@ private fun StockRow(
                 MiniMinuteChart(
                     trends = trend?.first ?: emptyList(),
                     preClose = trend?.second ?: 0.0,
+                    reset = reset,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(40.dp)
@@ -1456,25 +1495,29 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             Text(s.code, color = Color(0xFF888888), fontSize = 11.sp)
                             Spacer(Modifier.height(6.dp))
                             // 分时走势：从左向右逐点延伸的折线（涨红跌绿 + 昨收基准线）
+                            val resetCard = isPreOpenReset()
                             val tr = trendMap[s.code]
                             android.util.Log.i("CGJ_DIAG", "card code=" + s.code + " hit=" + (tr != null) + " trendSize=" + (tr?.first?.size ?: -1))
                             MiniMinuteChart(
                                 trends = tr?.first ?: emptyList(),
                                 preClose = tr?.second ?: 0.0,
+                                reset = resetCard,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(46.dp)
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = String.format(java.util.Locale.CHINA, "%.2f", s.price),
-                                color = colorOf(s.changePct), fontSize = 20.sp,
+                                text = if (resetCard) "--" else String.format(java.util.Locale.CHINA, "%.2f", s.price),
+                                color = if (resetCard) COLOR_FLAT else colorOf(s.changePct), fontSize = 20.sp,
                                 fontWeight = FontWeight.Bold, fontFamily = NumFont
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                text = String.format(java.util.Locale.CHINA, "%+.2f  %+.2f%%", s.change, s.changePct),
-                                color = colorOf(s.changePct), fontSize = 12.sp, fontFamily = NumFont
+                                text = if (resetCard) "--"
+                                else String.format(java.util.Locale.CHINA, "%+.2f  %+.2f%%", s.change, s.changePct),
+                                color = if (resetCard) COLOR_FLAT else colorOf(s.changePct),
+                                fontSize = 12.sp, fontFamily = NumFont
                             )
                         }
                     }
@@ -1493,12 +1536,32 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
 private fun MiniMinuteChart(
     trends: List<DetailTrend>,
     preClose: Double,
+    reset: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
+
+        // 盘前重置时段（08:45–09:15）：画一条位于正中间的浅灰虚线，无曲线
+        if (reset) {
+            val dashPath = Path().apply {
+                moveTo(0f, h / 2f)
+                lineTo(w, h / 2f)
+            }
+            drawPath(
+                path = dashPath,
+                color = Color(0xFFDDDDDD),
+                style = Stroke(
+                    width = 1.6f,
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                        floatArrayOf(8f, 8f), 0f
+                    )
+                )
+            )
+            return@Canvas
+        }
 
         // 数据未就绪：画一条浅灰占位提示线，让用户明确看到分时图的位置
         if (trends.size < 2) {
