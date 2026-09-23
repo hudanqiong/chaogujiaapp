@@ -651,6 +651,7 @@ private fun MaLegend(
     }
 }
 
+@Composable
 private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() -> Unit)? = null) {
     val tabs = listOf(
         "minute" to "分时",
@@ -1360,6 +1361,7 @@ private fun KLineChart(
             KLineCanvas(
                 line = show,
                 maList = maPeriods.map { p -> computeMA(line, p).copyOfRange(start, end + 1) }.toTypedArray(),
+                maPeriods = maPeriods,
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices },
                 onPick = { local ->
                     // 点同一根 → 取消选中；否则选中该根（映射回全局下标）
@@ -1591,6 +1593,7 @@ private fun MaSettingDialog(
 private fun KLineCanvas(
     line: List<KLinePoint>,
     maList: Array<DoubleArray> = emptyArray(),
+    maPeriods: List<Int> = MA_DEFAULT_PERIODS,
     selLocal: Int? = null,
     onPick: (Int) -> Unit = {},
     onZoom: (Float) -> Unit = {},
