@@ -868,6 +868,10 @@ object Api {
                         if (em.isNotEmpty()) line = em
                     }
                 }
+                // ===== 多源 fallback：东财拿不到数据时切腾讯 / 新浪，保证 K 线稳定出数据 =====
+                if (line.isEmpty()) {
+                    line = fetchKlineFallback(market, pure, k)
+                }
             }
             StockDetail(
                 code = o.optString("code", code),
@@ -882,5 +886,94 @@ object Api {
         } catch (e: Exception) {
             null
         }
+    }
+
+    /**
+     * K 线多源 fallback：东财接口不可用时，依次尝试腾讯 / 新浪，保证 K 线稳定出数据。
+     * 返回为空表示全部源都失败（此时上层仍会显示「暂无K线数据」）。
+     *
+     * @param market "sh" / "sz"
+     * @param pure   6 位纯代码
+     * @param k      "day" / "week" / "month"
+     */
+    private fun fetchKlineFallback(market: String, pure: String, k: String): ArrayList<KLinePoint> {
+        val prefix = when (market) {
+            "sh" -> "sh"
+            "bj" -> "bj"
+            "sz" -> "sz"
+            else -> if (pure.startsWith("6") || pure.startsWith("5") || pure.startsWith("9")) "sh" else "sz"
+        }
+        val sym = prefix + pure
+        // ---- 源 1：腾讯（字段顺序与东财一致，成交量为「手」）----
+        try {
+            val tK = when (k) { "week" -> "week"; "month" -> "month"; else -> "day" }
+            val url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=" +
+                sym + "," + tK + ",,,1000,qfq"
+            val raw = Net.getRaw(url)
+            if (!raw.isNullOrEmpty()) {
+                val data = JSONObject(raw).optJSONObject("data")?.optJSONObject(sym)
+                // 键名：qfqday / qfqweek / qfqmonth（无复权时可能是 day/week/month，做兜底）
+                val arr = data?.optJSONArray("qfq" + tK) ?: data?.optJSONArray(tK)
+                if (arr != null && arr.length() > 0) {
+                    val out = ArrayList<KLinePoint>(arr.length())
+                    for (i in 0 until arr.length()) {
+                        val row = arr.optJSONArray(i) ?: continue
+                        if (row.length() < 6) continue
+                        out.add(
+                            KLinePoint(
+                                date = row.optString(0, ""),
+                                open = row.optString(1, "0").toDoubleOrNull() ?: 0.0,
+                                close = row.optString(2, "0").toDoubleOrNull() ?: 0.0,
+                                high = row.optString(3, "0").toDoubleOrNull() ?: 0.0,
+                                low = row.optString(4, "0").toDoubleOrNull() ?: 0.0,
+                                vol = row.optString(5, "0").toDoubleOrNull() ?: 0.0, // 手，与后端/东财同口径
+                                amount = 0.0 // 腾讯 K 线无成交额字段，置 0（不影响 K 线绘制）
+                            )
+                        )
+                    }
+                    if (out.isNotEmpty()) {
+                        android.util.Log.i("Api", "K线 fallback(腾讯) 成功: $sym $k ${out.size} 根")
+                        return out
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("Api", "K线 fallback(腾讯) 失败: ${e.message}")
+        }
+        // ---- 源 2：新浪（字段顺序不同：day/open/high/low/close/volume，volume 单位为「股」需 ÷100 转手）----
+        try {
+            val scale = when (k) { "week" -> 1680; "month" -> 7200; else -> 240 }
+            val url = "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/" +
+                "CN_MarketData.getKLineData?symbol=" + sym + "&scale=" + scale + "&ma=no&datalen=1000"
+            val raw = Net.getRaw(url)
+            if (!raw.isNullOrEmpty()) {
+                val arr = org.json.JSONArray(raw)
+                if (arr.length() > 0) {
+                    val out = ArrayList<KLinePoint>(arr.length())
+                    for (i in 0 until arr.length()) {
+                        val o = arr.optJSONObject(i) ?: continue
+                        out.add(
+                            KLinePoint(
+                                date = o.optString("day", ""),
+                                open = o.optString("open", "0").toDoubleOrNull() ?: 0.0,
+                                close = o.optString("close", "0").toDoubleOrNull() ?: 0.0,
+                                high = o.optString("high", "0").toDoubleOrNull() ?: 0.0,
+                                low = o.optString("low", "0").toDoubleOrNull() ?: 0.0,
+                                vol = (o.optString("volume", "0").toDoubleOrNull() ?: 0.0) / 100.0, // 股 -> 手
+                                amount = 0.0
+                            )
+                        )
+                    }
+                    if (out.isNotEmpty()) {
+                        android.util.Log.i("Api", "K线 fallback(新浪) 成功: $sym $k ${out.size} 根")
+                        return out
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("Api", "K线 fallback(新浪) 失败: ${e.message}")
+        }
+        android.util.Log.w("Api", "K线 fallback 全部失败: $sym $k（东财/腾讯/新浪均无数据）")
+        return ArrayList()
     }
 }
