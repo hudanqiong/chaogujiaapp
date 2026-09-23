@@ -1915,9 +1915,8 @@ private class ChipDist(
 private fun computeChipDist(line: List<KLinePoint>, base: StockBase?): ChipDist? {
     if (line.size < 2) return null
     val b = base ?: StockBase()
-    // 流通股（股）= 流通市值(亿)*1e8 / 现价；换手率% = 当日成交量(手)*100 / 流通股 * 100
+    // 流通股（股）：仅在需要估算换手率时使用；同花顺真值可用时可为 0
     val floatShares = if (b.price > 0 && b.floatCap > 0) b.floatCap * 1e8 / b.price else 0.0
-    if (floatShares <= 0) return null
 
     // 取最近 CHIP_LOOKBACK 根
     val start = maxOf(0, line.size - CHIP_LOOKBACK)
@@ -1944,8 +1943,10 @@ private fun computeChipDist(line: List<KLinePoint>, base: StockBase?): ChipDist?
     val turnoverRate = DoubleArray(seg.size)
     for (i in seg.indices) {
         val kp = seg[i]
-        // 换手率%（0~1 之间归一后使用，避免异常值）
-        var tr = kp.vol * 100.0 / floatShares * 100.0
+        // 换手率%：优先同花顺真值(kp.turnover)，缺失时才用估算兜底
+        var tr = if (kp.turnover > 0.0) kp.turnover
+                 else if (floatShares > 0.0) kp.vol * 100.0 / floatShares * 100.0
+                 else 0.0
         if (tr.isNaN() || tr < 0) tr = 0.0
         tr = tr.coerceIn(0.0, 100.0) / 100.0
         turnoverRate[i] = tr
