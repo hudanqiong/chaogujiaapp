@@ -1878,10 +1878,6 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
 }
 
 /**
- * 副图指标名标签框：长方形（无圆角），宽高自适应包住「指标名 + ▼」。
- */
-@androidx.compose.runtime.Composable
-/**
  * 副图首行：指标名标签框 + 紧跟其后的数值（同一 Row，避免重叠）。
  * 成交量等其它指标只显示名称框（涨跌幅可选），MACD 在名称框右侧依次排 DIF/DEA/MACD 数值。
  */
@@ -1918,6 +1914,10 @@ private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
     }
 }
 
+/**
+ * 副图指标名标签框：长方形（无圆角），宽高自适应包住「指标名 + ▼」。
+ */
+@Composable
 private fun SubIndicatorTag(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier = modifier
