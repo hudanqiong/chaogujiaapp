@@ -100,11 +100,165 @@ object WatchColumnRegistry {
         value = { fmtAmount(it.aucAmount) }
     )
 
+    // ============================================================
+    //  ★ 全量字段列（基于服务端返回的 raw 数组，按腾讯接口索引取值）
+    //  加列零成本：以后只改这里，不用动 StockItem / 后端
+    // ============================================================
+
+    /** 取 raw 中第 i 个字段的字符串原文（空/无值返回 "--"） */
+    private fun rawStr(it: StockItem, i: Int): String {
+        val v = it.raw.getOrNull(i)?.trim() ?: return "--"
+        return if (v.isEmpty()) "--" else v
+    }
+
+    /** 取 raw 中第 i 个字段当数字，用 fmt 格式化；非数字/空 → "--" */
+    private fun rawNum(it: StockItem, i: Int, fmt: String): String {
+        val v = rawStr(it, i)
+        if (v == "--") return "--"
+        val d = v.toDoubleOrNull() ?: return "--"
+        return try { String.format(Locale.CHINA, fmt, d) } catch (e: Exception) { "--" }
+    }
+
+    /** 取 raw 中第 i 个字段当数字，带正负号 */
+    private fun rawSigned(it: StockItem, i: Int, fmt: String): String {
+        val v = rawStr(it, i)
+        if (v == "--") return "--"
+        val d = v.toDoubleOrNull() ?: return "--"
+        return try { String.format(Locale.CHINA, fmt, d) } catch (e: Exception) { "--" }
+    }
+
+    /** 成交量：手 → 万手/手 */
+    private fun fmtLots(it: StockItem, i: Int): String {
+        val v = rawStr(it, i); if (v == "--") return "--"
+        val d = v.toDoubleOrNull() ?: return "--"
+        return when {
+            d >= 1e4 -> String.format(Locale.CHINA, "%.2f万手", d / 1e4)
+            else     -> String.format(Locale.CHINA, "%.0f手", d)
+        }
+    }
+
+    /** 成交额（raw 里是万元）→ 亿/万 */
+    private fun fmtWanAmount(it: StockItem, i: Int): String {
+        val v = rawStr(it, i); if (v == "--") return "--"
+        val d = v.toDoubleOrNull() ?: return "--"
+        val yuan = d * 10000.0
+        return if (yuan <= 0.0) "--" else fmtAmount(yuan)
+    }
+
+    /** 市值/股本类（raw 里单位已是亿） */
+    private fun fmtYi(it: StockItem, i: Int): String {
+        val v = rawStr(it, i); if (v == "--") return "--"
+        val d = v.toDoubleOrNull() ?: return "--"
+        return String.format(Locale.CHINA, "%.2f亿", d)
+    }
+
+    /** 股本（股）→ 亿股/万股 */
+    private fun fmtShares(it: StockItem, i: Int): String {
+        val v = rawStr(it, i); if (v == "--") return "--"
+        val d = v.toDoubleOrNull() ?: return "--"
+        return when {
+            d >= 1e8 -> String.format(Locale.CHINA, "%.2f亿股", d / 1e8)
+            d >= 1e4 -> String.format(Locale.CHINA, "%.2f万股", d / 1e4)
+            else     -> String.format(Locale.CHINA, "%.0f股", d)
+        }
+    }
+
+    /** 小工具：造一个基于 raw 的列 */
+    private fun col(
+        key: String, title: String, width: Int, idx: Int,
+        fmt: String = "%.2f",
+        upDown: Boolean = false,
+        mode: Int = 0 // 0=普通数字 1=带符号 2=成交量 3=成交额(万) 4=亿 5=股本
+    ): WatchColumn {
+        val f: (StockItem) -> String = when (mode) {
+            1 -> fun(s: StockItem): String = rawSigned(s, idx, fmt)
+            2 -> fun(s: StockItem): String = fmtLots(s, idx)
+            3 -> fun(s: StockItem): String = fmtWanAmount(s, idx)
+            4 -> fun(s: StockItem): String = fmtYi(s, idx)
+            5 -> fun(s: StockItem): String = fmtShares(s, idx)
+            else -> fun(s: StockItem): String = rawNum(s, idx, fmt)
+        }
+        return WatchColumn(
+            key = key, title = title, width = width,
+            value = f,
+            colorMode = if (upDown) WatchColumn.ColorMode.UP_DOWN else WatchColumn.ColorMode.DEFAULT
+        )
+    }
+
+    // ---- 基础行情 ----
+    val R_PRICE      = col("r_price",      "最新价",   72, 3)
+    val R_PREVCLOSE  = col("r_prevClose",  "昨收",     72, 4)
+    val R_OPEN       = col("r_open",       "今开",     72, 5)
+    val R_HIGH       = col("r_high",       "最高",     72, 33)
+    val R_LOW        = col("r_low",        "最低",     72, 34)
+    val R_AVG        = col("r_avg",        "均价",     72, 51)
+    val R_CHANGE     = col("r_change",     "涨跌额",   74, 31, "%+.2f", upDown = true, mode = 1)
+    val R_CHANGE_PCT = col("r_changePct",  "涨跌幅",   74, 32, "%+.2f%%", upDown = true, mode = 1)
+
+    // ---- 量额 / 盘口 ----
+    val R_VOL        = col("r_vol",        "成交量",   84, 36, mode = 2)
+    val R_TURN       = col("r_turn",       "成交额",   84, 37, mode = 3)
+    val R_TURNOVER   = col("r_turnover",   "换手率",   74, 38, "%.2f%%")
+    val R_VOLRATIO   = col("r_volRatio",   "量比",     68, 49)
+    val R_SPEED      = col("r_speed",      "涨速",     68, 56, "%+.2f%%", upDown = true, mode = 1)
+    val R_OUTER      = col("r_outer",      "外盘",     78, 6)
+    val R_INNER      = col("r_inner",      "内盘",     78, 7)
+    val R_AMP        = col("r_amp",        "振幅",     68, 43, "%.2f%%")
+
+    // ---- 估值 / 市值 ----
+    val R_PE_TTM     = col("r_peTtm",      "市盈率TTM", 88, 39)
+    val R_PE_STATIC  = col("r_peStatic",   "市盈率静", 84, 52)
+    val R_PE_DYN     = col("r_peDyn",      "市盈率动", 84, 53)
+    val R_PB         = col("r_pb",         "市净率",   72, 46)
+    val R_FLOAT_MV   = col("r_floatMv",    "流通市值", 88, 44, mode = 4)
+    val R_TOTAL_MV   = col("r_totalMv",    "总市值",   88, 45, mode = 4)
+    val R_FLOAT_SH   = col("r_floatSh",    "流通股本", 88, 72, mode = 5)
+    val R_TOTAL_SH   = col("r_totalSh",    "总股本",   88, 73, mode = 5)
+    val R_DIVIDEND   = col("r_dividend",   "股息率",   74, 74, "%.2f%%")
+
+    // ---- 涨跌停 ----
+    val R_LIMIT_UP   = col("r_limitUp",    "涨停价",   72, 47)
+    val R_LIMIT_DOWN = col("r_limitDown",  "跌停价",   72, 48)
+
+    // ---- 多周期涨幅 ----
+    val R_5MIN       = col("r_5min",       "5分涨速",  78, 62, "%+.2f%%", upDown = true, mode = 1)
+    val R_D3         = col("r_d3",         "3日涨幅",  78, 64, "%+.2f%%", upDown = true, mode = 1)
+    val R_D6         = col("r_d6",         "6日涨幅",  78, 65, "%+.2f%%", upDown = true, mode = 1)
+    val R_D7         = col("r_d7",         "7日涨幅",  78, 70, "%+.2f%%", upDown = true, mode = 1)
+    val R_D20        = col("r_d20",        "20日涨幅", 82, 66, "%+.2f%%", upDown = true, mode = 1)
+    val R_D60        = col("r_d60",        "60日涨幅", 82, 71, "%+.2f%%", upDown = true, mode = 1)
+    val R_MTD        = col("r_ytd",        "年初至今", 82, 69, "%+.2f%%", upDown = true, mode = 1)
+    val R_H60        = col("r_h60",        "60日高",   72, 67)
+    val R_L60        = col("r_l60",        "60日低",   72, 68)
+
+    // ---- 五档盘口（关键档位） ----
+    val R_B1         = col("r_b1",         "买一价",   72, 9)
+    val R_B2         = col("r_b2",         "买二价",   72, 11)
+    val R_B3         = col("r_b3",         "买三价",   72, 13)
+    val R_B4         = col("r_b4",         "买四价",   72, 15)
+    val R_B5         = col("r_b5",         "买五价",   72, 17)
+    val R_S1         = col("r_s1",         "卖一价",   72, 19)
+    val R_S2         = col("r_s2",         "卖二价",   72, 21)
+    val R_S3         = col("r_s3",         "卖三价",   72, 23)
+    val R_S4         = col("r_s4",         "卖四价",   72, 25)
+    val R_S5         = col("r_s5",         "卖五价",   72, 27)
+
+    /** 批量：全量扩展列 */
+    val EXTRA: List<WatchColumn> = listOf(
+        R_PRICE, R_PREVCLOSE, R_OPEN, R_HIGH, R_LOW, R_AVG, R_CHANGE, R_CHANGE_PCT,
+        R_VOL, R_TURN, R_TURNOVER, R_VOLRATIO, R_SPEED, R_OUTER, R_INNER, R_AMP,
+        R_PE_TTM, R_PE_STATIC, R_PE_DYN, R_PB, R_FLOAT_MV, R_TOTAL_MV, R_FLOAT_SH, R_TOTAL_SH, R_DIVIDEND,
+        R_LIMIT_UP, R_LIMIT_DOWN,
+        R_5MIN, R_D3, R_D6, R_D7, R_D20, R_D60, R_MTD, R_H60, R_L60,
+        R_B1, R_B2, R_B3, R_B4, R_B5, R_S1, R_S2, R_S3, R_S4, R_S5
+    )
+
     /**
-     * 所有可选列。以后扩充字段（如成交量/换手/市值）时在这里加。
+     * 所有可选列。以后扩充字段在这里加。
+     * 注意：扩展到 StockItem 里没有的字段时，需要先给 StockItem 加字段。
      * 注意：扩展到 StockItem 里没有的字段时，需要先给 StockItem 加字段。
      */
-    val ALL: List<WatchColumn> = listOf(PCT_PRICE, PRICE, CHANGE_PCT, CHANGE, AMOUNT, AUC_PCT, AUC_AMOUNT)
+    val ALL: List<WatchColumn> = listOf(PCT_PRICE, PRICE, CHANGE_PCT, CHANGE, AMOUNT, AUC_PCT, AUC_AMOUNT) + EXTRA
 
     /** 默认显示的列 key（顺序敏感）：只默认显示「涨幅」合并列（上百分比 / 下价格） */
     // 默认不启用任何横滑统计列（「涨幅」已作为右侧固定列单独渲染）
@@ -125,7 +279,7 @@ object WatchColumnPrefs {
     private const val KEY_VER = "ver"
 
     /** 当前列配置版本。改列定义时 +1，可触发老配置一次性迁移。 */
-    private const val CUR_VER = 5
+    private const val CUR_VER = 6
 
     /** 读用户配置；没存过则返回默认 */
     fun load(ctx: android.content.Context): List<String> {

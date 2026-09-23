@@ -94,7 +94,10 @@ data class StockItem(
     // 集合竞价涨幅%（9:25 定格，快照）
     val aucPct: Double = 0.0,
     // 集合竞价金额（元，9:25 定格，快照）
-    val aucAmount: Double = 0.0
+    val aucAmount: Double = 0.0,
+    // ★ 服务端返回的全量原始字段（腾讯接口 ~ 拆分，按索引对齐）
+    // 用途：「编辑表头」任意取用，以后加列无需改 data class
+    val raw: List<String> = emptyList()
 )
 
 /** 大盘指数（index_quote.php） */
@@ -380,6 +383,14 @@ object Api {
             null
         }
     }
+    /** 解析服务端返回的 raw 数组（腾讯全量字段）为 List<String> */
+    private fun parseRaw(arr: org.json.JSONArray?): List<String> {
+        if (arr == null) return emptyList()
+        val list = ArrayList<String>(arr.length())
+        for (i in 0 until arr.length()) list.add(arr.optString(i, ""))
+        return list
+    }
+
     /** 从 {code,msg,data:[...]} 里取出 data 数组（search.php / watchlist list 用） */
     private fun dataArrayOf(raw: String): List<StockItem> {
         return try {
@@ -398,7 +409,8 @@ object Api {
                         changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0,
                         amount = p.optString("amount", "0").toDoubleOrNull() ?: 0.0,
                         aucPct = p.optString("aucPct", "0").toDoubleOrNull() ?: 0.0,
-                        aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0
+                        aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0,
+                        raw = parseRaw(p.optJSONArray("raw"))
                     )
                 )
             }
