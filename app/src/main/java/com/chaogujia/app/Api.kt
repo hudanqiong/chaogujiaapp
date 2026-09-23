@@ -864,45 +864,16 @@ object Api {
                     )
                 }
             }
-            // ===== 方案 B：前端（手机）直连东财，获取全历史 + 成交额真值，覆盖后端 K 线 =====
+            // ===== 主链路：同花顺 K线（第8列为真换手率，字段统一，实测可用） =====
             val market = o.optString("market", "")
             run {
-                val emkt = if (market == "sh") "1" else "0"
                 val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
-                val klt = when (k) { "week" -> 102; "month" -> 103; else -> 101 }
-                val emUrl = "https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=" +
-                    emkt + "." + pure +
-                    "&fields1=f1,f2,f3,f4,f5" +
-                    "&fields2=f51,f52,f53,f54,f55,f56,f57,f58" +
-                    "&klt=" + klt + "&fqt=1&beg=0&end=20500101&lmt=100000"
-                val rawEm = Net.getRaw(emUrl)
-                if (!rawEm.isNullOrEmpty()) {
-                    val jo = JSONObject(rawEm)
-                    val klines = jo.optJSONObject("data")?.optJSONArray("klines")
-                    if (klines != null && klines.length() > 0) {
-                        val em = ArrayList<KLinePoint>(klines.length())
-                        for (i in 0 until klines.length()) {
-                            val row = klines.optString(i, "")
-                            if (row.isEmpty()) continue
-                            val f = row.split(",")
-                            if (f.size < 6) continue
-                            em.add(
-                                KLinePoint(
-                                    date = f[0],
-                                    open = f[1].toDoubleOrNull() ?: 0.0,
-                                    close = f[2].toDoubleOrNull() ?: 0.0,
-                                    high = f[3].toDoubleOrNull() ?: 0.0,
-                                    low = f[4].toDoubleOrNull() ?: 0.0,
-                                    vol = f[5].toDoubleOrNull() ?: 0.0,  // 与后端同口径（手）
-                                    amount = (f.getOrNull(6)?.toDoubleOrNull() ?: 0.0) / 10000.0,  // 元 -> 万元
-                                    turnover = f.getOrNull(7)?.toDoubleOrNull() ?: 0.0  // 换手率(%): 东财 f58
-                                )
-                            )
-                        }
-                        if (em.isNotEmpty()) line = em
-                    }
-                }
-                // ===== 多源 fallback：东财拿不到数据时切腾讯 / 新浪，保证 K 线稳定出数据 =====
+                val thsCode = when (k) { "week" -> "11"; "month" -> "21"; else -> "01" }
+                val thsUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/last.js"
+                val rawThs = Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/")
+                val ths = parseThsKline(rawThs)
+                if (ths.isNotEmpty()) line = ths
+                // ===== 多源 fallback：同花顺拿不到数据时切东财 / 腾讯 / 新浪，保证 K 线稳定出数据 =====
                 if (line.isEmpty()) {
                     line = fetchKlineFallback(market, pure, k)
                 }
@@ -930,6 +901,47 @@ object Api {
      * @param pure   6 位纯代码
      * @param k      "day" / "week" / "month"
      */
+    /**
+     * 解析同花顺 K线 JSONP：quotebridge_v6_line_hs_xxx_01_last({...})
+     * data 为分号分隔，每条：日期,开,高,低,收,成交量(股),成交额(元),换手率(%),,,,,
+     * 第 8 列即真换手率；返回空列表表示解析失败。
+     */
+    private fun parseThsKline(raw: String?): ArrayList<KLinePoint> {
+        if (raw.isNullOrEmpty()) return ArrayList()
+        return try {
+            val a = raw.indexOf('(')
+            val b = raw.lastIndexOf(')')
+            if (a < 0 || b <= a) return ArrayList()
+            val jo = JSONObject(raw.substring(a + 1, b))
+            val data = jo.optString("data", "")
+            if (data.isEmpty()) return ArrayList()
+            val rows = data.split(";")
+            val out = ArrayList<KLinePoint>(rows.size)
+            for (row in rows) {
+                if (row.isEmpty()) continue
+                val f = row.split(",")
+                if (f.size < 8) continue
+                out.add(
+                    KLinePoint(
+                        date = f[0],
+                        open = f[1].toDoubleOrNull() ?: 0.0,
+                        high = f[2].toDoubleOrNull() ?: 0.0,
+                        low = f[3].toDoubleOrNull() ?: 0.0,
+                        close = f[4].toDoubleOrNull() ?: 0.0,
+                        vol = f[5].toDoubleOrNull() ?: 0.0,        // 股，与东财 f56 同口径
+                        amount = (f[6].toDoubleOrNull() ?: 0.0) / 10000.0, // 元 -> 万元
+                        turnover = f[7].toDoubleOrNull() ?: 0.0    // 换手率(%): 同花顺真值
+                    )
+                )
+            }
+            if (out.isNotEmpty()) android.util.Log.i("Api", "K线(同花顺) 成功: ${out.size} 根")
+            out
+        } catch (e: Exception) {
+            android.util.Log.w("Api", "K线(同花顺) 解析失败: ${e.message}")
+            ArrayList()
+        }
+    }
+
     private fun fetchKlineFallback(market: String, pure: String, k: String): ArrayList<KLinePoint> {
         val prefix = when (market) {
             "sh" -> "sh"
