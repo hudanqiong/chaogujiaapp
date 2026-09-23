@@ -100,6 +100,27 @@ data class StockItem(
     val raw: List<String> = emptyList()
 )
 
+/** 表头字段元数据（后端 fields.php 下发，唯一真源） */
+data class WatchField(
+    val key: String = "",
+    val title: String = "",
+    val unit: String = "",
+    val width: Int = 80,
+    /** "updown" 涨红跌绿 / "none" 普通色 */
+    val color: String = "none",
+    /** "item" 取 StockItem 字段 / "raw" 取 raw 数组 */
+    val src: String = "raw",
+    /** src=raw 时腾讯 raw 下标；否则 -1 */
+    val rawIdx: Int = -1,
+    /** 格式枚举：plain/num0/num2/signed2/signed2pct/pct2/lots/wanAmount/yi/shares/str/amount */
+    val fmt: String = "num2",
+    /** src=item 时的 StockItem 字段名 */
+    val item: String = "",
+    val group: String = "",
+    val def: Boolean = false,
+    val avail: Boolean = true
+)
+
 /** 大盘指数（index_quote.php） */
 data class IndexQuote(
     val code: String = "",
@@ -371,6 +392,41 @@ object Api {
             }
         } catch (e: Exception) {
             AuthResult(ok = false, msg = e.message ?: "网络异常")
+        }
+    }
+
+    /** 表头字段元数据（fields.php）：后端唯一真源，前端据此动态建列 */
+    fun fields(group: String? = null): List<WatchField> {
+        return try {
+            val url = if (group.isNullOrBlank()) base("fields.php")
+                      else base("fields.php?group=") + java.net.URLEncoder.encode(group, "UTF-8")
+            val o = JSONObject(Net.get(url))
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val d = o.optJSONObject("data") ?: return emptyList()
+            val arr = d.optJSONArray("fields") ?: return emptyList()
+            val list = ArrayList<WatchField>(arr.length())
+            for (i in 0 until arr.length()) {
+                val j = arr.optJSONObject(i) ?: continue
+                list.add(
+                    WatchField(
+                        key = j.optString("key", ""),
+                        title = j.optString("title", ""),
+                        unit = j.optString("unit", ""),
+                        width = j.optInt("width", 80),
+                        color = j.optString("color", "none"),
+                        src = j.optString("src", "raw"),
+                        rawIdx = j.optInt("rawIdx", -1),
+                        fmt = j.optString("fmt", "num2"),
+                        item = j.optString("item", ""),
+                        group = j.optString("group", ""),
+                        def = j.optBoolean("def", false),
+                        avail = j.optBoolean("avail", true)
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 

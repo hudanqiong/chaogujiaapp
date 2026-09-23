@@ -106,13 +106,13 @@ object WatchColumnRegistry {
     // ============================================================
 
     /** 取 raw 中第 i 个字段的字符串原文（空/无值返回 "--"） */
-    private fun rawStr(it: StockItem, i: Int): String {
+    internal fun rawStr(it: StockItem, i: Int): String {
         val v = it.raw.getOrNull(i)?.trim() ?: return "--"
         return if (v.isEmpty()) "--" else v
     }
 
     /** 取 raw 中第 i 个字段当数字，用 fmt 格式化；非数字/空 → "--" */
-    private fun rawNum(it: StockItem, i: Int, fmt: String): String {
+    internal fun rawNum(it: StockItem, i: Int, fmt: String): String {
         val v = rawStr(it, i)
         if (v == "--") return "--"
         val d = v.toDoubleOrNull() ?: return "--"
@@ -120,7 +120,7 @@ object WatchColumnRegistry {
     }
 
     /** 取 raw 中第 i 个字段当数字，带正负号 */
-    private fun rawSigned(it: StockItem, i: Int, fmt: String): String {
+    internal fun rawSigned(it: StockItem, i: Int, fmt: String): String {
         val v = rawStr(it, i)
         if (v == "--") return "--"
         val d = v.toDoubleOrNull() ?: return "--"
@@ -128,7 +128,7 @@ object WatchColumnRegistry {
     }
 
     /** 成交量：手 → 万手/手 */
-    private fun fmtLots(it: StockItem, i: Int): String {
+    internal fun fmtLots(it: StockItem, i: Int): String {
         val v = rawStr(it, i); if (v == "--") return "--"
         val d = v.toDoubleOrNull() ?: return "--"
         return when {
@@ -138,7 +138,7 @@ object WatchColumnRegistry {
     }
 
     /** 成交额（raw 里是万元）→ 亿/万 */
-    private fun fmtWanAmount(it: StockItem, i: Int): String {
+    internal fun fmtWanAmount(it: StockItem, i: Int): String {
         val v = rawStr(it, i); if (v == "--") return "--"
         val d = v.toDoubleOrNull() ?: return "--"
         val yuan = d * 10000.0
@@ -146,14 +146,14 @@ object WatchColumnRegistry {
     }
 
     /** 市值/股本类（raw 里单位已是亿） */
-    private fun fmtYi(it: StockItem, i: Int): String {
+    internal fun fmtYi(it: StockItem, i: Int): String {
         val v = rawStr(it, i); if (v == "--") return "--"
         val d = v.toDoubleOrNull() ?: return "--"
         return String.format(Locale.CHINA, "%.2f亿", d)
     }
 
     /** 股本（股）→ 亿股/万股 */
-    private fun fmtShares(it: StockItem, i: Int): String {
+    internal fun fmtShares(it: StockItem, i: Int): String {
         val v = rawStr(it, i); if (v == "--") return "--"
         val d = v.toDoubleOrNull() ?: return "--"
         return when {
@@ -164,7 +164,7 @@ object WatchColumnRegistry {
     }
 
     /** 小工具：造一个基于 raw 的列 */
-    private fun col(
+    internal fun col(
         key: String, title: String, width: Int, idx: Int,
         fmt: String = "%.2f",
         upDown: Boolean = false,
@@ -266,6 +266,92 @@ object WatchColumnRegistry {
 
     /** 按 key 取列定义 */
     fun byKey(key: String): WatchColumn? = ALL.firstOrNull { it.key == key }
+
+    // ============================================================
+    //  ★ 方案 A：由后端 fields.php 下发的元数据动态建列
+    //  - 后端改一处即可决定列名/宽度/单位/格式/颜色/顺序
+    //  - 前端只负责按 src(rawIdx/item) + fmt 取值
+    // ============================================================
+
+    /** 后端下发列表构建的「动态列表」；为空则回退到内置 ALL（无网/老服务端用） */
+    @Volatile var DYNAMIC: List<WatchColumn> = emptyList()
+        private set
+    private val dynMap = HashMap<String, WatchColumn>()
+
+    /** 用后端元数据重建动态列（fields 为空/异常则回退内置 ALL） */
+    fun buildFrom(fields: List<WatchField>) {
+        if (fields.isEmpty()) return
+        val built = ArrayList<WatchColumn>(fields.size)
+        for (f in fields) {
+            if (f.key.isBlank()) continue
+            val v: (StockItem) -> String = when {
+                f.src == "item" -> itemValue(f)
+                else -> rawValue(f)
+            }
+            built.add(
+                WatchColumn(
+                    key = f.key,
+                    title = f.title,
+                    width = if (f.width > 0) f.width else 80,
+                    value = v,
+                    colorMode = if (f.color == "updown") WatchColumn.ColorMode.UP_DOWN
+                                else WatchColumn.ColorMode.DEFAULT
+                )
+            )
+        }
+        DYNAMIC = built
+        dynMap.clear()
+        for (c in built) dynMap[c.key] = c
+    }
+
+    /** 可选取列来源：优先后端动态列，其次内置 */
+    fun available(): List<WatchColumn> = if (DYNAMIC.isNotEmpty()) DYNAMIC else ALL
+
+    /** 默认列 keys：优先后端标 def 的项，无则回退内置 DEFAULT_KEYS */
+    fun defaultKeys(dynFields: List<WatchField>): List<String> {
+        val d = dynFields.filter { it.def }.map { it.key }
+        return if (d.isNotEmpty()) d else DEFAULT_KEYS
+    }
+
+    /** 按 key 取列：优先动态表，回退内置 */
+    fun get(key: String): WatchColumn? = dynMap[key] ?: byKey(key)
+
+    /** fmt 枚举 → 取值函数（src=raw） */
+    private fun rawValue(f: WatchField): (StockItem) -> String {
+        val i = f.rawIdx
+        return when (f.fmt) {
+            "signed2"    -> fun(s: StockItem): String = rawSigned(s, i, "%+.2f")
+            "signed2pct" -> fun(s: StockItem): String = rawSigned(s, i, "%+.2f%%")
+            "pct2"       -> fun(s: StockItem): String = rawNum(s, i, "%.2f%%")
+            "lots"       -> fun(s: StockItem): String = fmtLots(s, i)
+            "wanAmount"  -> fun(s: StockItem): String = fmtWanAmount(s, i)
+            "yi"         -> fun(s: StockItem): String = fmtYi(s, i)
+            "shares"     -> fun(s: StockItem): String = fmtShares(s, i)
+            "num0"       -> fun(s: StockItem): String = rawNum(s, i, "%.0f")
+            "str"        -> fun(s: StockItem): String = rawStr(s, i)
+            else         -> fun(s: StockItem): String = rawNum(s, i, "%.2f")
+        }
+    }
+
+    /** ftmt 枚举 → 取值函数（src=item，直接取 StockItem 字段） */
+    private fun itemValue(f: WatchField): (StockItem) -> String {
+        return when (f.item) {
+            "price"     -> fun(s: StockItem): String = String.format(Locale.CHINA, "%.2f", s.price)
+            "change"    -> fun(s: StockItem): String = String.format(Locale.CHINA, "%+.2f", s.change)
+            "changePct" -> fun(s: StockItem): String = String.format(Locale.CHINA, "%+.2f%%", s.changePct)
+            "amount"    -> fun(s: StockItem): String = fmtAmount(s.amount)
+            "aucPct"    -> fun(s: StockItem): String = String.format(Locale.CHINA, "%+.2f%%", s.aucPct)
+            "aucAmount" -> fun(s: StockItem): String = fmtAmount(s.aucAmount)
+            "name"      -> fun(s: StockItem): String = s.name
+            "code"      -> fun(s: StockItem): String = s.code
+            else        -> fun(_: StockItem): String = "--"
+        }
+    }
+
+    /** 把 key 列表转成列定义（动态优先）；pctPrice 已作为右侧固定列，不参与横滑 */
+    fun resolveDyn(keys: List<String>): List<WatchColumn> =
+        keys.filter { it != "pctPrice" }.mapNotNull { get(it) }
+
 
     /** 把用户配置的 key 列表转成列定义列表（过滤掉不认识的 key；pctPrice 已作为右侧固定列，不再参与横滑） */
     fun resolve(keys: List<String>): List<WatchColumn> =

@@ -177,7 +177,27 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
     // 当前显示哪些统计列（默认：最新价 + 涨跌幅；以后可由用户自定义）
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var colKeys by remember { mutableStateOf(WatchColumnPrefs.load(ctx)) }
-    val activeCols = remember(colKeys) { WatchColumnRegistry.resolve(colKeys) }
+    // 方案 A：启动拉后端列元数据 -> 动态建列 -> 重建当前显示列
+    var dynFields by remember { mutableStateOf<List<WatchField>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        try {
+            val fs = withContext(Dispatchers.IO) { Api.fields() }
+            if (fs.isNotEmpty()) {
+                WatchColumnRegistry.buildFrom(fs)
+                dynFields = fs
+                // 老配置(无动态列时保存的)若仍有效则保留，否则用后端默认列
+                val fixed = WatchColumnPrefs.load(ctx).filter { WatchColumnRegistry.get(it) != null }
+                if (fixed.isEmpty()) {
+                    val dk = WatchColumnRegistry.defaultKeys(fs)
+                    colKeys = dk
+                    WatchColumnPrefs.save(ctx, dk)
+                } else {
+                    colKeys = fixed
+                }
+            }
+        } catch (e: Exception) { /* 拉不到则沿用内置列，不影响使用 */ }
+    }
+    val activeCols = remember(colKeys, dynFields) { WatchColumnRegistry.resolveDyn(colKeys) }
 
     // 点列表行进详情页：记录当前看的是第几只（null = 没进详情页）
     var detailIdx by remember { mutableStateOf<Int?>(null) }
@@ -562,8 +582,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     WatchColumnPrefs.save(ctx, next)
                 },
                 onReset = {
-                    colKeys = WatchColumnRegistry.DEFAULT_KEYS
-                    WatchColumnPrefs.save(ctx, colKeys)
+                    val dk = WatchColumnRegistry.defaultKeys(dynFields)
+                    colKeys = dk
+                    WatchColumnPrefs.save(ctx, dk)
                 },
                 onClose = { showColEditor = false }
             )
@@ -586,7 +607,7 @@ private fun ColumnEditorDialog(
     onReset: () -> Unit,
     onClose: () -> Unit
 ) {
-    val allCols = remember { WatchColumnRegistry.ALL.filter { it.key != WatchColumnRegistry.PCT_PRICE.key } }
+    val allCols = WatchColumnRegistry.available().filter { it.key != "pctPrice" }
     var kw by remember { mutableStateOf("") }
     val shown = remember(kw) {
         if (kw.isBlank()) allCols else allCols.filter { it.title.contains(kw.trim()) || it.key.contains(kw.trim(), true) }
