@@ -595,8 +595,7 @@ private fun MaLegend(
     onToggleChip: () -> Unit = {}
 ) {
     if (periods.isEmpty()) return
-    // 图例展开/收起（点左侧“均线 ▾”按钮切换）
-    var expanded by remember { mutableStateOf(true) }
+    // 均线标签仅展示，无点击功能；图例固定显示
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -604,31 +603,26 @@ private fun MaLegend(
             .padding(top = 0.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左侧“均线”下拉按钮（浅灰，接近白，带向下小三角）
+        // 左侧均线标签（浅灰，纯展示）
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(3.dp))
                 .background(MA_BTN_BG)
-                .clickable { expanded = !expanded }
                 .padding(horizontal = 6.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("均线", fontSize = 10.sp, color = MA_BTN_FG, lineHeight = 12.sp)
-            Spacer(Modifier.width(2.dp))
-            Text(if (expanded) "▴" else "▾", fontSize = 8.sp, color = MA_BTN_FG)
         }
         Spacer(Modifier.width(8.dp))
-        if (expanded) {
-            periods.forEachIndexed { i, p ->
-                if (i > 0) Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "M$p",
-                    color = maColorOf(p),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 12.sp
-                )
-            }
+        periods.forEachIndexed { i, p ->
+            if (i > 0) Spacer(Modifier.width(8.dp))
+            Text(
+                text = "M$p",
+                color = maColorOf(p),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 12.sp
+            )
         }
         // 最右端：筹码按钮（长方形空心，关闭黑灰 / 打开红色）
         Spacer(Modifier.weight(1f))
@@ -1648,6 +1642,12 @@ private fun KLineCanvas(
             val y = h * k / 4f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
+        // K线显示区 完整边框（上/下/左/右）
+        val bd = LINE_AXIS
+        drawLine(bd, Offset(0f, 0f), Offset(w, 0f), strokeWidth = 1f)
+        drawLine(bd, Offset(0f, h), Offset(w, h), strokeWidth = 1f)
+        drawLine(bd, Offset(0f, 0f), Offset(0f, h), strokeWidth = 1f)
+        drawLine(bd, Offset(w, 0f), Offset(w, h), strokeWidth = 1f)
 
         val n = line.size
         val slot = w / n
