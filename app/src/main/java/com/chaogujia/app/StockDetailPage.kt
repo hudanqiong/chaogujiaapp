@@ -47,7 +47,7 @@ private val DSpNumFont = FontFamily(Font(R.font.ths_regular))
 // ===== 颜色 =====
 // 全站涨跌配色单一源头：改这两处，全软件（K线/分时/盘口/涨跌幅/列表）同步生效
 internal val RED_UP = Color(0xFFE64A3B)       // 涨：红
-internal val GREEN_DOWN = Color(0xFF009944)   // 跌：绿（图表柱体/影线/量柱，深绿）
+internal val GREEN_DOWN = Color(0xFF306612)   // 跌：绿（图表柱体/影线/量柱，墨绿 #306612，同花顺实测）
 internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮绿）
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val TEXT_MAIN = Color(0xFF222222)
@@ -1229,7 +1229,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
 
     // 取当前窗口数据
     val n = visible.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
-    val end = rightIndex.coerceIn(n - 1, line.lastIndex)
+    val end = rightIndex.coerceIn((n - 1).coerceAtMost(line.lastIndex), line.lastIndex)
     val start = (end - n + 1).coerceAtLeast(0)
     val show = line.subList(start, end + 1)
 
@@ -1251,16 +1251,20 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                 },
                 onZoom = { factor ->
                     // factor > 1 放大（根数变少），< 1 缩小（根数变多）
-                    val nv = (visible / factor).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                    val nv = (visible / factor).toInt()
+                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
                     if (nv != visible) {
                         visible = nv
-                        // 保持右端锚定
-                        rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+                        // 保持右端锚定（下界不得超过上界，防空 range 崩溃）
+                        val lo = (visible - 1).coerceAtMost(line.lastIndex)
+                        rightIndex = rightIndex.coerceIn(lo, line.lastIndex)
                     }
                 },
                 onPan = { moved ->
                     // moved > 0 表示向右拖（看更早的历史 → 窗口左移）
-                    val ni = (rightIndex - moved).coerceIn(visible - 1, line.lastIndex)
+                    val lo = (visible - 1).coerceAtMost(line.lastIndex)
+                    val ni = (rightIndex - moved).coerceIn(lo, line.lastIndex)
                     rightIndex = ni
                 },
                 // 底部留出叠层按钮行的高度，避免蜡烛图被半透明条压住
@@ -1289,21 +1293,25 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                 Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
                 KLineButton(text = "−") {
-                    visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                    rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+                    visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
+                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
+                    rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
                 }
                 KLineButton(text = "＋") {
-                    visible = (visible / K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                    rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+                    visible = (visible / K_BTN_ZOOM_STEP).toInt()
+                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
+                    rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
                 }
                 KLineButton(text = "＜") {
-                    val nr = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
+                    val nr = (rightIndex - 1).coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
                     rightIndex = nr
                     // 若已选中，跟随移动选中框
                     selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                 }
                 KLineButton(text = "＞") {
-                    val nr = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
+                    val nr = (rightIndex + 1).coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
                     rightIndex = nr
                     selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                 }
