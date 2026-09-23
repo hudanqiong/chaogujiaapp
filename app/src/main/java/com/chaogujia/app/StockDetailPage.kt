@@ -456,6 +456,7 @@ private fun DetailHeadSelected(d: StockDetail?, line: List<KLinePoint>, idx: Int
     val b = d?.base
     val floatShares = if (b != null && b.price > 0 && b.floatCap > 0) b.floatCap * 1e8 / b.price else 0.0
     val turnoverEst = if (kp.turnover > 0.0) kp.turnover else if (floatShares > 0) kp.vol * 100.0 / floatShares * 100.0 else Double.NaN
+    android.util.Log.i("CGJ_TURNOVER_DEBUG", "date=" + kp.date + " f58=" + kp.turnover + " vol=" + kp.vol + " floatShares=" + floatShares + " est=" + (if (floatShares>0) kp.vol*100.0/floatShares*100.0 else 0.0) + " final=" + turnoverEst)
     // 成交额(万)：优先用东财真值 kp.amount（万元）；无则回退估算 vol(手) * 100 * 均价(≈(开+收+高+低)/4)
     val avgP = (kp.open + kp.close + kp.high + kp.low) / 4.0
     val amountEst = if (kp.amount > 0.0) kp.amount else kp.vol * 100.0 * avgP / 10000.0
