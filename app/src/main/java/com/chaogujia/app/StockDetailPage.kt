@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -69,7 +70,7 @@ private val TICK_RED = Color(0x33E64A3B)     // 蜡烛红（半透明填充）
 private val TICK_GREEN = Color(0x3319A05A)   // 蜡烛绿（半透明填充）
 // ===== 副图指标切换：标签框（长方形、无圆角、宽自适应包住 名称+▼）=====
 private val SUB_TAG_BORDER = Color(0xFFBBBBBB)   // 标签框描边：浅灰
-private val SUB_TAG_BG = Color(0xFFF7F7F7)       // 标签框底：近白
+private val SUB_TAG_BG = Color(0xB3EEEEEE)       // 标签框底：近白
 private val SUB_TAG_FG = Color(0xFF333333)       // 标签框文字
 // ===== MACD 三线（柱改线后）=====
 private val MACD_DIF_COLOR = Color(0xFF111111)   // DIF 快线：黑
@@ -1406,9 +1407,11 @@ private fun KLineChart(
 
     // ===== MACD：必须用「全量」line 计算（EMA 递归依赖历史），再按可见窗口切片 =====
     val macdFull = remember(d?.code, line.size) { computeMACD(line) }
-    // 当前副图指标（点副图空白循环切换 / 点标签框弹层选择）
+    // 当前副图指标（点副图空白循环切换 / 点标签框弹层选择）——两幅独立
     var currentSub by remember(d?.code) { mutableStateOf(SubIndicator.VOL) }
     var subPickerOpen by remember { mutableStateOf(false) }
+    var currentSub2 by remember(d?.code) { mutableStateOf(SubIndicator.MACD) }
+    var subPickerOpen2 by remember { mutableStateOf(false) }
     val macdShow = remember(macdFull, start, end) {
         MacdResult(
             macdFull.dif.copyOfRange(start, end + 1),
@@ -1425,11 +1428,18 @@ private fun KLineChart(
             onDismiss = { subPickerOpen = false }
         )
     }
+    if (subPickerOpen2) {
+        SubIndicatorPicker(
+            current = currentSub2,
+            onPick = { currentSub2 = it; subPickerOpen2 = false },
+            onDismiss = { subPickerOpen2 = false }
+        )
+    }
     Column(modifier = Modifier.fillMaxSize().padding(top = 6.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.58f)
+                .weight(0.52f)
                 .padding(start = 2.dp, end = 2.dp)
         ) {
             KLineCanvas(
@@ -1529,12 +1539,12 @@ private fun KLineChart(
                 )
             }
         }
-        // ===== 可切换副图（同花顺：点标签框弹层选 / 点空白循环切下一个）=====
+        // ===== 副图1（默认成交量；点标签框弹层选 / 点空白循环切下一个）=====
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.42f)
-                .padding(start = 2.dp, end = 2.dp, top = 4.dp)
+                .weight(0.24f)
+                .padding(start = 2.dp, end = 2.dp, top = 3.dp)
                 .pointerInput(currentSub, show.size, selIdx) {
                     detectTapGestures { currentSub = currentSub.next() }
                 }
@@ -1543,42 +1553,44 @@ private fun KLineChart(
             when (currentSub) {
                 SubIndicator.VOL -> KLineVolumeCanvas(line = show, selLocal = subLocal)
                 SubIndicator.MACD -> KLineMacdCanvas(
-                    dif = macdShow.dif,
-                    dea = macdShow.dea,
-                    macd = macdShow.macd,
-                    selLocal = subLocal
+                    dif = macdShow.dif, dea = macdShow.dea, macd = macdShow.macd, selLocal = subLocal
                 )
                 else -> SubPlaceholderCanvas(text = currentSub.label)
             }
-            // ===== 副图数值标签（MACD：选中看选中，未选中看最后一根）=====
-            if (currentSub == SubIndicator.MACD) {
-                val labIdx = subLocal?.takeIf { it in macdShow.dif.indices }
-                    ?: (macdShow.dif.size - 1).takeIf { it >= 0 }
-                if (labIdx != null) {
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.TopStart)
-                            .padding(start = 6.dp, top = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("DIF", color = MACD_DIF_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text(fmtMacdNum(macdShow.dif[labIdx]), color = MACD_DIF_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(8.dp))
-                        Text("DEA", color = MACD_DEA_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text(fmtMacdNum(macdShow.dea[labIdx]), color = MACD_DEA_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(8.dp))
-                        Text("MACD", color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text(fmtMacdNum(macdShow.macd[labIdx]), color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
+            // ===== 首行：指标名标签框 + 紧跟其后的数值（不重叠）=====
+            SubLabelRow(
+                main = if (currentSub == SubIndicator.MACD) currentSub.tag else currentSub.label,
+                showMacd = currentSub == SubIndicator.MACD,
+                labIdx = subLocal,
+                macdShow = macdShow,
+                onTag = { subPickerOpen = true }
+            )
+        }
+        // ===== 副图2（默认 MACD；独立可切）=====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.24f)
+                .padding(start = 2.dp, end = 2.dp, top = 3.dp)
+                .pointerInput(currentSub2, show.size, selIdx) {
+                    detectTapGestures { currentSub2 = currentSub2.next() }
                 }
+        ) {
+            val subLocal2 = selIdx?.let { it - start }?.takeIf { it in show.indices }
+            when (currentSub2) {
+                SubIndicator.VOL -> KLineVolumeCanvas(line = show, selLocal = subLocal2)
+                SubIndicator.MACD -> KLineMacdCanvas(
+                    dif = macdShow.dif, dea = macdShow.dea, macd = macdShow.macd, selLocal = subLocal2
+                )
+                else -> SubPlaceholderCanvas(text = currentSub2.label)
             }
-            // ===== 指标名标签框（长方形 · 无圆角 · 宽自适应包住 名称+▼）=====
-            SubIndicatorTag(
-                text = if (currentSub == SubIndicator.MACD) currentSub.tag else currentSub.label,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 2.dp, top = 2.dp)
-            ) { subPickerOpen = true }
+            SubLabelRow(
+                main = if (currentSub2 == SubIndicator.MACD) currentSub2.tag else currentSub2.label,
+                showMacd = currentSub2 == SubIndicator.MACD,
+                labIdx = subLocal2,
+                macdShow = macdShow,
+                onTag = { subPickerOpen2 = true }
+            )
         }
     }
 }
@@ -1869,12 +1881,48 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
  * 副图指标名标签框：长方形（无圆角），宽高自适应包住「指标名 + ▼」。
  */
 @androidx.compose.runtime.Composable
+/**
+ * 副图首行：指标名标签框 + 紧跟其后的数值（同一 Row，避免重叠）。
+ * 成交量等其它指标只显示名称框（涨跌幅可选），MACD 在名称框右侧依次排 DIF/DEA/MACD 数值。
+ */
+@Composable
+private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
+    main: String,
+    showMacd: Boolean,
+    labIdx: Int?,
+    macdShow: MacdResult,
+    onTag: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .align(Alignment.TopStart)
+            .padding(start = 2.dp, top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SubIndicatorTag(text = main) { onTag() }
+        if (showMacd) {
+            val idx = labIdx?.takeIf { it in macdShow.dif.indices }
+                ?: (macdShow.dif.size - 1).takeIf { it >= 0 }
+            if (idx != null) {
+                Spacer(Modifier.width(6.dp))
+                Text("DIF", color = MACD_DIF_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(fmtMacdNum(macdShow.dif[idx]), color = MACD_DIF_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text("DEA", color = MACD_DEA_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(fmtMacdNum(macdShow.dea[idx]), color = MACD_DEA_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text("MACD", color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(fmtMacdNum(macdShow.macd[idx]), color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 private fun SubIndicatorTag(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
         modifier = modifier
             .background(SUB_TAG_BG)
-            .border(1.dp, SUB_TAG_BORDER)
-            .clickable { onClick() }
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
             .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1980,9 +2028,16 @@ private fun KLineMacdCanvas(
                 prev = cur
             }
         }
-        poly(macd, MACD_BAR_COLOR, 2.2f)     // 蓝线（MACD，原柱改线）
+        // MACD：柱状（每根细竖线，零轴->值），正红负绿
+        val barW = maxOf(1.0f, slot * 0.45f)
+        for (i in 0 until n) {
+            val cx = i * slot + slot / 2f
+            val cy = (midY - (macd[i] * scale).toFloat())
+            val cc = if (macd[i] >= 0.0) RED_UP else GREEN_DOWN
+            drawLine(cc, Offset(cx, midY), Offset(cx, cy), strokeWidth = barW)
+        }
         poly(dea, MACD_DEA_COLOR, 2.2f)      // 红线（慢线 DEA）
-        poly(dif, MACD_DIF_COLOR, 2.2f)      // 黑线（快线 DIF = 上攻线）
+        poly(dif, MACD_DIF_COLOR, 2.2f)      // 黑线（快线 DIF）
         // 选中竖线
         val sel = selLocal
         if (sel != null && sel in 0 until n) {
