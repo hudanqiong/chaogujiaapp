@@ -67,6 +67,14 @@ private val CHIP_TRAPPED = Color(0xFF3A7BD5)
 private val CHIP_PROFIT = Color(0xFFE64A3B)
 private val TICK_RED = Color(0x33E64A3B)     // 蜡烛红（半透明填充）
 private val TICK_GREEN = Color(0x3319A05A)   // 蜡烛绿（半透明填充）
+// ===== 副图指标切换：标签框（长方形、无圆角、宽自适应包住 名称+▼）=====
+private val SUB_TAG_BORDER = Color(0xFFBBBBBB)   // 标签框描边：浅灰
+private val SUB_TAG_BG = Color(0xFFF7F7F7)       // 标签框底：近白
+private val SUB_TAG_FG = Color(0xFF333333)       // 标签框文字
+// ===== MACD 三线（柱改线后）=====
+private val MACD_DIF_COLOR = Color(0xFF111111)   // DIF 快线：黑
+private val MACD_DEA_COLOR = Color(0xFFE64A3B)   // DEA 慢线：红
+private val MACD_BAR_COLOR = Color(0xFF2E8BE6)   // MACD 原柱改线：蓝
 
 /**
  * 个股详情页
@@ -1398,6 +1406,9 @@ private fun KLineChart(
 
     // ===== MACD：必须用「全量」line 计算（EMA 递归依赖历史），再按可见窗口切片 =====
     val macdFull = remember(d?.code, line.size) { computeMACD(line) }
+    // 当前副图指标（点副图空白循环切换 / 点标签框弹层选择）
+    var currentSub by remember(d?.code) { mutableStateOf(SubIndicator.VOL) }
+    var subPickerOpen by remember { mutableStateOf(false) }
     val macdShow = remember(macdFull, start, end) {
         MacdResult(
             macdFull.dif.copyOfRange(start, end + 1),
@@ -1406,6 +1417,14 @@ private fun KLineChart(
         )
     }
 
+    // 副图指标选择弹层（点哪个换哪个）
+    if (subPickerOpen) {
+        SubIndicatorPicker(
+            current = currentSub,
+            onPick = { currentSub = it; subPickerOpen = false },
+            onDismiss = { subPickerOpen = false }
+        )
+    }
     Column(modifier = Modifier.fillMaxSize().padding(top = 6.dp)) {
         Box(
             modifier = Modifier
@@ -1510,55 +1529,56 @@ private fun KLineChart(
                 )
             }
         }
+        // ===== 可切换副图（同花顺：点标签框弹层选 / 点空白循环切下一个）=====
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.21f)
+                .weight(0.42f)
                 .padding(start = 2.dp, end = 2.dp, top = 4.dp)
+                .pointerInput(currentSub, show.size, selIdx) {
+                    detectTapGestures { currentSub = currentSub.next() }
+                }
         ) {
-            KLineVolumeCanvas(
-                line = show,
-                selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
-            )
-        }
-        // ===== MACD 副图 =====
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.21f)
-                .padding(start = 2.dp, end = 2.dp, top = 2.dp)
-        ) {
-            KLineMacdCanvas(
-                dif = macdShow.dif,
-                dea = macdShow.dea,
-                macd = macdShow.macd,
-                selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
-            )
-            // ===== 副图数值标签：选中看选中，未选中看最后一根（同花顺习惯）=====
-            val labIdx = selIdx?.let { it - start }?.takeIf { it in macdShow.dif.indices }
-                ?: (macdShow.dif.size - 1).takeIf { it >= 0 }
-            if (labIdx != null) {
-                val dV = macdShow.dif[labIdx]
-                val eV = macdShow.dea[labIdx]
-                val mV = macdShow.macd[labIdx]
-                Row(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 4.dp, top = 1.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("MACD(12,26,9)", color = TEXT_SUB, fontSize = 9.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text("DIF", color = Color(0xFFFFFFFF), fontSize = 9.sp)
-                    Text(fmtMacdNum(dV), color = Color(0xFFFFFFFF), fontSize = 9.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text("DEA", color = Color(0xFFFFD24A), fontSize = 9.sp)
-                    Text(fmtMacdNum(eV), color = Color(0xFFFFD24A), fontSize = 9.sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text("MACD", color = if (mV >= 0) RED_UP else GREEN_DOWN, fontSize = 9.sp)
-                    Text(fmtMacdNum(mV), color = if (mV >= 0) RED_UP else GREEN_DOWN, fontSize = 9.sp)
+            val subLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
+            when (currentSub) {
+                SubIndicator.VOL -> KLineVolumeCanvas(line = show, selLocal = subLocal)
+                SubIndicator.MACD -> KLineMacdCanvas(
+                    dif = macdShow.dif,
+                    dea = macdShow.dea,
+                    macd = macdShow.macd,
+                    selLocal = subLocal
+                )
+                else -> SubPlaceholderCanvas(text = currentSub.label)
+            }
+            // ===== 副图数值标签（MACD：选中看选中，未选中看最后一根）=====
+            if (currentSub == SubIndicator.MACD) {
+                val labIdx = subLocal?.takeIf { it in macdShow.dif.indices }
+                    ?: (macdShow.dif.size - 1).takeIf { it >= 0 }
+                if (labIdx != null) {
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = 6.dp, top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("DIF", color = MACD_DIF_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(fmtMacdNum(macdShow.dif[labIdx]), color = MACD_DIF_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        Text("DEA", color = MACD_DEA_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(fmtMacdNum(macdShow.dea[labIdx]), color = MACD_DEA_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(8.dp))
+                        Text("MACD", color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(fmtMacdNum(macdShow.macd[labIdx]), color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
+            // ===== 指标名标签框（长方形 · 无圆角 · 宽自适应包住 名称+▼）=====
+            SubIndicatorTag(
+                text = if (currentSub == SubIndicator.MACD) currentSub.tag else currentSub.label,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(start = 2.dp, top = 2.dp)
+            ) { subPickerOpen = true }
         }
     }
 }
@@ -1846,10 +1866,83 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
 }
 
 /**
+ * 副图指标名标签框：长方形（无圆角），宽高自适应包住「指标名 + ▼」。
+ */
+@androidx.compose.runtime.Composable
+private fun SubIndicatorTag(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier = modifier
+            .background(SUB_TAG_BG)
+            .border(1.dp, SUB_TAG_BORDER)
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = text, color = SUB_TAG_FG, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Spacer(Modifier.width(4.dp))
+        Text(text = "▼", color = SUB_TAG_FG, fontSize = 9.sp, maxLines = 1)
+    }
+}
+
+/**
+ * 副图指标选择弹层：列出全部指标，点哪个换哪个。
+ */
+@androidx.compose.runtime.Composable
+private fun SubIndicatorPicker(
+    current: SubIndicator,
+    onPick: (SubIndicator) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(vertical = 8.dp)
+        ) {
+            Text(
+                text = "指标切换",
+                color = TEXT_MAIN,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            SubIndicator.entries.forEach { ind ->
+                val on = ind == current
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(ind) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = ind.label,
+                        color = if (on) Color(Config.COLOR_PRIMARY) else TEXT_MAIN,
+                        fontSize = 15.sp,
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Normal
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (on) Text("✓", color = Color(Config.COLOR_PRIMARY), fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+/** 尚未接入的副图指标占位画布（后续逐个替换为真实计算+绘制）。 */
+@androidx.compose.runtime.Composable
+private fun SubPlaceholderCanvas(text: String) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text(text = "$text 指标接入中…", color = TEXT_SUB, fontSize = 12.sp)
+    }
+}
+
+/**
  * MACD 副图（同花顺风格）。
  * dif/dea/macd 由 computeMACD 对「全量」数据预计算后按可见窗口切片传入，
  * 保证 EMA 递归与历史一致。
- * 绘制：MACD 柱（红正/绿负，零轴上下）+ DIF 线（白）+ DEA 线（黄）。
+ * 绘制：MACD（蓝线，原柱改线）+ DEA 线（红）+ DIF 线（黑）；零轴居中。
  */
 @Composable
 private fun KLineMacdCanvas(
@@ -1864,7 +1957,6 @@ private fun KLineMacdCanvas(
         val n = dif.size
         if (n == 0) return@Canvas
         val slot = w / n
-        val bw = max(slot * 0.85f, 1.6f)
         var maxAbs = 1e-9
         for (i in 0 until n) {
             maxAbs = maxOf(maxAbs, kotlin.math.abs(dif[i]), kotlin.math.abs(dea[i]), kotlin.math.abs(macd[i]))
@@ -1873,19 +1965,7 @@ private fun KLineMacdCanvas(
         val scale = (h / 2f * 0.92f) / maxAbs.toFloat()
         // 零轴
         drawLine(Color(0xFF444444), Offset(0f, midY), Offset(w, midY), strokeWidth = 1.0f)
-        // MACD 柱
-        for (i in 0 until n) {
-            val cx = i * slot + slot / 2
-            val m = macd[i]
-            val bh = (kotlin.math.abs(m) * scale).toFloat()
-            if (bh < 0.4f) continue
-            drawRect(
-                color = if (m >= 0) RED_UP else GREEN_DOWN,
-                topLeft = Offset(cx - bw / 2, if (m >= 0) midY - bh else midY),
-                size = Size(bw, bh),
-                style = Fill
-            )
-        }
+        // MACD：柱改折线（与 DIF/DEA 同一套 poly，单色蓝）
         // DIF 黑线（快线=上攻线）、DEA 红线（慢线）；线加粗、左右端点拉满整幅（到底到边）
         fun poly(vals: DoubleArray, c: Color, sw: Float) {
             var prev: Offset? = null
@@ -1900,8 +1980,9 @@ private fun KLineMacdCanvas(
                 prev = cur
             }
         }
-        poly(dea, Color(0xFFE64A3B), 2.2f)   // 红线（慢线 DEA）
-        poly(dif, Color(0xFF111111), 2.2f)   // 黑线（快线 DIF = 上攻线）
+        poly(macd, MACD_BAR_COLOR, 2.2f)     // 蓝线（MACD，原柱改线）
+        poly(dea, MACD_DEA_COLOR, 2.2f)      // 红线（慢线 DEA）
+        poly(dif, MACD_DIF_COLOR, 2.2f)      // 黑线（快线 DIF = 上攻线）
         // 选中竖线
         val sel = selLocal
         if (sel != null && sel in 0 until n) {
@@ -1914,6 +1995,26 @@ private fun KLineMacdCanvas(
 // ============================================================
 // 数字格式化工具
 // ============================================================
+// ============================================================
+// 副图指标枚举（可切换）
+// ============================================================
+/** 副图可切换指标；顺序即「点副图空白循环切换」的顺序。 */
+internal enum class SubIndicator(val label: String, val tag: String) {
+    VOL("成交量", "成交量"),
+    MACD("MACD", "MACD(12,26,9)"),
+    KDJ("KDJ", "KDJ(9,3,3)"),
+    RSI("RSI", "RSI(6,12,24)"),
+    WR("WR", "WR(14)"),
+    CCI("CCI", "CCI(14)"),
+    BIAS("BIAS", "BIAS(6,12,24)"),
+    PSY("PSY", "PSY(12)"),
+    OBV("OBV", "OBV"),
+    DMI("DMI", "DMI(14,6)"),
+    BOLL("BOLL", "BOLL(20,2)");
+
+    fun next(): SubIndicator = entries[(ordinal + 1) % entries.size]
+}
+
 /** MACD 指标值：+0.123 / -0.456（3 位小数，正数带 +） */
 private fun fmtMacdNum(v: Double): String {
     val s = String.format(java.util.Locale.CHINA, "%.3f", v)
