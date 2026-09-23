@@ -952,9 +952,9 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>) {
 @Composable
 private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifier) {
     Column(
-        modifier = modifier.padding(start = 2.dp),
+        modifier = modifier.padding(start = 2.dp, end = 2.dp),
         verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.Start
+        horizontalAlignment = Alignment.End
     ) {
         Text(fmtNum2(maxV), color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
         Text(fmtNum2(if (midV > 0) midV else (maxV + minV) / 2), color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
@@ -1191,7 +1191,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.72f)
-                .padding(start = 2.dp, end = 34.dp)
+                .padding(start = 2.dp, end = 2.dp)
         ) {
             KLineCanvas(
                 line = show,
@@ -1223,16 +1223,17 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
                 minV = show.minOf { it.low },
                 midV = (show.maxOf { it.high } + show.minOf { it.low }) / 2,
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(34.dp)
+                    .align(Alignment.TopEnd)
+                    .wrapContentWidth()
                     .fillMaxHeight()
+                    .padding(top = 2.dp)
             )
             // ===== 缩放 / 平移圆形按钮：浮在主图（分时/K线主图）底部 =====
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(end = 34.dp, bottom = 4.dp)
+                    .padding(end = 2.dp, bottom = 4.dp)
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1269,7 +1270,7 @@ private fun KLineChart(d: StockDetail?, selIdx: Int? = null, onSelect: (Int?) ->
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.28f)
-                .padding(start = 2.dp, end = 34.dp, top = 4.dp)
+                .padding(start = 2.dp, end = 2.dp, top = 4.dp)
         ) {
             KLineVolumeCanvas(
                 line = show,
