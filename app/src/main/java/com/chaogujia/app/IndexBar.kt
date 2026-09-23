@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
@@ -329,6 +330,15 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                 // 列表统计/列头：左侧「名称/代码」固定，右侧统计列横向可滑动
                 // 表头与列表行共用同一个 hScroll，保证左右滑动时两边同步
                 val hScroll = rememberScrollState()
+                // ================= 按屏幕宽度自适应（核心） =================
+                // 名称列 fixedW 固定；右侧「涨幅」列 pctW 固定；中间为横滑区 midW。
+                // 横滑区内：第一个元素是「多股同列」入口（宽 = midW，默认完整遮住三列），
+                // 其后依次是统计列。左滑时整个横滑区内元素一起左移，入口钻到名称列下方被遮住，
+                // 统计列从入口右缘依次露出 —— 名称列/涨幅列始终钉死不动。
+                val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+                val fixedW = WATCH_FIXED_W
+                val pctW = WATCH_PCT_COL_W
+                val midW = (screenW - fixedW - pctW).coerceAtLeast(80)
                 // 表头：Box 叠放 —— 下层是可横滑的统计列（铺满整宽），上层是固定列（盖在最上面）
                 // 往左滑时，统计列会从左往右依次钻到固定列底下被遮住
                 Box(
@@ -341,10 +351,37 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = WATCH_FIXED_W.dp)
+                            .padding(start = fixedW.dp)
                             .horizontalScroll(hScroll, enabled = false),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // 第一个元素：多股同列入口（宽 = 中间区 midW），随横滑一起左移、钻入名称列下方
+                        Row(
+                            Modifier
+                                .width(midW.dp)
+                                .fillMaxHeight()
+                                .background(Color.White)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { showColumns = true }
+                                .padding(start = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_multi_stock_columns),
+                                contentDescription = "多股同列",
+                                tint = COLOR_SUB,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "多股同列",
+                                color = COLOR_TEXT,
+                                fontSize = 13.sp,
+                                maxLines = 1
+                            )
+                        }
                         for (col in activeCols) {
                             Text(
                                 text = col.title,
@@ -354,35 +391,12 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                 textAlign = if (col.key == "pctPrice") TextAlign.End else TextAlign.Center
                             )
                         }
-                    }
-                    // 中层：「多股同列」入口 —— 紧贴固定列右缘，占满第一列右边所有宽度（白底盖住统计列）
-                    // 默认只看到它；下面列表左滑时统计列会从它底下钻出
-                    Row(
-                        Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = WATCH_FIXED_W.dp)
-                            .width(WATCH_COLS_ENTRY_W.dp)
-                            .fillMaxHeight()
-                            .background(Color.White)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showColumns = true }
-                            .padding(start = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_multi_stock_columns),
-                            contentDescription = "多股同列",
-                            tint = COLOR_SUB,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "多股同列",
-                            color = COLOR_TEXT,
-                            fontSize = 13.sp,
-                            maxLines = 1
+                        // 与数据行保持一致的尾部补白：让表头 maxScroll 也正好 = midW，
+                        // 否则两处共用 hScroll 时 maxValue 会被较小者覆盖，出现滑动错位。
+                        Spacer(
+                            Modifier.width(
+                                (midW + pctW - activeCols.sumOf { it.width }).coerceAtLeast(0).dp
+                            )
                         )
                     }
                     // 「涨幅」列标题 —— 紧接「多股同列」右侧，独立成列，右对齐
@@ -393,14 +407,14 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                         textAlign = TextAlign.End,
                         modifier = Modifier
                             .align(Alignment.CenterEnd)
-                            .width(WATCH_PCT_COL_W.dp)
+                            .width(pctW.dp)
                             .padding(end = 10.dp)
                     )
                     // 上层：固定列「名称 / 代码」，带白底，盖住滑过来的统计列
                     Box(
                         Modifier
                             .align(Alignment.CenterStart)
-                            .width(WATCH_FIXED_W.dp)
+                            .width(fixedW.dp)
                             .fillMaxHeight()
                             .background(Color.White)
                     ) {
@@ -443,6 +457,9 @@ fun IndexBar(token: String? = null, onOpenNews: () -> Unit = {}) {
                                     cols = activeCols,
                                     hScroll = hScroll,
                                     trend = watchTrendMap[s.code],
+                                    fixedW = fixedW,
+                                    pctW = pctW,
+                                    midW = midW,
                                     onOpen = {
                                         detailIdx = stocks.indexOfFirst { it.code == s.code }
                                     }
@@ -667,10 +684,16 @@ private fun StockRow(
     cols: List<WatchColumn>,
     hScroll: androidx.compose.foundation.ScrollState,
     trend: Pair<List<DetailTrend>, Double>?,
+    fixedW: Int,
+    pctW: Int,
+    midW: Int,
     onOpen: () -> Unit
 ) {
     // 盘前重置时段（交易日 08:45–09:15）：全部显示平盘黑 + "--"，分时图重置
     val reset = isPreOpenReset()
+    // 尾部补白：让横向 maxScroll 正好等于 midW，滑到头入口完全消失、三列铺满。
+    val colsTotal = cols.sumOf { it.width }
+    val tailPad = (midW + pctW - colsTotal).coerceAtLeast(0)
     val c = if (reset) COLOR_FLAT else colorOf(s.changePct)
     Column(Modifier.fillMaxWidth()) {
         // Box 叠放：下层是可横滑的统计列（铺满整宽），上层是固定列（白底，盖在最上面）
@@ -684,10 +707,13 @@ private fun StockRow(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = WATCH_FIXED_W.dp)
+                    .padding(start = fixedW.dp)
                     .horizontalScroll(hScroll),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 与表头对齐：最前放一个「入口同宽」的透明占位（数据行不显示入口文字，
+                // 左滑时它同样左移钻入名称列下方，统计列从它右缘依次露出）
+                Spacer(Modifier.width(midW.dp))
                 for (col in cols) {
                     val txt = if (reset && col.key == "changePct") "--" else col.value(s)
                     when (col.colorMode) {
@@ -735,12 +761,15 @@ private fun StockRow(
                         }
                     }
                 }
+                // 尾部补白：使横向可滚动量正好 = midW（滑到头时入口完全钻入名称列、
+                // 三列刚好铺满可视区），避免滑到底入口仍残留一截。
+                Spacer(Modifier.width(tailPad.dp))
             }
             // 上层：固定列「名称 + 代码」，带白底（点击进详情页），盖住滑过来的统计列
             Column(
                 Modifier
                     .align(Alignment.CenterStart)
-                    .width(WATCH_FIXED_W.dp)
+                    .width(fixedW.dp)
                     .fillMaxHeight()
                     .background(Color.White)
                     .clickable { onOpen() }
@@ -766,7 +795,7 @@ private fun StockRow(
             Box(
                 Modifier
                     .align(Alignment.CenterEnd)
-                    .width(WATCH_PCT_COL_W.dp)
+                    .width(pctW.dp)
                     .fillMaxHeight()
                     .background(Color.White)
                     .padding(end = 10.dp),
@@ -810,13 +839,16 @@ private fun StockRow(
                 }
             }
             // 最上层：名称/代码 与 涨幅 之间的分时走势图（从左向右逐点延伸的折线）
-            // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡
-            // 分时图：左右与名称列/涨幅列之间等距（各 8dp）；上下对齐右侧涨幅色块顶与实时价底
+            // 放在 Box 最后一个子元素 = 绘制在最上层，确保不被两侧白底固定列遮挡。
+            // 交互：默认不滑动时显示分时图；用户左滑（hScroll.value>0）时随滑动淡出，
+            //      让下方统计列（成交额/竞价涨幅/竞价金额）露出。
+            val slideFade = (1f - (hScroll.value.toFloat() / 90f)).coerceIn(0f, 1f)
             Box(
                 Modifier
                     .align(Alignment.Center)
                     .fillMaxWidth()
-                    .padding(start = (WATCH_FIXED_W + 8).dp, end = (WATCH_PCT_COL_W + 8).dp)
+                    .padding(start = (fixedW + 8).dp, end = (pctW + 8).dp)
+                    .alpha(slideFade)
             ) {
                 MiniMinuteChart(
                     trends = trend?.first ?: emptyList(),
