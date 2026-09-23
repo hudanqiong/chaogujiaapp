@@ -1534,6 +1534,31 @@ private fun KLineChart(
                 macd = macdShow.macd,
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices }
             )
+            // ===== 副图数值标签：选中看选中，未选中看最后一根（同花顺习惯）=====
+            val labIdx = selIdx?.let { it - start }?.takeIf { it in macdShow.dif.indices }
+                ?: (macdShow.dif.size - 1).takeIf { it >= 0 }
+            if (labIdx != null) {
+                val dV = macdShow.dif[labIdx]
+                val eV = macdShow.dea[labIdx]
+                val mV = macdShow.macd[labIdx]
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 4.dp, top = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("MACD(12,26,9)", color = TEXT_SUB, fontSize = 9.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("DIF", color = Color(0xFFFFFFFF), fontSize = 9.sp)
+                    Text(fmtMacdNum(dV), color = Color(0xFFFFFFFF), fontSize = 9.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("DEA", color = Color(0xFFFFD24A), fontSize = 9.sp)
+                    Text(fmtMacdNum(eV), color = Color(0xFFFFD24A), fontSize = 9.sp)
+                    Spacer(Modifier.width(6.dp))
+                    Text("MACD", color = if (mV >= 0) RED_UP else GREEN_DOWN, fontSize = 9.sp)
+                    Text(fmtMacdNum(mV), color = if (mV >= 0) RED_UP else GREEN_DOWN, fontSize = 9.sp)
+                }
+            }
         }
     }
 }
@@ -1886,6 +1911,12 @@ private fun KLineMacdCanvas(
 // ============================================================
 // 数字格式化工具
 // ============================================================
+/** MACD 指标值：+0.123 / -0.456（3 位小数，正数带 +） */
+private fun fmtMacdNum(v: Double): String {
+    val s = String.format(java.util.Locale.CHINA, "%.3f", v)
+    return if (v > 0) "+$s" else s
+}
+
 /** 普通价格：2.18 */
 private fun fmtNum(v: Double?): String {
     if (v == null) return "--"
