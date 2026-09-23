@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,7 +49,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
@@ -1475,6 +1480,177 @@ private val DOWN_CANDS = listOf(
     ColorCand("J 5AA469 低饱和绿", Color(0xFF5AA469)),
 )
 
+/**
+ * 通用「可拖动色条」：从左到右连续变化，上方画渐变轨道，下方一个可拖的圆点。
+ * @param fraction 0..1
+ * @param trackBrush 轨道渐变（由调用方给整条渐变色）
+ * @param onFraction 拖动回调（0..1）
+ */
+@Composable
+private fun DragBar(
+    fraction: Float,
+    trackBrush: Brush,
+    height: androidx.compose.ui.unit.Dp = 28.dp,
+    onFraction: (Float) -> Unit
+) {
+    var widthPx by remember { mutableStateOf(1) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .onGloballyPositioned { widthPx = it.size.width.coerceAtLeast(1) }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { off -> onFraction((off.x / widthPx).coerceIn(0f, 1f)) },
+                    onDrag = { change, _ -> onFraction((change.position.x / widthPx).coerceIn(0f, 1f)) }
+                )
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { off -> onFraction((off.x / widthPx).coerceIn(0f, 1f)) }
+            }
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val h = size.height
+            val r = h / 2f
+            // 轨道（圆角）
+            drawRoundRect(
+                brush = trackBrush,
+                topLeft = Offset(0f, 0f),
+                size = Size(size.width, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r)
+            )
+            // 外描边
+            drawRoundRect(
+                color = Color(0x55000000),
+                topLeft = Offset(0f, 0f),
+                size = Size(size.width, h),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(r, r),
+                style = Stroke(width = 1f)
+            )
+            // 拖动圆点
+            val cx = (fraction.coerceIn(0f, 1f) * size.width)
+            drawCircle(Color.White, radius = r * 0.9f, center = Offset(cx, r))
+            drawCircle(Color(0x66000000), radius = r * 0.9f, center = Offset(cx, r), style = Stroke(width = 2f))
+        }
+    }
+}
+
+/**
+ * HSV 连续取色器：三根滑条（色相 / 饱和 / 明度），上方是实时对照预览。
+ * 拖动调整跌绿颜色，满意后把 HEX 告诉 Operit 即可写回全局 GREEN_DOWN。
+ */
+@Composable
+private fun GreenPickerCard() {
+    // 初始值 = 现状绿 19A05A
+    var hue by remember { mutableFloatStateOf(150f) }   // 0..360
+    var sat by remember { mutableFloatStateOf(0.75f) }   // 0..1
+    var valr by remember { mutableFloatStateOf(0.63f) }  // 0..1
+    // 用 android.graphics.Color.HSVToColor 得到 ARGB（避免依赖 Compose 的 Color.hsv 实验 API）
+    fun hsvColor(h: Float, s: Float, v: Float): Color {
+        val argb = android.graphics.Color.HSVToColor(floatArrayOf(h, s * 100f, v * 100f))
+        return Color(argb)
+    }
+    val picked = hsvColor(hue, sat, valr)
+    val hex = "#%02X%02X%02X".format(
+        (picked.red * 255).toInt().coerceIn(0, 255),
+        (picked.green * 255).toInt().coerceIn(0, 255),
+        (picked.blue * 255).toInt().coerceIn(0, 255)
+    )
+
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Text("🎨 连续取色器（拖滑条自己调绿）", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
+        Text("拖动下面的色相/饱和/明度滑条，上方对照效果实时更新。满意后把 HEX 告诉我就行。",
+            fontSize = 11.sp, color = Color(0xFF888888))
+        Spacer(Modifier.height(8.dp))
+
+        // ===== 实时对照预览：真实行情串 + K线场景 =====
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(34.dp).background(picked))
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text("3963.73  -12.85  -0.32%", fontSize = 22.sp, color = picked,
+                    fontFamily = FontFamily(Font(R.font.ths_regular)))
+                Text("深证成指  9876.54  -1.28%", fontSize = 14.sp, color = picked,
+                    fontFamily = FontFamily(Font(R.font.ths_regular)))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        // K线场景预览：涨=红空心、跌=当前绿实心；下方量柱同配色
+        Canvas(Modifier.fillMaxWidth().height(80.dp)) {
+            val red = RED_UP
+            val g = picked
+            val n = 16
+            val slot = size.width / n
+            val bwv = slot * 0.6f
+            val up = listOf(true, false, true, true, false, true, false, false, true, true,
+                false, true, true, false, true, false)
+            for (i in 0 until n) {
+                val cx = i * slot + slot / 2f
+                val topY = 8f + (i % 5) * 7f
+                val botY = 48f - (i % 3) * 6f
+                val col = if (up[i]) red else g
+                drawLine(col, Offset(cx, topY - 5f), Offset(cx, botY + 5f), strokeWidth = 2f)
+                drawRect(
+                    color = col,
+                    topLeft = Offset(cx - bwv / 2, topY),
+                    size = Size(bwv, botY - topY),
+                    style = if (up[i]) Stroke(width = 2.2f) else Fill
+                )
+                val vh = 8f + (i % 4) * 5f
+                drawRect(
+                    color = col,
+                    topLeft = Offset(cx - bwv / 2, size.height - vh),
+                    size = Size(bwv, vh),
+                    style = if (up[i]) Stroke(width = 1.6f) else Fill
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // ===== 色相滑条（彩虹渐变） =====
+        Text("色相 Hue  ${hue.toInt()}°（绿大致在 100~160）", fontSize = 12.sp, color = Color(0xFF222222))
+        DragBar(
+            fraction = hue / 360f,
+            trackBrush = Brush.horizontalGradient(
+                listOf(
+                    hsvColor(0f, 1f, 1f), hsvColor(60f, 1f, 1f), hsvColor(120f, 1f, 1f),
+                    hsvColor(180f, 1f, 1f), hsvColor(240f, 1f, 1f), hsvColor(300f, 1f, 1f),
+                    hsvColor(360f, 1f, 1f)
+                )
+            )
+        ) { hue = it * 360f }
+        Spacer(Modifier.height(6.dp))
+
+        // ===== 饱和度滑条 =====
+        Text("饱和度 Sat  ${(sat * 100).toInt()}%", fontSize = 12.sp, color = Color(0xFF222222))
+        DragBar(
+            fraction = sat,
+            trackBrush = Brush.horizontalGradient(
+                listOf(hsvColor(hue, 0f, valr), hsvColor(hue, 1f, valr))
+            )
+        ) { sat = it.coerceIn(0f, 1f) }
+        Spacer(Modifier.height(6.dp))
+
+        // ===== 明度滑条 =====
+        Text("明度 Val  ${(valr * 100).toInt()}%", fontSize = 12.sp, color = Color(0xFF222222))
+        DragBar(
+            fraction = valr,
+            trackBrush = Brush.horizontalGradient(
+                listOf(Color.Black, hsvColor(hue, sat, 0.5f), hsvColor(hue, sat, 1f))
+            )
+        ) { valr = it.coerceIn(0f, 1f) }
+
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("当前颜色：", fontSize = 13.sp, color = Color(0xFF222222))
+            Text(hex, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = picked)
+            Spacer(Modifier.width(8.dp))
+            Text("→ 满意就把这串 HEX 发我", fontSize = 11.sp, color = Color(0xFF888888))
+        }
+        HorizontalDivider(Modifier.padding(top = 8.dp), color = Color(0xFFEEEEEE))
+    }
+}
+
 @Composable
 fun FontComparePage() {
     LazyColumn(
@@ -1525,6 +1701,8 @@ fun FontComparePage() {
                 fontSize = 11.sp, color = Color(0xFF888888))
             Spacer(Modifier.height(4.dp))
         }
+        // ===== HSV 连续取色器：拖动滑条调绿，上方实时对照效果 =====
+        item { GreenPickerCard() }
         items(DOWN_CANDS) { c ->
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

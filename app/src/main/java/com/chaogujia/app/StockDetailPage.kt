@@ -1420,6 +1420,8 @@ private fun MaSettingDialog(
     )
 }
 
+@Composable
+private fun KLineCanvas(
     line: List<KLinePoint>,
     maList: Array<DoubleArray> = emptyArray(),
     selLocal: Int? = null,
