@@ -47,7 +47,8 @@ private val DSpNumFont = FontFamily(Font(R.font.ths_regular))
 // ===== 颜色 =====
 // 全站涨跌配色单一源头：改这两处，全软件（K线/分时/盘口/涨跌幅/列表）同步生效
 internal val RED_UP = Color(0xFFE64A3B)       // 涨：红
-internal val GREEN_DOWN = Color(0xFF19A05A)   // 跌：绿
+internal val GREEN_DOWN = Color(0xFF009944)   // 跌：绿（图表柱体/影线/量柱，深绿）
+internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮绿）
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
@@ -347,7 +348,7 @@ private fun DetailHeadLatest(b: StockBase?) {
     val pct = b?.changePct ?: 0.0
     val color = when {
         chg > 0 -> RED_UP
-        chg < 0 -> GREEN_DOWN
+        chg < 0 -> GREEN_TEXT
         else -> GRAY_FLAT
     }
 
@@ -420,7 +421,7 @@ private fun DetailHeadSelected(d: StockDetail?, line: List<KLinePoint>, idx: Int
     val pct = if (prevClose > 0) chg / prevClose * 100.0 else 0.0
     val color = when {
         chg > 0 -> RED_UP
-        chg < 0 -> GREEN_DOWN
+        chg < 0 -> GREEN_TEXT
         else -> GRAY_FLAT
     }
 
@@ -492,7 +493,7 @@ private fun DetailHeadSelected(d: StockDetail?, line: List<KLinePoint>, idx: Int
         val nPeriod = line.lastIndex - idx
         val sinceColor = when {
             sincePct > 0 -> RED_UP
-            sincePct < 0 -> GREEN_DOWN
+            sincePct < 0 -> GREEN_TEXT
             else -> GRAY_FLAT
         }
         Row(
@@ -770,10 +771,10 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
     val priceColor = when {
         price <= 0 -> TEXT_SUB
         price > preClose -> RED_UP
-        price < preClose -> GREEN_DOWN
+        price < preClose -> GREEN_TEXT
         else -> TEXT_MAIN
     }
-    val labelColor = if (isAsk) GREEN_DOWN else RED_UP
+    val labelColor = if (isAsk) GREEN_TEXT else RED_UP
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -806,7 +807,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
 private fun DealRow(d: DealItem, pc: Double) {
     val color = when {
         d.price > pc -> RED_UP
-        d.price < pc -> GREEN_DOWN
+        d.price < pc -> GREEN_TEXT
         else -> GRAY_FLAT
     }
     Row(
@@ -886,7 +887,7 @@ private fun MinutePriceCanvas(trends: List<DetailTrend>, preClose: Double) {
         val lineColor = when {
             preClose <= 0 -> RED_UP
             last > preClose -> RED_UP
-            last < preClose -> GREEN_DOWN
+            last < preClose -> GREEN_TEXT
             else -> GRAY_FLAT
         }
 
@@ -1083,7 +1084,7 @@ private fun FiveDayPriceCanvas(days: List<DetailDay>, maxP: Double, minP: Double
             val last = pts.last().price
             val lineColor = when {
                 last > first -> RED_UP
-                last < first -> GREEN_DOWN
+                last < first -> GREEN_TEXT
                 else -> GRAY_FLAT
             }
             val path = Path()
@@ -1649,7 +1650,7 @@ private fun DetailBottomBar(
         val pctColor = when {
             pct == null -> GRAY_FLAT
             pct > 0 -> RED_UP
-            pct < 0 -> GREEN_DOWN
+            pct < 0 -> GREEN_TEXT
             else -> GRAY_FLAT
         }
         val pctTxt = when {
