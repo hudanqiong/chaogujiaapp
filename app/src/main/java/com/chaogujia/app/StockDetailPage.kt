@@ -4,7 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
@@ -799,7 +802,22 @@ private fun FiveDayVolumeCanvas(days: List<DetailDay>) {
 
 // ============================================================
 // K线图：上=蜡烛，下=量柱
+//
+// ★ 交互对齐同花顺（2026-09-23 抓取实测）：
+//   - 可视根数范围：27（放大到最大）~ 106（缩到最小），约 4 倍
+//   - 双指捏合：连续缩放，一步到位
+//   - 拖动：平移回看历史（同花顺需全屏才可拖，我们直接支持更顺手）
+//   - 底部按钮栏：[－] 缩小  [＋] 放大  [←] 往前 1 天  [→] 往后 1 天
+//   - 柱实体宽 ≈ slot * 0.82（同花顺实测 37/45 ≈ 0.82）
 // ============================================================
+
+/** 可视根数上下限（同花顺实测：放大最大 27 根/屏、缩小最小 ≈106 根/屏） */
+private const val K_MIN_VISIBLE = 27
+private const val K_MAX_VISIBLE = 106
+private const val K_DEFAULT_VISIBLE = 60
+/** 点击 ＋/－ 按钮时按比例跳档 */
+private const val K_BTN_ZOOM_STEP = 1.25f
+
 @Composable
 private fun KLineChart(d: StockDetail?) {
     val line = d?.line ?: emptyList()
@@ -809,8 +827,24 @@ private fun KLineChart(d: StockDetail?) {
         }
         return
     }
-    // 只显示最近 90 根，保证蜡烛不太挤
-    val show = if (line.size > 90) line.takeLast(90) else line
+
+    // ===== 状态化可视窗口 =====
+    // visible：一屏显示多少根（27~106）
+    // rightIndex：窗口右端在 line 中的下标（指向最新一根则为 line.lastIndex）
+    var visible by remember(d?.code) { mutableIntStateOf(K_DEFAULT_VISIBLE.coerceIn(K_MIN_VISIBLE, line.size.coerceAtLeast(1))) }
+    var rightIndex by remember(d?.code) { mutableIntStateOf(line.lastIndex) }
+
+    // 数据变化（切股票/换周期）时重置窗口
+    LaunchedEffect(d?.code, line.size) {
+        visible = K_DEFAULT_VISIBLE.coerceIn(K_MIN_VISIBLE, line.size.coerceAtLeast(1))
+        rightIndex = line.lastIndex
+    }
+
+    // 取当前窗口数据
+    val n = visible.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
+    val end = rightIndex.coerceIn(n - 1, line.lastIndex)
+    val start = (end - n + 1).coerceAtLeast(0)
+    val show = line.subList(start, end + 1)
 
     Column(modifier = Modifier.fillMaxSize().padding(top = 6.dp)) {
         Box(
@@ -819,7 +853,24 @@ private fun KLineChart(d: StockDetail?) {
                 .weight(0.72f)
                 .padding(end = 46.dp)
         ) {
-            KLineCanvas(show)
+            KLineCanvas(
+                line = show,
+                onZoom = { factor ->
+                    // factor > 1 放大（根数变少），< 1 缩小（根数变多）
+                    val nv = (visible / factor).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                    if (nv != visible) {
+                        visible = nv
+                        // 保持右端锚定
+                        rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+                    }
+                },
+                onPan = { moved ->
+                    // moved > 0 表示向右拖（看更早的历史 → 窗口左移）
+                    val ni = (rightIndex - moved).coerceIn(visible - 1, line.lastIndex)
+                    rightIndex = ni
+                },
+                modifier = Modifier.fillMaxSize()
+            )
             PriceAxis(
                 maxV = show.maxOf { it.high },
                 minV = show.minOf { it.low },
@@ -838,22 +889,71 @@ private fun KLineChart(d: StockDetail?) {
         ) {
             KLineVolumeCanvas(show)
         }
-        // 底部显示最早/最新日期
+        // 底部：左=最早日期，中=按钮栏，右=最新日期
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(end = 46.dp, top = 2.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
+            Spacer(Modifier.weight(1f))
+            KLineButton(text = "－") {
+                visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+            }
+            KLineButton(text = "＋") {
+                visible = (visible / K_BTN_ZOOM_STEP).toInt().coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                rightIndex = rightIndex.coerceIn(visible - 1, line.lastIndex)
+            }
+            KLineButton(text = "◀") {
+                rightIndex = (rightIndex - 1).coerceIn(visible - 1, line.lastIndex)
+            }
+            KLineButton(text = "▶") {
+                rightIndex = (rightIndex + 1).coerceIn(visible - 1, line.lastIndex)
+            }
+            Spacer(Modifier.weight(1f))
             Text(show.last().date, color = TEXT_SUB, fontSize = 10.sp)
         }
     }
 }
 
+/** K线底部小按钮 */
 @Composable
-private fun KLineCanvas(line: List<KLinePoint>) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
+private fun KLineButton(text: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 3.dp)
+            .size(width = 40.dp, height = 24.dp)
+            .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = TEXT_MAIN, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun KLineCanvas(
+    line: List<KLinePoint>,
+    onZoom: (Float) -> Unit = {},
+    onPan: (Int) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    var lastSlot by remember { mutableFloatStateOf(0f) }
+    Canvas(
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    if (lastSlot > 0f) {
+                        // 手指向右拖(pan.x>0) → K线右移 → 看到更早历史 → rightIndex 变小
+                        val moved = (pan.x / lastSlot).toInt()
+                        if (moved != 0) onPan(moved)
+                    }
+                    if (zoom != 1f) onZoom(zoom)
+                }
+            }
+    ) {
         val w = size.width
         val h = size.height
         if (line.isEmpty()) return@Canvas
@@ -875,7 +975,8 @@ private fun KLineCanvas(line: List<KLinePoint>) {
 
         val n = line.size
         val slot = w / n
-        val bw = min(slot * 0.7f, 12f)
+        lastSlot = slot
+        val bw = slot * 0.82f
 
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
@@ -908,7 +1009,7 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>) {
         val maxV = line.maxOf { it.vol }.coerceAtLeast(1e-6)
         val n = line.size
         val slot = w / n
-        val bw = min(slot * 0.7f, 12f)
+        val bw = slot * 0.82f
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
