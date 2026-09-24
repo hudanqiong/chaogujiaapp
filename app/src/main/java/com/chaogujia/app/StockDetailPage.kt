@@ -876,6 +876,8 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             modifier = Modifier.fillMaxSize()
                         )
                     }
+                    // 中间：时间轴（价图与量图之间）
+                    TimeAxis(showAuction, Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT))
                     // 下部量图（占 30%）
                     Box(
                         modifier = Modifier
@@ -895,8 +897,6 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                     )
                 }
             }
-            // ---------- 底部：贯穿整行的时间轴（与上面三栏同权重体系）----------
-            TimeAxis(showAuction, Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT))
         } // end 分时区 Column
         // ================= 右侧：五档盘口 + 成交明细（宽度固定占比，不被竞价栏挤压）=================
         OrderBookPanel(
@@ -1260,36 +1260,18 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
 }
 
 /**
- * 时间轴：分段映射（休盘 11:30-13:00 不占宽）
- * 关闭：9:30 — 11:30 — 15:00     权重 [120, 120]
- * 开启：9:15 — 9:30 — 11:30 — 15:00  权重 [15, 0, 120, 120]（首段对齐 CenterEnd）
+ * 时间轴：位于价图与量图之间，仅覆盖中间主轴（240 分钟）
+ * 关闭/开启竞价均为：9:30 — 11:30/13:00 — 15:00，权重 [120, 120]
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    // 与上方三栏网格共用同一套权重体系（10:240:5），贯穿整行宽度。
-    // 这样刻度边界 = 网格边界：
-    //   09:15 在最左；09:30 恰好落在【左竞价栏右边界】；11:30/13:00 落在正中；
-    //   15:00 在最右。左段(10) 天然是右段(5) 的两倍宽，左右宽窄一眼可辨。
+    // 时间轴只在中间主轴宽度内，故刻度只需覆盖 9:30→11:30→13:00→15:00。
     // 每项 = (标签, 该标签所在区段权重, 对齐方式)
-    val segs: List<Triple<String, Float, Alignment>> = if (showAuction) {
-        listOf(
-            // 左区段：对应【左竞价栏】宽度权重 10，标签贴左
-            Triple("09:15", AUCTION_AM_MINUTES, Alignment.CenterStart),
-            // 中前段：主轴前半 120（9:30→11:30），标签贴左（09:30 恰在左竞价右边界）
-            Triple("09:30", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
-            // 中后段：主轴后半 120（13:00→15:00），标签贴左（11:30/13:00 落正中）
-            Triple("11:30/13:00", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
-            // 右区段：对应【右竞价栏】宽度权重 5，标签贴右（15:00 恰在右竞价左边界）
-            Triple("15:00", AUCTION_PM_MINUTES, Alignment.CenterEnd)
-        )
-    } else {
-        // 关闭竞价：无两侧竞价，主轴各半铺满，总刻度 240
-        listOf(
-            Triple("09:30", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
-            Triple("11:30/13:00", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
-            Triple("15:00", 0.0001f, Alignment.CenterEnd)
-        )
-    }
+    val segs: List<Triple<String, Float, Alignment>> = listOf(
+        Triple("09:30", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
+        Triple("11:30/13:00", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
+        Triple("15:00", 0.0001f, Alignment.CenterEnd)
+    )
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
@@ -1348,8 +1330,8 @@ private fun AuctionColumn(title: String, modifier: Modifier) {
                 drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
             }
         }
-        // 时间栏等高占位：与主轴量图底部的统一时间轴等高，保证三栏网格高度一致。
-        // 刻度由整行底部统一 TimeAxis 绘制，此处不再重复显示时间文字，仅留灰底占位。
+        // 时间栏等高占位：与主轴中间的时间轴等高，保证三栏价图/时间栏/量区的高度一致。
+        // 时间文字由主轴中间的 TimeAxis 绘制，此处仅留灰底占位。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
