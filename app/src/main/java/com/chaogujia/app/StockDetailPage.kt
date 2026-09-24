@@ -913,7 +913,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 // ============================================================
 // 布局比例常量（便于微调）
 // ============================================================
-private const val ORDERBOOK_RATIO = 0.38f      // 右侧盘口栏宽度占比（分时图自动占剩余）
+private const val ORDERBOOK_RATIO = 0.30f      // 右侧盘口栏宽度占比（分时图自动占剩余）
 private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
 private const val AUCTION_AM_MINUTES = 10f     // 早盘竞价 9:15-9:25 = 10 分钟（宽度权重）
 private const val AUCTION_PM_MINUTES = 5f      // 收盘竞价 14:55-15:00 = 5 分钟（宽度权重）
@@ -1009,13 +1009,13 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         Text(
             label, color = labelColor, fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont,
-            modifier = Modifier.width(26.dp), textAlign = TextAlign.Start
+            modifier = Modifier.width(22.dp), textAlign = TextAlign.Start
         )
         Text(
             if (price > 0) fmtNum2(price) else "--",
             color = priceColor, fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+            modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
@@ -1041,19 +1041,21 @@ private fun DealRow(d: DealItem, pc: Double) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            d.time, color = TEXT_SUB, fontSize = 10.sp,
+            // 明细只显示到分钟（去掉秒）
+            d.time.substringBeforeLast(':'),
+            color = TEXT_SUB, fontSize = 10.sp,
             fontFamily = DSpNumFont,
-            modifier = Modifier.weight(1.15f), textAlign = TextAlign.Start
+            modifier = Modifier.weight(0.9f), textAlign = TextAlign.Start
         )
         Text(
             fmtNum2(d.price), color = color, fontSize = 10.sp,
             fontFamily = DSpNumFont,
-            modifier = Modifier.weight(0.85f), textAlign = TextAlign.End
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
         Text(
             fmtVol(d.vol), color = color, fontSize = 10.sp,
             fontFamily = DSpNumFont,
-            modifier = Modifier.weight(0.85f), textAlign = TextAlign.End
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
     }
 }
