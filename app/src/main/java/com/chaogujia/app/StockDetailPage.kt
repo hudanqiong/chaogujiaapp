@@ -3138,6 +3138,7 @@ private fun DetailBottomBar(
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )
+            Spacer(Modifier.height(6.dp))
             Text(
                 text = cName,
                 color = Color.White,
@@ -3187,6 +3188,7 @@ private fun BottomAction(text: String, iconRes: Int, iconSize: androidx.compose.
             contentDescription = null,
             modifier = Modifier.size(iconSize)
         )
+        Spacer(Modifier.height(6.dp))
         Text(text = text, color = Color.White, fontSize = 13.sp, maxLines = 1)
     }
 }
