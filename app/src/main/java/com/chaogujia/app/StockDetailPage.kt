@@ -1180,21 +1180,25 @@ private fun MinutePriceCanvas(
         //     午后     13:00-15:00 占 [0.572w,   0.86w]  宽 28.8%（午休 0 宽）
         //     尾盘竞价 14:55-15:00 占 [0.86w,    1.00w]  宽 14%
         //   关闭竞价：09:30-15:00(240min) 等比铺满 [0,w]，午休不占宽。
-        fun xMinute(axisMin: Float): Float {
+        //   开启竞价：三段布局（竞价独立、正常分时独立）
+        //     早盘竞价 09:15-09:25 占 [0,        0.20w]  宽 20%（10 分钟独立映射）
+        //     正常分时 09:30-14:57 占 [0.20w,   0.9333w] 宽 73.33%（237 分钟：早盘 120 + 午后 117）
+        //     尾盘竞价 14:57-15:00 占 [0.9333w, 1.00w]  宽 6.67%（3 分钟独立映射）
+        // 统一主轴 = 数据 min（09:30=0 / 11:30=120 / 13:00=121…14:57=237 / 15:00=240）。
+        // 早盘竞价 09:15-09:25 用 min ∈ [-15,-5] 表达；尾盘竞价 14:57-15:00 用 min ∈ [237,240]。
+        fun xMinute(min: Float): Float {
             return if (showAuction) {
                 when {
-                    axisMin <= 10f -> (axisMin / 10f) * 0.10f * w            // 09:15-09:25 早盘竞价(10%)
-                    axisMin <= 15f -> 0.10f * w                               // 09:25-09:30 停顿：0 宽
-                    axisMin <= 135f -> 0.10f * w + ((axisMin - 15f) / 120f) * (0.50f - 0.10f) * w  // 09:30-11:30
-                    axisMin <= 250f -> 0.50f * w + ((axisMin - 135f) / 115f) * (0.95f - 0.50f) * w // 13:00-14:55
-                    else -> 0.95f * w + ((axisMin - 250f) / 5f) * (1f - 0.95f) * w   // 14:55-15:00 尾盘竞价(5%)
+                    min < 0f -> ((min + 15f) / 10f) * 0.20f * w                     // 早盘竞价 09:15(min=-15)-09:25(-5) → [0,0.20w]
+                    min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w          // 09:30-14:57 正常分时(73.33%)
+                    else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w        // 14:57-15:00 尾盘竞价(6.67%)
                 }
             } else {
-                val m = (axisMin - 15f).coerceIn(0f, 240f)  // 去掉竞价段偏移
-                (m / 240f) * w
+                (min.coerceIn(0f, 240f) / 240f) * w
             }
         }
-        fun xOf(t: DetailTrend): Float = xMinute(t.min.coerceIn(0, 240) + 15f)
+        // 曲线截止 14:57（min=237），不贯穿竞价栏。
+        fun xOf(t: DetailTrend): Float = xMinute(t.min.coerceIn(0, 237).toFloat())
 
         // 横网格：3 条装饰横线（4 等分，落在 1/4、2/4、3/4）
         for (k in 1..3) {
@@ -1206,34 +1210,38 @@ private fun MinutePriceCanvas(
         // 开启竞价：中间分时区域（09:30→11:30→13:00→15:00）在这段被压窄的区域内仍分 4 格，
         //          两端各画一个集合竞价栏（2 列 × 4 行）。
         if (showAuction) {
-            // 中间分时区域：09:30(15) → 15:00(255)，4 格竖线严格落在真实时间：
-            // 10:30(75) / 11:30·13:00(135) / 14:00(195)。这样网格与曲线/午休折点严格对齐。
-            for (am in floatArrayOf(75f, 135f, 195f)) {
-                val x = xMinute(am)
+            // 中间正常分时区域（09:30→14:57）在这段被压窄的区域内分 4 格，
+            // 竖线严格落在真实时间：10:30(min=60) / 11:30·13:00(120) / 14:00(180)。
+            for (m in floatArrayOf(60f, 120f, 180f)) {
+                val x = xMinute(m)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
-            // ===== 两端集合竞价栏：2 列 × 4 行 =====
+            // ===== 两端集合竞价栏（价区部分）：2 列 × 4 行 =====
             val aucColor = Color(0xFF9E9E9E)
             val aucFill = Color(0x14000000)
-            // 早盘竞价 09:15(0)-09:25(10)
-            val xa0 = xMinute(0f); val xa1 = xMinute(10f)
-            drawRect(color = aucFill, topLeft = Offset(xa0, 0f), size = Size(xa1 - xa0, h))
-            val xam = xa0 + (xa1 - xa0) * 0.5f // 2 列：中间 1 条竖线
-            drawLine(aucColor, Offset(xam, 0f), Offset(xam, h), strokeWidth = 0.8f)
-            drawLine(aucColor, Offset(xa0, 0f), Offset(xa0, h), strokeWidth = 1.5f)
-            drawLine(aucColor, Offset(xa1, 0f), Offset(xa1, h), strokeWidth = 1.5f)
-            // 尾盘竞价 14:55(250)-15:00(255)
-            val xc0 = xMinute(250f); val xc1 = xMinute(255f)
-            drawRect(color = aucFill, topLeft = Offset(xc0, 0f), size = Size(xc1 - xc0, h))
-            val xcm = xc0 + (xc1 - xc0) * 0.5f
-            drawLine(aucColor, Offset(xcm, 0f), Offset(xcm, h), strokeWidth = 0.8f)
-            drawLine(aucColor, Offset(xc0, 0f), Offset(xc0, h), strokeWidth = 1.5f)
-            drawLine(aucColor, Offset(xc1, 0f), Offset(xc1, h), strokeWidth = 1.5f)
+            fun aucPrice(x0: Float, x1: Float) {
+                drawRect(color = aucFill, topLeft = Offset(x0, 0f), size = Size(x1 - x0, h))
+                // 2 列：中间 1 条竖线
+                val xm = x0 + (x1 - x0) * 0.5f
+                drawLine(aucColor, Offset(xm, 0f), Offset(xm, h), strokeWidth = 0.8f)
+                // 4 行：3 条横线（4 等分）
+                for (k in 1..3) {
+                    val y = h * k / 4f
+                    drawLine(aucColor, Offset(x0, y), Offset(x1, y), strokeWidth = 0.8f)
+                }
+                // 1.5f 边线（左右）
+                drawLine(aucColor, Offset(x0, 0f), Offset(x0, h), strokeWidth = 1.5f)
+                drawLine(aucColor, Offset(x1, 0f), Offset(x1, h), strokeWidth = 1.5f)
+            }
+            // 早盘竞价 09:15-09:25
+            aucPrice(xMinute(-15f), xMinute(-5f))
+            // 尾盘竞价 14:57-15:00
+            aucPrice(xMinute(237f), xMinute(240f))
         } else {
             // 关闭竞价：09:30-15:00(240) 等比铺满，竖线落在 10:30(60) / 11:30(120) / 13:30(180)
             val xs = floatArrayOf(60f, 120f, 180f)
             for (m in xs) {
-                val x = xMinute(m + 15f)
+                val x = xMinute(m)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
         }
@@ -1318,57 +1326,53 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
         if (trends.isEmpty()) return@Canvas
         val maxV = trends.maxOf { it.vol }.coerceAtLeast(1e-6)
         // 每分钟柱宽与定位：与价图/时间轴同款映射（方案丙：竞价段放大）
-        fun xMinute(axisMin: Float): Float {
+        fun xMinute(min: Float): Float {
             return if (showAuction) {
                 when {
-                    axisMin <= 10f -> (axisMin / 10f) * 0.10f * w
-                    axisMin <= 15f -> 0.10f * w
-                    axisMin <= 135f -> 0.10f * w + ((axisMin - 15f) / 120f) * (0.50f - 0.10f) * w
-                    axisMin <= 250f -> 0.50f * w + ((axisMin - 135f) / 115f) * (0.95f - 0.50f) * w
-                    else -> 0.95f * w + ((axisMin - 250f) / 5f) * (1f - 0.95f) * w
+                    min < 0f -> ((min + 15f) / 10f) * 0.20f * w                     // 早盘竞价 09:15(-15)-09:25(-5) → [0,0.20w]
+                    min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w          // 09:30-14:57 正常分时(73.33%)
+                    else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w        // 14:57-15:00 尾盘竞价(6.67%)
                 }
             } else {
-                val m = (axisMin - 15f).coerceIn(0f, 240f)
-                (m / 240f) * w
+                (min.coerceIn(0f, 240f) / 240f) * w
             }
         }
-        // 柱宽：以早盘竞价段（10 分钟 → 10% 宽）的单分钟宽为基准，保证柱与网格一致
-        val bw = if (showAuction) (0.10f * w / 10f) else (w / 240f)
-        // 竖网格：与价图同款——中间"正常分时"区域始终 4 格，开启竞价时两端各一个 2×4 竞价栏
+        // 柱宽：以正常分时（237 分钟 → 73.33% 宽）的单分钟宽为基准，保证柱与网格一致
+        val bw = if (showAuction) (0.7333f * w / 237f) else (w / 240f)
+        // 竖网格：与价图同款——中间"正常分时"区域始终 4 格，开启竞价时两端各一个竞价栏
+        // 注意：量图区域的竞价栏是 2 列 × 2 行（量区竖向比价区短，行数少一半）
         if (showAuction) {
-            // 中间分时区域 4 格竖线：严格落在真实时间 10:30(75) / 11:30·13:00(135) / 14:00(195)
-            for (am in floatArrayOf(75f, 135f, 195f)) {
-                val x = xMinute(am)
+            // 中间正常分时区域 4 格竖线：严格落在真实时间 10:30(60) / 11:30·13:00(120) / 14:00(180)
+            for (m in floatArrayOf(60f, 120f, 180f)) {
+                val x = xMinute(m)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
-            // ===== 两端集合竞价栏：2 列 × 4 行 =====
+            // ===== 两端集合竞价栏（量区部分）：2 列 × 2 行 =====
             val aucColor = Color(0xFF9E9E9E)
             val aucFill = Color(0x14000000)
-            run {
-                val x0 = xMinute(0f); val x1 = xMinute(10f)
+            fun aucVol(x0: Float, x1: Float) {
                 drawRect(color = aucFill, topLeft = Offset(x0, 0f), size = Size(x1 - x0, h))
+                // 2 列：中间 1 条竖线
                 val xm = x0 + (x1 - x0) * 0.5f
                 drawLine(aucColor, Offset(xm, 0f), Offset(xm, h), strokeWidth = 0.8f)
+                // 2 行：中间 1 条横线
+                val ym = h * 0.5f
+                drawLine(aucColor, Offset(x0, ym), Offset(x1, ym), strokeWidth = 0.8f)
+                // 1.5f 边线（左右）
+                drawLine(aucColor, Offset(x0, 0f), Offset(x0, h), strokeWidth = 1.5f)
+                drawLine(aucColor, Offset(x1, 0f), Offset(x1, h), strokeWidth = 1.5f)
             }
-            run {
-                val x0 = xMinute(250f); val x1 = xMinute(255f)
-                drawRect(color = aucFill, topLeft = Offset(x0, 0f), size = Size(x1 - x0, h))
-                val xm = x0 + (x1 - x0) * 0.5f
-                drawLine(aucColor, Offset(xm, 0f), Offset(xm, h), strokeWidth = 0.8f)
-            }
-            for (am in floatArrayOf(0f, 10f, 250f, 255f)) {
-                val x = xMinute(am)
-                drawLine(aucColor, Offset(x, 0f), Offset(x, h), strokeWidth = 1.5f)
-            }
+            aucVol(xMinute(-15f), xMinute(-5f))    // 早盘竞价 09:15-09:25
+            aucVol(xMinute(237f), xMinute(240f))  // 尾盘竞价 14:57-15:00
         } else {
             for (m in floatArrayOf(60f, 120f, 180f)) {
-                val x = xMinute(m + 15f)
+                val x = xMinute(m)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
         }
         trends.forEach { t ->
             val vh = (t.vol / maxV * h).toFloat()
-            val x = xMinute(t.min.coerceIn(0, 240) + 15f)
+            val x = xMinute(t.min.coerceIn(0, 237).toFloat())
             drawRect(
                 color = Color(0xFF9AA0A6),
                 topLeft = Offset(x, h - vh),
@@ -1403,16 +1407,17 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    // 刻度采用与 MinutePriceCanvas 完全一致的“方案丙”映射，保证刻度与曲线严格对齐：
-    //   开启竞价：09:15->0 / 09:30->10% / 11:30->49.7% / 15:00->100%（早盘竞价 10% 明显宽于尾盘 5%）。
+    // 刻度采用与 MinutePriceCanvas 完全一致的映射，保证刻度与曲线严格对齐：
+    //   开启竞价：09:15(min=-15)->0 / 09:30(0)->20% / 11:30·13:00(120) 按 237 分钟铺到 93.33% / 14:57(237)->93.33% / 15:00(240)->100%。
     //   关闭竞价：09:30-15:00(240min) 等比铺满 [0,w]。
-    data class Tick(val label: String, val axisMin: Float, val first: Boolean, val last: Boolean)
+    data class Tick(val label: String, val min: Float, val first: Boolean, val last: Boolean)
     val ticks = if (showAuction) {
         listOf(
-            Tick("09:15", 0f, true, false),
-            Tick("09:30", 15f, false, false),
-            Tick("11:30", 135f, false, false),
-            Tick("15:00", 255f, false, true)
+            Tick("09:15", -15f, true, false),
+            Tick("09:30", 0f, false, false),
+            Tick("11:30", 120f, false, false),
+            Tick("14:57", 237f, false, false),
+            Tick("15:00", 240f, false, true)
         )
     } else {
         listOf(
@@ -1423,22 +1428,20 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
     }
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
         val w = constraints.maxWidth.toFloat()
-        fun xOf(axisMin: Float): Float {
+        fun xOf(min: Float): Float {
             return if (showAuction) {
                 when {
-                    axisMin <= 10f -> (axisMin / 10f) * 0.10f * w
-                    axisMin <= 15f -> 0.10f * w
-                    axisMin <= 135f -> 0.10f * w + ((axisMin - 15f) / 120f) * (0.50f - 0.10f) * w
-                    axisMin <= 250f -> 0.50f * w + ((axisMin - 135f) / 115f) * (0.95f - 0.50f) * w
-                    else -> 0.95f * w + ((axisMin - 250f) / 5f) * (1f - 0.95f) * w
+                    min < 0f -> ((min + 15f) / 10f) * 0.20f * w                     // 早盘竞价 → [0,0.20w]
+                    min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w          // 09:30-14:57 (73.33%)
+                    else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w        // 14:57-15:00 (6.67%)
                 }
             } else {
-                (axisMin / 240f) * w
+                (min.coerceIn(0f, 240f) / 240f) * w
             }
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
         ticks.forEach { tk ->
-            val x = xOf(tk.axisMin)
+            val x = xOf(tk.min)
             // 首个贴左，末个贴右，中间以刻度为中心
             val halfLabelPx = with(density) { 22.dp.toPx() }
             val leftDp = with(density) {
