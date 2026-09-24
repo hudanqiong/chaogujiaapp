@@ -83,6 +83,7 @@ private val SUB_TAG_FG = Color(0xFF333333)       // 标签框文字
 private val MACD_DIF_COLOR = Color(0xFF111111)   // DIF 快线：黑
 private val MACD_DEA_COLOR = Color(0xFFE64A3B)   // DEA 慢线：红
 private val MACD_BAR_COLOR = Color(0xFF2E8BE6)   // MACD 原柱改线：蓝
+private val VOL_LABEL_COLOR = Color(0xFF111111)  // 栏顶“量：”文字：黑
 
 /**
  * 个股详情页
@@ -1986,10 +1987,14 @@ private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
             if (idx in volLine.indices) {
                 val c5 = maColorOf(5)
                 val c10 = maColorOf(10)
+                // 当前成交量：带“量：”前缀，紧跟在标签框后面
                 Spacer(Modifier.width(6.dp))
+                Text("量：" + fmtVol(volLine[idx].vol), color = VOL_LABEL_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                // 与量均线数值拉开明显间隔，避免挤在一起
+                Spacer(Modifier.width(16.dp))
                 Text("M5", color = c5, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(fmtVol(ma5[idx]), color = c5, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(10.dp))
                 Text("M10", color = c10, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(fmtVol(ma10[idx]), color = c10, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
