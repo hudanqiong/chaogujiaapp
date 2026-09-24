@@ -3109,7 +3109,7 @@ private fun DetailBottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(78.dp),
+            .height(84.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1) 概念按钮（动态：概念名 + 涨跌幅）
@@ -3136,7 +3136,7 @@ private fun DetailBottomBar(
             Image(
                 painter = painterResource(id = R.drawable.ic_dbar_concept),
                 contentDescription = null,
-                modifier = Modifier.height(60.dp)
+                modifier = Modifier.size(60.dp)
             )
             Text(
                 text = cName,
@@ -3185,7 +3185,7 @@ private fun BottomAction(text: String, iconRes: Int, iconSize: androidx.compose.
         Image(
             painter = painterResource(id = iconRes),
             contentDescription = null,
-            modifier = Modifier.height(iconSize)
+            modifier = Modifier.size(iconSize)
         )
         Text(text = text, color = Color.White, fontSize = 13.sp, maxLines = 1)
     }
