@@ -1792,40 +1792,47 @@ private fun KLineCanvas(
         lastSlot = slot
         // 缩到很小时保证柱宽至少 1px，视觉上连成一条线（同花顺观感）
         val bw = max(slot * 0.92f, 1f)
-        // 缩放到最小（一屏根数达到约1400+，红绿已无法分辨）时，蜡烛+均线统一黑色，
-        // 使全历史数据整体看起来像一条黑色波浪线（同花顺观感）。
+        // 缩放到最小（一屏根数达到上限）时：不画均线、不逐根画蜡烛影线，
+        // 改为只连收盘价画一条平滑黑色波浪线（方案A，同花顺观感）。
         val tooNarrow = n >= K_NARROW_VISIBLE
-
-        line.forEachIndexed { i, k ->
-            val cx = i * slot + slot / 2
-            val up = k.close >= k.open
-            val c = if (tooNarrow) K_NARROW_COLOR else if (up) RED_UP else GREEN_DOWN
-            val yHigh = yOf(k.high)
-            val yLow = yOf(k.low)
-            val yO = yOf(k.open)
-            val yC = yOf(k.close)
-            val yTop = min(yO, yC)
-            val yBot = max(yO, yC)
-            val bh = max(abs(yC - yO), 1.2f)
-            val sw = 3.2f   // 影线线宽
-            val barSw = 4.6f // 涨柱（空心）描边线宽（加粗，同花顺观感）
-            // 影线：只画上下两段，不穿过实体中心（同花顺观感）
-            if (yHigh < yTop) drawLine(c, Offset(cx, yHigh), Offset(cx, yTop), strokeWidth = sw)
-            if (yLow > yBot) drawLine(c, Offset(cx, yBot), Offset(cx, yLow), strokeWidth = sw)
-            // 实体：涨=空心（描边）、跌=实心（同花顺风格）；缩到最小时统一实心黑色
-            drawRect(
-                color = c,
-                topLeft = Offset(cx - bw / 2, yTop),
-                size = Size(bw, bh),
-                style = if (up && !tooNarrow) Stroke(width = barSw) else Fill
-            )
+        if (tooNarrow) {
+            val pathClose = Path()
+            var startedClose = false
+            line.forEachIndexed { i, k ->
+                val cx = i * slot + slot / 2
+                val y = yOf(k.close)
+                if (!startedClose) { pathClose.moveTo(cx, y); startedClose = true } else pathClose.lineTo(cx, y)
+            }
+            if (startedClose) drawPath(pathClose, K_NARROW_COLOR, style = Stroke(width = max(slot * 0.9f, 2.5f)))
+        } else {
+            line.forEachIndexed { i, k ->
+                val cx = i * slot + slot / 2
+                val up = k.close >= k.open
+                val c = if (up) RED_UP else GREEN_DOWN
+                val yHigh = yOf(k.high)
+                val yLow = yOf(k.low)
+                val yO = yOf(k.open)
+                val yC = yOf(k.close)
+                val yTop = min(yO, yC)
+                val yBot = max(yO, yC)
+                val bh = max(abs(yC - yO), 1.2f)
+                val sw = 3.2f
+                val barSw = 4.6f
+                if (yHigh < yTop) drawLine(c, Offset(cx, yHigh), Offset(cx, yTop), strokeWidth = sw)
+                if (yLow > yBot) drawLine(c, Offset(cx, yBot), Offset(cx, yLow), strokeWidth = sw)
+                drawRect(
+                    color = c,
+                    topLeft = Offset(cx - bw / 2, yTop),
+                    size = Size(bw, bh),
+                    style = if (up) Stroke(width = barSw) else Fill
+                )
+            }
         }
 
-        // ===== 均线（MA）：叠在蜡烛之上，每条一种颜色 =====
-        maList.forEachIndexed { mi, ma ->
+        // 均线（MA）：缩到最小时不画，避免叠在黑色波浪上显得杂乱。
+        if (!tooNarrow) maList.forEachIndexed { mi, ma ->
             if (ma.isEmpty()) return@forEachIndexed
-            val color = if (tooNarrow) K_NARROW_COLOR
-                else maColorOf(maPeriods.getOrElse(mi) { MA_DEFAULT_PERIODS.getOrElse(mi) { 5 } })
+            val color = maColorOf(maPeriods.getOrElse(mi) { MA_DEFAULT_PERIODS.getOrElse(mi) { 5 } })
             val pathMA = Path()
             var started = false
             ma.forEachIndexed { i, v ->
