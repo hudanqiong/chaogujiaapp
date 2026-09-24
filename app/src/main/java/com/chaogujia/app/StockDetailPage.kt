@@ -1451,16 +1451,15 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
             }
         }
         val density = androidx.compose.ui.platform.LocalDensity.current
+        val labelPx = with(density) { 30.dp.toPx() }
         ticks.forEach { tk ->
             val x = xOf(tk.min)
-            // 09:15 贴左；15:00 贴右；其余以刻度为水平中心
-            val halfLabelPx = with(density) { 24.dp.toPx() }
-            val leftDp = with(density) {
-                when {
-                    tk.min < 0f -> 0f
-                    tk.last -> (w - halfLabelPx).coerceAtLeast(0f)
-                    else -> (x - halfLabelPx / 2f).coerceIn(0f, (w - halfLabelPx).coerceAtLeast(0f))
-                }.toDp()
+            // 标签在时间轴上按刻度【线】对齐：左端标签左对齐贴线、右端标签右对齐贴线、中间标签水平居中压线
+            val leftPx = when {
+                tk.min < 0f -> 0f                                   // 09:15 贴最左
+                tk.min == 0f -> 0f                                  // 09:30 贴压缩区左端线（不超出左侧）
+                tk.last -> (w - labelPx).coerceAtLeast(0f)          // 15:00 贴压缩区右端线（不超出右侧）
+                else -> (x - labelPx / 2f).coerceIn(0f, (w - labelPx).coerceAtLeast(0f))  // 11:30 以正中线居中
             }
             Text(
                 tk.label,
@@ -1468,12 +1467,15 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
-                modifier = Modifier.offset(x = leftDp)
+                softWrap = false,
+                modifier = Modifier
+                    .offset(x = with(density) { leftPx.toDp() })
+                    .width(with(density) { labelPx.toDp() })
+                    .wrapContentWidth(if (tk.min == 0f) Alignment.Start else if (tk.last) Alignment.End else Alignment.CenterHorizontally)
             )
         }
     }
 }
-
 // ============================================================
 // 五日分时图：5 天分时横向拼接，上=价格曲线（含均价线），下=量柱，底部=日期
 // ============================================================
