@@ -1976,8 +1976,8 @@ private fun KLineButton(
  * 手绘尖角图标（同花顺风格）。
  *
  * 用两条互相垂直的线段画出 90° 折线（V 形），整体构成尖角：
- *  - tipLeft  = true  → 尖朝左  ＜
- *  - tipLeft  = false → 尖朝右  ＞
+ *  - tipLeft  = true  → 尖朝左（竖臂在左，横臂向右伸出）
+ *  - tipLeft  = false → 尖朝右（竖臂在右，横臂向左伸出）
  *  - double   = true  → 双尖角背靠背（中间留缝）：❮❯
  *  - rotate45 = true  → 整体顺时针旋转 45°（配合 double 得到「斜着的双箭头」）
  *
@@ -1998,31 +1998,31 @@ private fun ChevronIcon(
         val w = size.width
         val h = size.height
         val sw = strokeW.toPx()
-        // 几何：折角两臂在「尖点」处的夹角恒为 90°（两臂向量 (armW,-armH) 与 (armW,+armH) 点积为 0）
+        // 几何：一竖 + 一横两条线，拐角处严格垂直（90°）；armW=armH 保证两臂等长
         // scale 控制整体大小（占圆底比例），越小越精致
-        val scale = 0.42f
+        val scale = 0.32f
         val armW = w * scale * 0.5f   // 水平半臂长（tip 到 back 的水平距离）
         val armH = h * scale * 0.5f   // 垂直半臂长（= armW → 保证 90°）
         val gap  = w * 0.06f          // 双尖角：中间缝隙
 
-        // 画一个 90° 折线尖角（顶点 tipX, 中线 cy）
+        // 画一个真正的 90° 直角折线：一「竖」+ 一「横」在拐角处相接。
+        // 例如 尖朝右(>) 时：上端点 →(竖直向上到下端点) 的水平臂在 y=topY，
+        // 从 (leftX, topY) 向右画到 (cornerX, topY)，再 90° 向下画到 (cornerX, botY)。
+        // 拐角 (cornerX, topY) 朝外即「尖角」，横竖两条线严格垂直。
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            val tipX: Float
-            val backX: Float
-            if (tipLeftLocal) {
-                tipX = cx - armW
-                backX = cx + armW
-            } else {
-                tipX = cx + armW
-                backX = cx - armW
-            }
-            val top = Offset(backX, cy - armH)
-            val mid = Offset(tipX, cy)
-            val bot = Offset(backX, cy + armH)
+            // 竖臂：贯穿上下（全高的一半区间），横臂：从竖臂顶端水平伸出
+            // 尖朝右：竖臂在右侧，横臂向左侧伸出并在顶端与之相接
+            // 尖朝左：竖臂在左侧，横臂向右侧伸出并在顶端与之相接
+            val vertX = if (tipLeftLocal) cx - armW else cx + armW   // 竖臂的 x
+            val horizX = if (tipLeftLocal) cx + armW else cx - armW  // 横臂远端的 x
+            val topY = cy - armH
+            val botY = cy + armH
             val path = Path().apply {
-                moveTo(top.x, top.y)
-                lineTo(mid.x, mid.y)
-                lineTo(bot.x, bot.y)
+                // 竖臂：从下端点到上端点（拐角）
+                moveTo(vertX, botY)
+                lineTo(vertX, topY)
+                // 横臂：从上端点（拐角）水平伸出
+                lineTo(horizX, topY)
             }
             drawPath(path, color = color, style = Stroke(width = sw, cap = StrokeCap.Round))
         }

@@ -257,15 +257,15 @@ private fun PreviewChevron(
         val gap = w * 0.06f
 
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            val tipX: Float
-            val backX: Float
-            if (tipLeftLocal) { tipX = cx - armW; backX = cx + armW }
-            else { tipX = cx + armW; backX = cx - armW }
-            val top = Offset(backX, cy - armH)
-            val mid = Offset(tipX, cy)
-            val bot = Offset(backX, cy + armH)
+            // 真正的 90 度直角折线: 一竖 + 一横 在拐角处相接
+            val vertX = if (tipLeftLocal) cx - armW else cx + armW
+            val horizX = if (tipLeftLocal) cx + armW else cx - armW
+            val topY = cy - armH
+            val botY = cy + armH
             val path = Path().apply {
-                moveTo(top.x, top.y); lineTo(mid.x, mid.y); lineTo(bot.x, bot.y)
+                moveTo(vertX, botY)
+                lineTo(vertX, topY)
+                lineTo(horizX, topY)
             }
             drawPath(
                 path, color = tint,
