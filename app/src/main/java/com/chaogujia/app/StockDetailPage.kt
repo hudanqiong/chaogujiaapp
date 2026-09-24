@@ -3136,7 +3136,7 @@ private fun DetailBottomBar(
             Image(
                 painter = painterResource(id = R.drawable.ic_dbar_concept),
                 contentDescription = null,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(7.dp)
             )
             Spacer(Modifier.height(6.dp))
             Text(
