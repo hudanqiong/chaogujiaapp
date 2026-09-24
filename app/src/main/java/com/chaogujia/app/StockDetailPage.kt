@@ -766,9 +766,30 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
 //   左：上=价格曲线（含昨收基准线 + 均价线），下=分时量
 //   右：上=五档盘口（卖5→卖1 / 买1→买5），下=逐笔成交明细
 // ============================================================
+/**
+ * 清洗分时点：
+ *  - 后端 detail.php 的 trends.points 恒返回 267 点，尾部 min>240 为冻结重复的"僵尸点"
+ *    （价量卡在收盘值不断重复），必须剔除，否则曲线右端会拖出一条水平假线、
+ *    且横轴被撑长导致与真实交易时间错位。
+ *  - 仅保留 min ∈ [0,240] 的点（A股分时共 241 分钟），按 min 去重升序，
+ *    保证 X 轴与 TimeAxis(9:30/10:30/11:30/13:00/14:00/15:00) 刻度严格对齐。
+ */
+private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
+    if (src.isEmpty()) return src
+    val seen = HashMap<Int, DetailTrend>()
+    for (t in src) {
+        if (t.min < 0 || t.min > 240) continue
+        if (!seen.containsKey(t.min)) seen[t.min] = t
+    }
+    if (seen.isEmpty()) return src
+    return seen.values.sortedBy { it.min }
+}
+
 @Composable
 private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
-    val trends = d?.trends ?: emptyList()
+    // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
+    // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
+    val trends = cleanMinuteTrends(d?.trends ?: emptyList())
     val preClose = d?.base?.preClose ?: 0.0
 
     // ===== 五档盘口 + 成交明细（3 秒轮询）=====
@@ -1114,9 +1135,10 @@ private fun MinutePriceCanvas(
         val span = maxP - minP
 
         fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
-        // x：按 241 个点均分（A股分时固定 241 点），保证时间轴对齐
-        val n = max(trends.size - 1, 1)
-        fun xOf(i: Int): Float = (i.toFloat() / n) * w
+        // x：按真实交易分钟 min(0..240) 映射，保证与 TimeAxis 刻度对齐
+        // （A股分时 = 241 分钟：9:30-11:30 计 120 + 13:00-15:00 计 120）
+        val MIN_SPAN = 240f
+        fun xOf(t: DetailTrend): Float = (t.min.coerceIn(0, 240).toFloat() / MIN_SPAN) * w
 
         // 网格：4 横 + 4 竖（4x4）
         for (k in 1..4) {
@@ -1145,18 +1167,19 @@ private fun MinutePriceCanvas(
 
         // 曲线路径
         val path = Path()
-        trends.forEachIndexed { i, t ->
-            val x = xOf(i)
+        var pathStarted = false
+        trends.forEach { t ->
+            val x = xOf(t)
             val y = yOf(t.price)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            if (!pathStarted) { path.moveTo(x, y); pathStarted = true } else path.lineTo(x, y)
         }
         drawPath(path, lineColor, style = Stroke(width = 2.2f))
 
         // 曲线下方淡色渐变填充
         val fill = Path().apply {
             moveTo(0f, h)
-            trends.forEachIndexed { i, t -> lineTo(xOf(i), yOf(t.price)) }
-            lineTo(xOf(trends.size - 1), h)
+            trends.forEach { t -> lineTo(xOf(t), yOf(t.price)) }
+            lineTo(xOf(trends.last()), h)
             close()
         }
         drawPath(
@@ -1169,10 +1192,10 @@ private fun MinutePriceCanvas(
         // ===== 均价线（黄色，随累计均价）=====
         val avgPath = Path()
         var started = false
-        trends.forEachIndexed { i, t ->
+        trends.forEach { t ->
             val a = t.avg
-            if (a <= 0) return@forEachIndexed
-            val x = xOf(i)
+            if (a <= 0) return@forEach
+            val x = xOf(t)
             val y = yOf(a)
             if (!started) { avgPath.moveTo(x, y); started = true } else avgPath.lineTo(x, y)
         }
@@ -1192,13 +1215,15 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>) {
         val h = size.height
         if (trends.isEmpty()) return@Canvas
         val maxV = trends.maxOf { it.vol }.coerceAtLeast(1e-6)
-        val n = trends.size
-        val bw = w / n
-        trends.forEachIndexed { i, t ->
+        // 每分钟柱占 1/240 宽，按 min 定位，与价图/时间轴对齐
+        val MIN_SPAN = 240f
+        val bw = w / MIN_SPAN
+        trends.forEach { t ->
             val vh = (t.vol / maxV * h).toFloat()
+            val x = (t.min.coerceIn(0, 240).toFloat() / MIN_SPAN) * w
             drawRect(
                 color = Color(0xFF9AA0A6),
-                topLeft = Offset(i * bw, h - vh),
+                topLeft = Offset(x, h - vh),
                 size = Size(max(bw - 0.6f, 0.6f), vh)
             )
         }
