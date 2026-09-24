@@ -79,6 +79,7 @@ private val TIME_AXIS_LINE = Color(0xFFBDBDBD)
 // 时间轴条带：浅灰底（非纯白）、高度
 private val TA_BG = Color(0xFFF5F5F5)
 private val MINUTE_BORDER = Color(0xFFDDDDDD)      // 分时画布淡灰边框
+private val AUCTION_BG = Color(0xFFEFEFEF)         // 集合竞价栏灰底（与白色分时区明显区分）
 private val TA_H = 22.dp
 // 缩放按钮：浅灰半透明圆底 + 黑色符号
 private val KBTN_BG = Color(0x66EEEEEE)
@@ -1302,13 +1303,16 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
  */
 @Composable
 private fun AuctionColumn(title: String, modifier: Modifier) {
-    // 无灰底；价区/量区各自画浅灰网格，中间 TimeAxis 一行不画（后续对接真实竞价数据）
+    // 整栏灰底填充（AUCTION_BG），与中间白色分时区明显区分
+    // 价区（高，占 70%）：2 横 + 4 竖 网格
+    // 量区（矮，占 30%）：2 横 + 2 竖 网格
+    // 左右两侧加边界竖线，凸显「分时网格收缩、两侧让位给竞价」的效果
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .padding(horizontal = 1.dp)
+            .background(AUCTION_BG)
     ) {
-        // 价区（占 70%）：无灰底，只画 2 横 x 4 竖 浅灰网格（后续对接真实竞价数据）
+        // 价区（占 70%）：2 横 x 4 竖 浅灰网格
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1317,28 +1321,31 @@ private fun AuctionColumn(title: String, modifier: Modifier) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
-                // 横向 2 条（分成 3 行）
-                for (k in 1..2) {
-                    val y = h * k / 3f
-                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-                }
                 // 竖向 4 条（分成 5 列）
                 for (k in 1..4) {
                     val x = w * k / 5f
                     drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
                 }
+                // 横向 2 条（分成 3 行）
+                for (k in 1..2) {
+                    val y = h * k / 3f
+                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+                }
                 // 边框
                 drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
             }
         }
-        // 时间栏占位（与主轴时间栏等高）—— 不填灰
+        // 时间栏占位（与主轴时间栏等高）—— 同样灰底，保持整栏连续
         Box(
-            modifier = Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TIME_BAR_HEIGHT)
+                .background(AUCTION_BG),
             contentAlignment = Alignment.Center
         ) {
             Text(title, color = TEXT_SUB, fontSize = 8.sp, maxLines = 1)
         }
-        // 量区（占 30%）：无灰底，只画 2 横 x 2 竖 浅灰网格（后续对接真实竞价数据）
+        // 量区（占 30%）：2 横 x 2 竖 浅灰网格
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1347,15 +1354,15 @@ private fun AuctionColumn(title: String, modifier: Modifier) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
-                // 横向 2 条（分成 3 行）
-                for (k in 1..2) {
-                    val y = h * k / 3f
-                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-                }
                 // 竖向 2 条（分成 3 列）
                 for (k in 1..2) {
                     val x = w * k / 3f
                     drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+                }
+                // 横向 2 条（分成 3 行）
+                for (k in 1..2) {
+                    val y = h * k / 3f
+                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
                 }
                 drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
             }
