@@ -2167,6 +2167,30 @@ private fun KLineTimeAxis(
     if (n <= 0) return
     // 左侧固定区宽度（与底部按钮行左侧预留对齐）
     val fixedW = 78.dp
+
+    // ---- 日期归一化：兼容 "2019-11-26" / "20191126" / "2019/11/26" 等格式 ----
+    // 统一成带横线的 "YYYY-MM-DD"；解析失败则原样返回（避免越界崩溃）。
+    fun normDate(raw: String): String {
+        if (raw.isEmpty()) return raw
+        val digits = raw.filter { it.isDigit() }
+        if (digits.length >= 8) {
+            return digits.substring(0, 4) + "-" + digits.substring(4, 6) + "-" + digits.substring(6, 8)
+        }
+        // 已是带分隔符格式，直接把分隔符统一成 "-"
+        val parts = raw.split("-", "/", ".")
+        if (parts.size == 3) {
+            val y = parts[0].padStart(4, '0')
+            val m = parts[1].padStart(2, '0')
+            val d = parts[2].padStart(2, '0')
+            return y + "-" + m + "-" + d
+        }
+        return raw
+    }
+    // 取 MM-DD（从归一化结果截取尾部 5 位）
+    fun mdOf(raw: String): String {
+        val nd = normDate(raw)
+        return if (nd.length >= 5) nd.substring(nd.length - 5) else nd
+    }
     // 刻度/日期间隔在下面按「屏幕可视宽度」动态计算：
     // 目标让屏幕（除左侧固定区外）恒定约 4 个日期标签；缩小时自动加大间隔、放大时自动缩小，
     // 并做兜底保证任何缩放级别都至少命中 1 个标签（不会消失）。
@@ -2254,7 +2278,7 @@ private fun KLineTimeAxis(
                             )
                             Spacer(Modifier.height(1.dp))
                             Text(
-                                text = show[local].date.substring(5),  // MM-DD
+                                text = mdOf(show[local].date),  // MM-DD（兼容多种原始格式）
                                 color = TEXT_SUB,
                                 fontSize = 12.sp,
                                 maxLines = 1,
@@ -2289,7 +2313,7 @@ private fun KLineTimeAxis(
             }
             Spacer(Modifier.width(4.dp))
             Text(
-                text = show.first().date,   // 固定年月日：屏幕最左那根柱子
+                text = normDate(show.first().date),   // 固定年月日：屏幕最左那根柱子（归一化为带横线）
                 color = TEXT_SUB,
                 fontSize = 12.sp,
                 maxLines = 1,
