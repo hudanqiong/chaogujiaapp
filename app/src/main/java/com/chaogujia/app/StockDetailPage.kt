@@ -1812,25 +1812,27 @@ private fun KLineChart(
                     onClick = {},
                     content = { ChevronIcon(tipLeft = true, boxSize = 30.dp, twin = true, scaleMult = 0.78f) }
                 )
-                // 2) ＋ 放大
+                // 2) ＋ 放大（手绘十字，与折线同一套画笔，尺寸统一用 scaleMult 调）
                 KLineButton(
-                    text = "＋",
+                    text = "",
                     onClick = {
                         visible = (visible / K_BTN_ZOOM_STEP).toInt()
                             .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
                             .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
                         rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                    }
+                    },
+                    content = { PlusMinusIcon(minus = false, boxSize = 30.dp, scaleMult = 0.8f) }
                 )
-                // 3) − 缩小
+                // 3) − 缩小（手绘横线）
                 KLineButton(
-                    text = "−",
+                    text = "",
                     onClick = {
                         visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
                             .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
                             .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
                         rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                    }
+                    },
+                    content = { PlusMinusIcon(minus = true, boxSize = 30.dp, scaleMult = 0.8f) }
                 )
                 // 4) 左移一格：尖朝左
                 KLineButton(
@@ -1945,7 +1947,7 @@ private fun KLineButton(
             .size(30.dp)
             // 圆形浅灰半透明底（不压过行情线）
             .background(KBTN_BG, shape = CircleShape)
-            .pointerInput(text) {
+            .pointerInput(text, content != null) {
                 detectTapGestures(
                     onPress = {
                         // 先立即执行一次
@@ -1968,6 +1970,50 @@ private fun KLineButton(
             content()
         } else {
             Text(text, color = KBTN_FG, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/**
+ * 手绘加减图标：与 ChevronIcon 共用同一套画笔 / 线宽 / 尺寸倍率。
+ *  - minus = true  → 只画一条横线「−」
+ *  - minus = false → 画一横 + 一竖交叉成「＋」
+ *
+ * @param boxSize   图标外框尺寸（应与按钮圆底一致）
+ * @param scaleMult 尺寸倍率（1f = 基准占 32%，与折角线同一基准）
+ * @param strokeW   线条粗细
+ */
+@Composable
+private fun PlusMinusIcon(
+    minus: Boolean,
+    boxSize: androidx.compose.ui.unit.Dp,
+    scaleMult: Float = 1f,
+    strokeW: androidx.compose.ui.unit.Dp = 1.6.dp
+) {
+    val color = KBTN_FG
+    Canvas(modifier = Modifier.size(boxSize)) {
+        val w = size.width
+        val h = size.height
+        val sw = strokeW.toPx()
+        // 与 ChevronIcon 同基准：0.32 * scaleMult（保证加减号与折线看起来一样大）
+        val scale = 0.32f * scaleMult
+        val armX = w * scale * 0.5f
+        val armY = h * scale * 0.5f
+        val cx = w / 2f
+        val cy = h / 2f
+        // 横线
+        val hPath = Path().apply {
+            moveTo(cx - armX, cy)
+            lineTo(cx + armX, cy)
+        }
+        drawPath(hPath, color = color, style = Stroke(width = sw, cap = StrokeCap.Round))
+        if (!minus) {
+            // 竖线（＋）
+            val vPath = Path().apply {
+                moveTo(cx, cy - armY)
+                lineTo(cx, cy + armY)
+            }
+            drawPath(vPath, color = color, style = Stroke(width = sw, cap = StrokeCap.Round))
         }
     }
 }
