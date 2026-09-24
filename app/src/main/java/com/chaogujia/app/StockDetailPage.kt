@@ -1191,10 +1191,33 @@ private fun MinutePriceCanvas(
             val y = h * k / 4f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
-        // 竖网格：3 条装饰竖线（4 等分，与 3 条横线共同构成 4x4 网格）
-        for (k in 1..3) {
-            val x = w * k / 4f
-            drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+        // 竖网格：随时间轴缩放规则铺满（方案甲）。不再按画布均分，
+        // 保证网格线落在真实时间位置（09:30 / 11:30 / 13:00 等）。
+        if (showAuction) {
+            // 开启竞价：左半 09:15-11:30(135) / 右半 13:00-15:00(120)，11:30 居中。
+            // 分时价竖线：09:30(15) / 11:30(135) / 13:00(135，与 11:30 同位)
+            val xs = floatArrayOf(15f, 135f)
+            for (am in xs) {
+                val x = xMinute(am)
+                drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
+            // 集合竞价网格：画在 09:15-09:25 与 14:55-15:00 两段上（竖线 + 顶部标记）
+            val aucColor = Color(0xFFB0B0B0)
+            // 早盘竞价段 09:15(0) - 09:25(10)
+            val xa0 = xMinute(0f); val xa1 = xMinute(10f)
+            drawLine(aucColor, Offset(xa0, 0f), Offset(xa0, h), strokeWidth = 1f)
+            drawLine(aucColor, Offset(xa1, 0f), Offset(xa1, h), strokeWidth = 1f)
+            // 收盘竞价段 14:55(250) - 15:00(255)
+            val xc0 = xMinute(250f); val xc1 = xMinute(255f)
+            drawLine(aucColor, Offset(xc0, 0f), Offset(xc0, h), strokeWidth = 1f)
+            drawLine(aucColor, Offset(xc1, 0f), Offset(xc1, h), strokeWidth = 1f)
+        } else {
+            // 关闭竞价：09:30-15:00(240) 等比铺满，竖线落在 10:30(60) / 11:30(120) / 13:30(180)
+            val xs = floatArrayOf(60f, 120f, 180f)
+            for (m in xs) {
+                val x = xMinute(m + 15f)
+                drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
         }
 
         // 昨收基准线：灰色虚线（贯穿画布）
@@ -1287,6 +1310,24 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
             }
         }
         val bw = if (showAuction) (w / 255f) else (w / 240f)
+        // 竖网格：与价图同款缩放规则，随时间轴铺满
+        if (showAuction) {
+            for (am in floatArrayOf(15f, 135f)) {
+                val x = xMinute(am)
+                drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
+            // 集合竞价网格：09:15-09:25 与 14:55-15:00
+            val aucColor = Color(0xFFB0B0B0)
+            for (am in floatArrayOf(0f, 10f, 250f, 255f)) {
+                val x = xMinute(am)
+                drawLine(aucColor, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
+        } else {
+            for (m in floatArrayOf(60f, 120f, 180f)) {
+                val x = xMinute(m + 15f)
+                drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
+        }
         trends.forEach { t ->
             val vh = (t.vol / maxV * h).toFloat()
             val x = xMinute(t.min.coerceIn(0, 240) + 15f)
