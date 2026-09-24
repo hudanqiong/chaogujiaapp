@@ -1201,37 +1201,32 @@ private fun MinutePriceCanvas(
             val y = h * k / 4f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
-        // 竖网格：随时间轴缩放规则铺满（方案丙：竞价段放大，早盘竞价明显宽于尾盘）。
-        // 网格线落在真实时间位置（09:30 / 11:30 / 13:00 等）。
+        // 竖网格：中间"正常分时"区域始终是 4 格（4 列），开启竞价时整块被两端竞价挤压变窄。
+        // 关闭竞价：09:30-15:00(240) 等比铺满，竖线落在 10:30(60)/11:30(120)/13:30(180)。
+        // 开启竞价：中间分时区域（09:30→11:30→13:00→15:00）在这段被压窄的区域内仍分 4 格，
+        //          两端各画一个集合竞价栏（2 列 × 4 行）。
         if (showAuction) {
-            // 开启竞价:整体为 2+4 结构——两端各一个竞价段(共2),中间正常分时(共4)。
-            // 主分段竖线 09:30(15) / 11:30(135)（13:00 与 11:30 同 x,午休 0 宽）。
-            val xs = floatArrayOf(15f, 135f)
-            for (am in xs) {
+            // 中间分时区域：09:30(15) → 15:00(255)，4 格竖线严格落在真实时间：
+            // 10:30(75) / 11:30·13:00(135) / 14:00(195)。这样网格与曲线/午休折点严格对齐。
+            for (am in floatArrayOf(75f, 135f, 195f)) {
                 val x = xMinute(am)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
-            // 集合竞价网格：09:15-09:25（早盘竞价,占 10% 宽）
-            // 与 14:55-15:00（尾盘竞价,占 5% 宽,为早盘一半,更窄）。
-            // 用加深色竖线 + 阴影底强调为独立分栏;两段内部各自再细分 4 条细网格。
+            // ===== 两端集合竞价栏：2 列 × 4 行 =====
             val aucColor = Color(0xFF9E9E9E)
             val aucFill = Color(0x14000000)
-            // 早盘竞价段 09:15(0) - 09:25(10):分 5 格(内部 4 条细分线)
+            // 早盘竞价 09:15(0)-09:25(10)
             val xa0 = xMinute(0f); val xa1 = xMinute(10f)
             drawRect(color = aucFill, topLeft = Offset(xa0, 0f), size = Size(xa1 - xa0, h))
-            for (k in 1..4) {
-                val xk = xa0 + (xa1 - xa0) * k / 5f
-                drawLine(aucColor, Offset(xk, 0f), Offset(xk, h), strokeWidth = 0.8f)
-            }
+            val xam = xa0 + (xa1 - xa0) * 0.5f // 2 列：中间 1 条竖线
+            drawLine(aucColor, Offset(xam, 0f), Offset(xam, h), strokeWidth = 0.8f)
             drawLine(aucColor, Offset(xa0, 0f), Offset(xa0, h), strokeWidth = 1.5f)
             drawLine(aucColor, Offset(xa1, 0f), Offset(xa1, h), strokeWidth = 1.5f)
-            // 尾盘竞价段 14:55(250) - 15:00(255):同样分 5 格
+            // 尾盘竞价 14:55(250)-15:00(255)
             val xc0 = xMinute(250f); val xc1 = xMinute(255f)
             drawRect(color = aucFill, topLeft = Offset(xc0, 0f), size = Size(xc1 - xc0, h))
-            for (k in 1..4) {
-                val xk = xc0 + (xc1 - xc0) * k / 5f
-                drawLine(aucColor, Offset(xk, 0f), Offset(xk, h), strokeWidth = 0.8f)
-            }
+            val xcm = xc0 + (xc1 - xc0) * 0.5f
+            drawLine(aucColor, Offset(xcm, 0f), Offset(xcm, h), strokeWidth = 0.8f)
             drawLine(aucColor, Offset(xc0, 0f), Offset(xc0, h), strokeWidth = 1.5f)
             drawLine(aucColor, Offset(xc1, 0f), Offset(xc1, h), strokeWidth = 1.5f)
         } else {
@@ -1339,31 +1334,27 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
         }
         // 柱宽：以早盘竞价段（10 分钟 → 10% 宽）的单分钟宽为基准，保证柱与网格一致
         val bw = if (showAuction) (0.10f * w / 10f) else (w / 240f)
-        // 竖网格：与价图同款缩放规则，随时间轴铺满
+        // 竖网格：与价图同款——中间"正常分时"区域始终 4 格，开启竞价时两端各一个 2×4 竞价栏
         if (showAuction) {
-            for (am in floatArrayOf(15f, 135f)) {
+            // 中间分时区域 4 格竖线：严格落在真实时间 10:30(75) / 11:30·13:00(135) / 14:00(195)
+            for (am in floatArrayOf(75f, 135f, 195f)) {
                 val x = xMinute(am)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
-            // 集合竞价网格：09:15-09:25 与 14:55-15:00（加深 + 阴影底，突出独立分栏）
-            // 两段内部各自再细分 4 条细网格（2+4 结构：两端竞价段内部分格）
+            // ===== 两端集合竞价栏：2 列 × 4 行 =====
             val aucColor = Color(0xFF9E9E9E)
             val aucFill = Color(0x14000000)
             run {
                 val x0 = xMinute(0f); val x1 = xMinute(10f)
                 drawRect(color = aucFill, topLeft = Offset(x0, 0f), size = Size(x1 - x0, h))
-                for (k in 1..4) {
-                    val xk = x0 + (x1 - x0) * k / 5f
-                    drawLine(aucColor, Offset(xk, 0f), Offset(xk, h), strokeWidth = 0.8f)
-                }
+                val xm = x0 + (x1 - x0) * 0.5f
+                drawLine(aucColor, Offset(xm, 0f), Offset(xm, h), strokeWidth = 0.8f)
             }
             run {
                 val x0 = xMinute(250f); val x1 = xMinute(255f)
                 drawRect(color = aucFill, topLeft = Offset(x0, 0f), size = Size(x1 - x0, h))
-                for (k in 1..4) {
-                    val xk = x0 + (x1 - x0) * k / 5f
-                    drawLine(aucColor, Offset(xk, 0f), Offset(xk, h), strokeWidth = 0.8f)
-                }
+                val xm = x0 + (x1 - x0) * 0.5f
+                drawLine(aucColor, Offset(xm, 0f), Offset(xm, h), strokeWidth = 0.8f)
             }
             for (am in floatArrayOf(0f, 10f, 250f, 255f)) {
                 val x = xMinute(am)
