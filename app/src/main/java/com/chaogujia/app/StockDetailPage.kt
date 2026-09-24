@@ -157,8 +157,13 @@ fun StockDetailPage(
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("minute_auction", false))
     }
-        // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
-        var showChip by remember { mutableStateOf(false) }
+    // 分时坐标模式：true=百分比对称(昨收0%线居中,同花顺默认) false=满占(真实高低填满)
+    var symmetricAxis by remember {
+        mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+            .getBoolean("minute_symmetric", true))
+    }
+    // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
+    var showChip by remember { mutableStateOf(false) }
     // 所属概念（含实时涨跌幅）
     var concept by remember { mutableStateOf<Api.Concept?>(null) }
     // 是否已加自选（用于底部“自选”按钮）
@@ -237,6 +242,12 @@ fun StockDetailPage(
                     showAuction = v
                     ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
                         .edit().putBoolean("minute_auction", v).apply()
+                },
+                symmetric = symmetricAxis,
+                onSymmetricChange = { v ->
+                    symmetricAxis = v
+                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+                        .edit().putBoolean("minute_symmetric", v).apply()
                 }
             )
         }
@@ -248,7 +259,7 @@ fun StockDetailPage(
                 .weight(1f)
         ) {
             when (period) {
-                "minute" -> MinuteChart(detail, showAuction)
+                "minute" -> MinuteChart(detail, showAuction, symmetricAxis)
                 "fiveday" -> FiveDayChart(detail)
                 else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
             }
@@ -782,7 +793,7 @@ private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
 }
 
 @Composable
-private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
+private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric: Boolean = true) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
     // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
     val trends = cleanMinuteTrends(d?.trends ?: emptyList())
@@ -842,7 +853,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
                     .fillMaxWidth()
                     .weight(0.7f)
             ) {
-                val range = minuteRange(trends, preClose, d?.base?.high ?: 0.0, d?.base?.low ?: 0.0)
+                val range = minuteRange(trends, preClose, d?.base?.high ?: 0.0, d?.base?.low ?: 0.0, symmetric)
                 Row(modifier = Modifier.fillMaxSize()) {
                     MinuteAxisLeft(
                         maxP = range.first,
@@ -1062,7 +1073,8 @@ private fun minuteRange(
     trends: List<DetailTrend>,
     preClose: Double,
     dayHigh: Double = 0.0,
-    dayLow: Double = 0.0
+    dayLow: Double = 0.0,
+    symmetric: Boolean = true
 ): Pair<Double, Double> {
     val pc = if (preClose > 0) preClose else 1.0
     // 权威高低价优先；无效则回退 trends 极值
@@ -1079,6 +1091,11 @@ private fun minuteRange(
     if (hi - lo < 1e-6) {
         hi += 0.01
         lo -= 0.01
+    }
+    if (!symmetric) {
+        // ===== 满占坐标：真实高低填满画布（0% 线位置动态，不居中）=====
+        val pad = (hi - lo) * 0.01
+        return Pair(hi + pad, lo - pad)
     }
     // ===== 百分比对称坐标（同花顺手机默认）=====
     // 昨收价(0%)锁死画布垂直中点：上下涨跌幅取对称幅度，
@@ -2342,6 +2359,8 @@ private fun MaSettingDialog(
     onDismiss: () -> Unit,
     auction: Boolean = false,
     onAuctionChange: (Boolean) -> Unit = {},
+    symmetric: Boolean = true,
+    onSymmetricChange: (Boolean) -> Unit = {},
     onConfirm: (List<Int>) -> Unit
 ) {
     // 每行一个输入框：默认 4 个（沿用初始参数），可点“＋增加一条”追加
@@ -2411,6 +2430,21 @@ private fun MaSettingDialog(
                     androidx.compose.material3.Switch(
                         checked = auction,
                         onCheckedChange = { onAuctionChange(it) }
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        androidx.compose.material3.Text("分时百分比对称坐标", fontSize = 14.sp, color = TEXT_MAIN)
+                        androidx.compose.material3.Text("昨收0%线居中(同花顺默认)；关闭则按真实高低填满满占坐标", fontSize = 10.sp, color = TEXT_SUB)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = symmetric,
+                        onCheckedChange = { onSymmetricChange(it) }
                     )
                 }
             }
