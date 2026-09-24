@@ -1296,37 +1296,41 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
 /**
  * 时间轴：位于价图与量图之间，覆盖整条含竞价主轴（255 分钟真实比例）
  * 轴 = 09:15-11:30(135 分钟) + 13:00-15:00(120 分钟)，午休不占宽度（11:30 与 13:00 同点）
- * 刻度按真实分钟宽度分布：09:15(0) / 09:30(15) / 11:30(135, 13:00 同点) / 15:00(255)
+ * 区间段标注：09:15-09:25（竞价）/ 09:30-11:30（早盘）/ 13:00-15:00（午盘），按区间真实宽度分布
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    // (标签, 轴内起始分钟, 对齐)。轴总宽 255 分钟。
-    // 竞价段 0-15 放“09:15”贴左；09:30 起为主数据起点；11:30 与 13:00 合并标于 135；
-    // 15:00 贴右。用相邻刻度的分钟差作为权重，实现真实比例分布。
-    data class Tick(val label: String, val at: Float, val align: Alignment)
-    val ticks = listOf(
-        Tick("09:15", 0f, Alignment.CenterStart),
-        Tick("09:30", 15f, Alignment.CenterStart),
-        Tick("11:30", 135f, Alignment.Center),
-        Tick("15:00", 255f, Alignment.CenterEnd)
-    )
+    data class Seg(val label: String, val from: Float, val to: Float)
+
+    val segs = if (showAuction) {
+        listOf(
+            Seg("09:15-09:25", 0f, 10f),
+            Seg("09:30-11:30", 10f, 135f),
+            Seg("13:00-15:00", 135f, 255f)
+        )
+    } else {
+        listOf(
+            Seg("09:30-11:30", 0f, 127.5f),
+            Seg("13:00-15:00", 127.5f, 255f)
+        )
+    }
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        for (i in ticks.indices) {
-            val start = ticks[i].at
-            val end = if (i + 1 < ticks.size) ticks[i + 1].at else 255f
-            val weight = (end - start).coerceAtLeast(0.0001f)
+        for (seg in segs) {
             Box(
-                modifier = Modifier.weight(weight),
-                contentAlignment = when (ticks[i].align) {
-                    Alignment.CenterStart -> Alignment.CenterStart
-                    Alignment.CenterEnd -> Alignment.CenterEnd
-                    else -> Alignment.Center
-                }
+                modifier = Modifier.weight((seg.to - seg.from).coerceAtLeast(0.0001f)),
+                contentAlignment = Alignment.Center
             ) {
-                Text(ticks[i].label, color = TEXT_SUB, fontSize = 10.sp)
+                Text(
+                    seg.label,
+                    color = TEXT_SUB,
+                    fontSize = 9.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip
+                )
             }
         }
     }
