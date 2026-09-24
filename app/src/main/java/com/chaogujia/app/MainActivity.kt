@@ -19,6 +19,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -70,6 +72,26 @@ fun ChaoGuJiaApp() {
 
     // ============ 轻量导航栈：详情页状态提升到 App 级 ============
     var detail by remember { mutableStateOf<DetailState?>(null) }
+
+    // ★ 详情页专属：开启 edge-to-edge，使 Compose 能绘制到系统导航栏区域，
+    //   从而让底部黑底（Spacer(navInset)）铺满到物理最底。
+    //   退出详情页立即恢复；其他页面完全不受影响。
+    val view = LocalView.current
+    DisposableEffect(detail) {
+        val window = (view.context as? android.app.Activity)?.window
+        if (window != null) {
+            if (detail != null) {
+                WindowCompat.setDecorFitsSystemWindows(window, false)
+                window.navigationBarColor = android.graphics.Color.BLACK
+                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+            } else {
+                WindowCompat.setDecorFitsSystemWindows(window, true)
+                window.navigationBarColor = android.graphics.Color.parseColor("#F5F5F5")
+                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = true
+            }
+        }
+        onDispose { }
+    }
     // 详情页当前下标（受控；◀▶ 切换时更新）
     var detailIdx by remember { mutableStateOf(0) }
     // 详情页当前显示的名称（由 StockDetailPage 回吐，供红条显示）
