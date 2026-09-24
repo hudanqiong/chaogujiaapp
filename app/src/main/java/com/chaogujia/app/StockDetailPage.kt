@@ -1765,6 +1765,8 @@ private fun KLineCanvas(
         val w = size.width
         val h = size.height
         if (line.isEmpty()) return@Canvas
+        // 将主图所有绘制裁剪在 K 线显示区内，任何越界内容（如均线）都不会跑出屏幕
+        clipRect(0f, 0f, w, h) {
         val maxP = line.maxOf { it.high }
         val minP = line.minOf { it.low }
         val span = (maxP - minP).coerceAtLeast(1e-6)
@@ -1838,7 +1840,8 @@ private fun KLineCanvas(
             ma.forEachIndexed { i, v ->
                 if (v.isNaN()) return@forEachIndexed
                 val x = i * slot + slot / 2
-                val y = yOf(v)
+                // 固定压缩到显示区域内：均线值超出可视价格区间时，夹到上下边界，避免跑出分时图
+                val y = yOf(v).coerceIn(0f, h)
                 if (!started) { pathMA.moveTo(x, y); started = true } else pathMA.lineTo(x, y)
             }
             if (started) drawPath(pathMA, color, style = Stroke(width = 2.2f))
@@ -1855,6 +1858,7 @@ private fun KLineCanvas(
                 strokeWidth = 1.5f
             )
         }
+        } // end clipRect
     }
 }
 
