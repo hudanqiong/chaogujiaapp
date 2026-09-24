@@ -904,8 +904,10 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 private const val ORDERBOOK_RATIO = 0.30f      // 右侧盘口栏宽度占比（分时图自动占剩余）
 private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
 private val TIME_BAR_HEIGHT = 16.dp            // 分时时间栏高度
-private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度
-private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
+private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度（兼容保留，实际布局已改为自适应）
+private val ORDERBOOK_FONT = 12.sp             // 五档/明细字号（加大加粗）
+private val ORDERBOOK_ROW_MIN = 18.dp          // 五档行高下限（防挤压）
+private val ORDERBOOK_ROW_MAX = 34.dp          // 五档行高上限（行距封顶，避免铺满后过疏）
 
 // ============================================================
 // 右侧盘口栏：上=五档（卖5→卖1，买1→买5），下=逐笔成交明细
@@ -914,17 +916,22 @@ private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
 private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier = Modifier) {
     // 明细是否展开：展开时上面五档收缩为「卖1 + 买1」两行，把空间让给明细
     var dealsExpanded by remember { mutableStateOf(false) }
-    // 五档行高：总高 168dp 固定分 10 行
-    val obRowHeight = ORDERBOOK_TOP_HEIGHT / 10
     Column(modifier = modifier) {
-        // ---------- 五档盘口 ----------
+        // ---------- 五档盘口（自适应铺满：行高 = 可用高/10 并封顶，避免行距过疏） ----------
         // 收起态：卖5→卖1 + 买1→买5（10 行）；展开态：仅卖1 + 买1（2 行）
         val obRowCount = if (dealsExpanded) 2 else 10
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(obRowHeight * obRowCount)
+                .weight(1f)
         ) {
+            // 自适应行高：拿实际可用高度分 10 行，再用上下限收敛（不超过 34dp，行距不夸张）
+            val obRowHeight = (maxHeight / obRowCount).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(obRowHeight * obRowCount)
+            ) {
             val asks = ob?.asks ?: emptyList()
             val bids = ob?.bids ?: emptyList()
             val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
@@ -965,6 +972,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                         rowHeight = obRowHeight
                     )
                 }
+            }
             }
         }
         // 分隔线
@@ -1044,19 +1052,19 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
     ) {
         Text(
             label, color = labelColor, fontSize = ORDERBOOK_FONT,
-            fontFamily = DSpNumFont,
-            modifier = Modifier.width(22.dp), textAlign = TextAlign.Start
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(24.dp), textAlign = TextAlign.Start
         )
         Text(
             if (price > 0) fmtNum2(price) else "--",
             color = priceColor, fontSize = ORDERBOOK_FONT,
-            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
             color = Color(0xFF111111), fontSize = ORDERBOOK_FONT,
-            fontFamily = DSpNumFont,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
     }
