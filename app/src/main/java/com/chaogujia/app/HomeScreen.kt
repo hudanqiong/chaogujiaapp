@@ -233,8 +233,8 @@ private fun HomeLogoutCard(onLogout: () -> Unit) {
 
 // ===== 尖角图标尺寸/角度 对比预览（调参用，可删）=====
 /**
- * 用 Canvas 画与 StockDetailPage.ChevronIcon 同几何的尖角，但尺寸可调。
- * scale  = 折角整体占外框比例（越小越精致）
+ * 用 Canvas 画与 StockDetailPage.ChevronIcon 同几何的 V 形尖角，但尺寸可调。
+ * scale  = 尖角整体占外框比例（越小越精致）
  * armRatio = 垂直臂 / 水平臂；=1.0 时尖点夹角严格 90°
  */
 @Composable
@@ -257,15 +257,15 @@ private fun PreviewChevron(
         val gap = w * 0.06f
 
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            // 真正的 90 度直角折线: 一竖 + 一横 在拐角处相接
-            val vertX = if (tipLeftLocal) cx - armW else cx + armW
-            val horizX = if (tipLeftLocal) cx + armW else cx - armW
+            // V 形尖角: 两条臂在尖点处交汇，尖头朝外
+            val tipX  = if (tipLeftLocal) cx - armW else cx + armW
+            val backX = if (tipLeftLocal) cx + armW else cx - armW
             val topY = cy - armH
             val botY = cy + armH
             val path = Path().apply {
-                moveTo(vertX, botY)
-                lineTo(vertX, topY)
-                lineTo(horizX, topY)
+                moveTo(backX, topY)
+                lineTo(tipX, cy)
+                lineTo(backX, botY)
             }
             drawPath(
                 path, color = tint,
