@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -927,33 +928,59 @@ private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
 // ============================================================
 @Composable
 private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier = Modifier) {
+    // 明细是否展开：展开时上面五档收缩为「卖1 + 买1」两行，把空间让给明细
+    var dealsExpanded by remember { mutableStateOf(false) }
+    // 五档行高：总高 168dp 固定分 10 行
+    val obRowHeight = ORDERBOOK_TOP_HEIGHT / 10
     Column(modifier = modifier) {
         // ---------- 五档盘口 ----------
+        // 收起态：卖5→卖1 + 买1→买5（10 行）；展开态：仅卖1 + 买1（2 行）
+        val obRowCount = if (dealsExpanded) 2 else 10
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(ORDERBOOK_TOP_HEIGHT)
+                .height(obRowHeight * obRowCount)
         ) {
             val asks = ob?.asks ?: emptyList()
             val bids = ob?.bids ?: emptyList()
             val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
-            // 卖5 → 卖1（列表下标 4 → 0，倒序）
-            for (i in 4 downTo 0) {
+            if (dealsExpanded) {
+                // 仅显示卖1 + 买1
                 OrderLevelRow(
-                    label = "卖" + (i + 1),
-                    lv = asks.getOrNull(i),
+                    label = "卖1",
+                    lv = asks.getOrNull(0),
                     preClose = pc,
-                    isAsk = true
+                    isAsk = true,
+                    rowHeight = obRowHeight
                 )
-            }
-            // 买1 → 买5（正序）
-            for (i in 0 until 5) {
                 OrderLevelRow(
-                    label = "买" + (i + 1),
-                    lv = bids.getOrNull(i),
+                    label = "买1",
+                    lv = bids.getOrNull(0),
                     preClose = pc,
-                    isAsk = false
+                    isAsk = false,
+                    rowHeight = obRowHeight
                 )
+            } else {
+                // 卖5 → 卖1（列表下标 4 → 0，倒序）
+                for (i in 4 downTo 0) {
+                    OrderLevelRow(
+                        label = "卖" + (i + 1),
+                        lv = asks.getOrNull(i),
+                        preClose = pc,
+                        isAsk = true,
+                        rowHeight = obRowHeight
+                    )
+                }
+                // 买1 → 买5（正序）
+                for (i in 0 until 5) {
+                    OrderLevelRow(
+                        label = "买" + (i + 1),
+                        lv = bids.getOrNull(i),
+                        preClose = pc,
+                        isAsk = false,
+                        rowHeight = obRowHeight
+                    )
+                }
             }
         }
         // 分隔线
@@ -961,7 +988,6 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
         // ---------- 逐笔成交明细（可折叠：默认收起只显示 4 条，点击标题行展开/收起） ----------
         val deals = ob?.deals ?: emptyList()
         val pcD = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
-        var dealsExpanded by remember { mutableStateOf(false) }
         // 标题行：「明细 + 三角」。收起时三角朝上(▲)，展开时朝下(▼)
         Row(
             modifier = Modifier
@@ -1014,7 +1040,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
 
 /** 五档单行：左标签 + 中价格 + 右手数 */
 @Composable
-private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean) {
+private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean, rowHeight: Dp = ORDERBOOK_TOP_HEIGHT / 10) {
     val price = lv?.price ?: 0.0
     val vol = lv?.vol ?: 0.0
     val priceColor = when {
@@ -1028,7 +1054,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(ORDERBOOK_TOP_HEIGHT / 10)
+            .height(rowHeight)
             .padding(horizontal = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
