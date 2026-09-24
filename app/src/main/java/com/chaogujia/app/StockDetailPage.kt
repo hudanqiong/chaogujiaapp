@@ -3109,7 +3109,7 @@ private fun DetailBottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(66.dp),
+            .height(78.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1) 概念按钮（动态：概念名 + 涨跌幅）
@@ -3136,7 +3136,7 @@ private fun DetailBottomBar(
             Image(
                 painter = painterResource(id = R.drawable.ic_dbar_concept),
                 contentDescription = null,
-                modifier = Modifier.height(30.dp)
+                modifier = Modifier.height(60.dp)
             )
             Text(
                 text = cName,
@@ -3154,9 +3154,9 @@ private fun DetailBottomBar(
             )
         }
         // 2) 下单
-        BottomAction("下单", R.drawable.ic_dbar_order, Modifier.weight(1f), onOrder)
+        BottomAction("下单", R.drawable.ic_dbar_order, 60.dp, Modifier.weight(1f), onOrder)
         // 3) 诊股
-        BottomAction("诊股", R.drawable.ic_dbar_diagnose, Modifier.weight(1f), onDiagnose)
+        BottomAction("诊股", R.drawable.ic_dbar_diagnose, 60.dp, Modifier.weight(1f), onDiagnose)
         // 4) 自选 / 删自选（图标随是否已加自选切换）
         val wTxt = when (watched) {
             true -> "删自选"
@@ -3164,9 +3164,9 @@ private fun DetailBottomBar(
             else -> "自选"
         }
         val wIconRes = if (watched == true) R.drawable.ic_dbar_watch_on else R.drawable.ic_dbar_watch_off
-        BottomAction(wTxt, wIconRes, Modifier.weight(1f), onToggleWatch)
+        BottomAction(wTxt, wIconRes, 15.dp, Modifier.weight(1f), onToggleWatch)
         // 5) 功能
-        BottomAction("功能", R.drawable.ic_dbar_more, Modifier.weight(1f), onMore)
+        BottomAction("功能", R.drawable.ic_dbar_more, 30.dp, Modifier.weight(1f), onMore)
     }
     // 底部系统虚拟按键区（纯黑填充）
     Spacer(Modifier.height(navInset))
@@ -3174,7 +3174,7 @@ private fun DetailBottomBar(
 }
 
 @Composable
-private fun BottomAction(text: String, iconRes: Int, modifier: Modifier, onClick: () -> Unit) {
+private fun BottomAction(text: String, iconRes: Int, iconSize: androidx.compose.ui.unit.Dp, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -3185,7 +3185,7 @@ private fun BottomAction(text: String, iconRes: Int, modifier: Modifier, onClick
         Image(
             painter = painterResource(id = iconRes),
             contentDescription = null,
-            modifier = Modifier.height(30.dp)
+            modifier = Modifier.height(iconSize)
         )
         Text(text = text, color = Color.White, fontSize = 13.sp, maxLines = 1)
     }
