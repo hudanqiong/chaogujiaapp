@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -1829,6 +1830,7 @@ private fun KLineChart(
                 .fillMaxWidth()
                 .weight(0.24f)
                 .padding(start = 2.dp, end = 2.dp, top = 3.dp)
+                .clipToBounds()
                 .pointerInput(currentSub, show.size, selIdx) {
                     detectTapGestures { currentSub = currentSub.next() }
                 }
@@ -1859,6 +1861,7 @@ private fun KLineChart(
                 .fillMaxWidth()
                 .weight(0.24f)
                 .padding(start = 2.dp, end = 2.dp, top = 3.dp)
+                .clipToBounds()
                 .pointerInput(currentSub2, show.size, selIdx) {
                     detectTapGestures { currentSub2 = currentSub2.next() }
                 }
@@ -2602,16 +2605,18 @@ private fun SubGenericCanvas(
             drawLine(Color(0xFF9AA0A6), Offset(0f, zy), Offset(w, zy), strokeWidth = 0.8f)
         }
 
-        // ===== 3) 逐条折线（端点拉满整幅宽度）=====
-        val step = if (n > 1) w / (n - 1) else 0f
+        // ===== 3) 逐条折线（端点内缩半个线宽，避免线宽/极值越出副图框）=====
+        val padX = 1.5f
+        val innerW = (w - padX * 2f).coerceAtLeast(1f)
+        val step = if (n > 1) innerW / (n - 1) else 0f
         for (ln in lines) {
             val path = androidx.compose.ui.graphics.Path()
             var started = false
             for (i in 0 until n) {
                 val v = ln.vals[i]
                 if (v.isNaN()) { started = false; continue }
-                val cx = if (n > 1) i * step else w / 2f
-                val cy = yOf(v)
+                val cx = if (n > 1) padX + i * step else w / 2f
+                val cy = yOf(v).coerceIn(1f, h - 1f)
                 if (!started) {
                     path.moveTo(cx, cy)
                     started = true
@@ -2721,6 +2726,8 @@ private fun KLineMacdCanvas(
         }
         val midY = h / 2f
         val scale = (h / 2f * 0.92f) / maxAbs.toFloat()
+      // 统一裁剪到副图区，确保任何极值/线宽都不越出框
+      clipRect(0f, 0f, w, h) {
         // 零轴
         drawLine(Color(0xFF444444), Offset(0f, midY), Offset(w, midY), strokeWidth = 1.0f)
         // MACD：柱改折线（与 DIF/DEA 同一套 poly，单色蓝）
@@ -2754,6 +2761,7 @@ private fun KLineMacdCanvas(
             val cx = sel * slot + slot / 2
             drawLine(K_CROSS_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.5f)
         }
+      } // end clipRect
     }
 }
 
