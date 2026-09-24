@@ -802,6 +802,9 @@ private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
 private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric: Boolean = true) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
     // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
+    // X 轴缩放（方案甲，价图/量图/TimeAxis 三者同源）：
+    //   开竞价：09:15-11:30(135) 占左半 50%，13:00-15:00(120) 占右半 50%，11:30 恒居中。
+    //   关竞价：09:30-15:00(240) 等比铺满全宽，11:30 天然居中。
     val trends = cleanMinuteTrends(d?.trends ?: emptyList())
     val preClose = d?.base?.preClose ?: 0.0
 
@@ -865,6 +868,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             preClose = preClose,
                             maxP = range.first,
                             minP = range.second,
+                            showAuction = showAuction,
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -876,7 +880,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             .fillMaxWidth()
                             .weight(0.3f)
                     ) {
-                        MinuteVolumeCanvas(trends)
+                        MinuteVolumeCanvas(trends, showAuction)
                     }
                 }
             }
@@ -1148,6 +1152,7 @@ private fun MinutePriceCanvas(
     preClose: Double,
     maxP: Double,
     minP: Double,
+    showAuction: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val tm = rememberTextMeasurer()
@@ -1166,11 +1171,20 @@ private fun MinutePriceCanvas(
         val span = maxP - minP
 
         fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
-        // x：含集合竞价的时间轴真实比例映射。
-        // 轴 = 09:15-11:30(135 分钟) + 13:00-15:00(120 分钟) = 255 分钟（午休不占宽度）。
-        // 数据 min 以 09:30 为 0，故轴内位置 = min + 15（09:15→15 偏移）。
-        val MIN_SPAN = 255f
-        fun xOf(t: DetailTrend): Float = ((t.min.coerceIn(0, 240) + 15).toFloat() / MIN_SPAN) * w
+        // x：时间轴映射（方案甲：开启竞价时左右半各占 50%，11:30 恒在正中）。
+        // 数据 min 以 09:30 为 0；轴内分钟 = min + 15（09:15 起）。
+        //   开启竞价：左半 09:15-11:30(135min) 占 [0,0.5w]；右半 13:00-15:00(120min) 占 [0.5w,w]。
+        //   关闭竞价：09:30-15:00(240min) 等比铺满 [0,w]，午休不占宽。
+        fun xMinute(axisMin: Float): Float {
+            return if (showAuction) {
+                if (axisMin <= 135f) (axisMin / 135f) * 0.5f * w
+                else 0.5f * w + ((axisMin - 135f) / 120f) * 0.5f * w
+            } else {
+                val m = (axisMin - 15f).coerceIn(0f, 240f)  // 去掉竞价段偏移
+                (m / 240f) * w
+            }
+        }
+        fun xOf(t: DetailTrend): Float = xMinute(t.min.coerceIn(0, 240) + 15f)
 
         // 横网格：3 条装饰横线（4 等分，落在 1/4、2/4、3/4）
         for (k in 1..3) {
@@ -1256,18 +1270,26 @@ private fun MinutePriceCanvas(
 }
 
 @Composable
-private fun MinuteVolumeCanvas(trends: List<DetailTrend>) {
+private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean = false) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
         if (trends.isEmpty()) return@Canvas
         val maxV = trends.maxOf { it.vol }.coerceAtLeast(1e-6)
-        // 每分钟柱占 1/255 宽（含集合竞价），按 min+15 定位，与价图/时间轴对齐
-        val MIN_SPAN = 255f
-        val bw = w / MIN_SPAN
+        // 每分钟柱宽与定位：与价图/时间轴同款映射（方案甲）
+        fun xMinute(axisMin: Float): Float {
+            return if (showAuction) {
+                if (axisMin <= 135f) (axisMin / 135f) * 0.5f * w
+                else 0.5f * w + ((axisMin - 135f) / 120f) * 0.5f * w
+            } else {
+                val m = (axisMin - 15f).coerceIn(0f, 240f)
+                (m / 240f) * w
+            }
+        }
+        val bw = if (showAuction) (w / 255f) else (w / 240f)
         trends.forEach { t ->
             val vh = (t.vol / maxV * h).toFloat()
-            val x = ((t.min.coerceIn(0, 240) + 15).toFloat() / MIN_SPAN) * w
+            val x = xMinute(t.min.coerceIn(0, 240) + 15f)
             drawRect(
                 color = Color(0xFF9AA0A6),
                 topLeft = Offset(x, h - vh),
@@ -1294,44 +1316,60 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
 }
 
 /**
- * 时间轴：位于价图与量图之间，覆盖整条含竞价主轴（255 分钟真实比例）
- * 轴 = 09:15-11:30(135 分钟) + 13:00-15:00(120 分钟)，午休不占宽度（11:30 与 13:00 同点）
- * 区间段标注：09:15-09:25（竞价）/ 09:30-11:30（早盘）/ 13:00-15:00（午盘），按区间真实宽度分布
+ * 时间轴：位于价图与量图之间，刻度与分时曲线严格对齐。
+ * 开启集合竞价（四刻度）：09:15 / 09:30 / 11:30 / 15:00
+ *   方案甲：左半 09:15-11:30(135min) 占 [0,0.5w]，右半 13:00-15:00(120min) 占 [0.5w,w]，10:30 恒在正中。
+ * 关闭集合竞价（三刻度）：09:30 / 11:30 / 15:00，09:30-15:00(240min) 等比铺满，11:30 天然在正中。
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    data class Seg(val label: String, val from: Float, val to: Float)
-
-    val segs = if (showAuction) {
+    // 刻度采用与 MinutePriceCanvas 完全一致的“方案甲”映射，保证刻度与曲线严格对齐：
+    //   开启竞价：左半 09:15-11:30(135min) 占 [0,0.5w]；右半 13:00-15:00(120min) 占 [0.5w,w]。
+    //   关闭竞价：09:30-15:00(240min) 等比铺满 [0,w]。
+    data class Tick(val label: String, val axisMin: Float, val first: Boolean, val last: Boolean)
+    val ticks = if (showAuction) {
         listOf(
-            Seg("09:15-09:25", 0f, 10f),
-            Seg("09:30-11:30", 10f, 135f),
-            Seg("13:00-15:00", 135f, 255f)
+            Tick("09:15", 0f, true, false),
+            Tick("09:30", 15f, false, false),
+            Tick("11:30", 135f, false, false),
+            Tick("15:00", 255f, false, true)
         )
     } else {
         listOf(
-            Seg("09:30-11:30", 0f, 127.5f),
-            Seg("13:00-15:00", 127.5f, 255f)
+            Tick("09:30", 0f, true, false),
+            Tick("11:30", 120f, false, false),
+            Tick("15:00", 240f, false, true)
         )
     }
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        for (seg in segs) {
-            Box(
-                modifier = Modifier.weight((seg.to - seg.from).coerceAtLeast(0.0001f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    seg.label,
-                    color = TEXT_SUB,
-                    fontSize = 9.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip
-                )
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val w = constraints.maxWidth.toFloat()
+        fun xOf(axisMin: Float): Float {
+            return if (showAuction) {
+                if (axisMin <= 135f) (axisMin / 135f) * 0.5f * w
+                else 0.5f * w + ((axisMin - 135f) / 120f) * 0.5f * w
+            } else {
+                (axisMin / 240f) * w
             }
+        }
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        ticks.forEach { tk ->
+            val x = xOf(tk.axisMin)
+            // 首个贴左，末个贴右，中间以刻度为中心
+            val halfLabelPx = with(density) { 22.dp.toPx() }
+            val leftDp = with(density) {
+                when {
+                    tk.first -> 0f
+                    tk.last -> (w - halfLabelPx).coerceAtLeast(0f)
+                    else -> (x - halfLabelPx / 2f).coerceIn(0f, (w - halfLabelPx).coerceAtLeast(0f))
+                }.toDp()
+            }
+            Text(
+                tk.label,
+                color = TEXT_SUB,
+                fontSize = 9.sp,
+                maxLines = 1,
+                modifier = Modifier.offset(x = leftDp)
+            )
         }
     }
 }
