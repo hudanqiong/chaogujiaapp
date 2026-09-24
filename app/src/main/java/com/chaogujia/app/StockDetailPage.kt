@@ -1080,8 +1080,15 @@ private fun minuteRange(
         hi += 0.01
         lo -= 0.01
     }
-    val pad = (hi - lo) * 0.01
-    return Pair(hi + pad, lo - pad)
+    // ===== 百分比对称坐标（同花顺手机默认）=====
+    // 昨收价(0%)锁死画布垂直中点：上下涨跌幅取对称幅度，
+    // 因此 0% 虚线恒在 h/2，无论高开/低开都居中。
+    val up = max(hi - pc, 0.0)
+    val dn = max(pc - lo, 0.0)
+    var dev = max(up, dn)                 // 上/下偏离取较大者 → 对称半幅
+    if (dev < pc * 1e-4) dev = pc * 0.005 // 全天平盘兜底 0.5%
+    dev *= 1.02                           // 2% 边距，线不贴顶底
+    return Pair(pc + dev, pc - dev)       // 顶=昨收+dev, 底=昨收-dev（昨收正中）
 }
 
 /** 左侧价格轴：上=最高价，中=昨收，下=最低价 */
@@ -1238,18 +1245,22 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
     val segs: List<Triple<String, Float, Alignment>> = if (showAuction) {
-        // 开启竞价：09:15 -> 15:00 共 255 分钟，段宽=节点间真实分钟数
+        // 开启竞价：总刻度 255（9:15-9:25 竞价 10 + 9:30-15:00 共 240 + 14:55-15:00 竞价 5）
+        // 段权 = 该标签到下一标签在 x 轴上的距离；标签对齐段起点，末段 CenterEnd
+        // 位置：0 / 10 / 130 / 255 —— 与画布收缩后的边界严格对齐
         listOf(
-            Triple("09:15", 15f, Alignment.CenterStart),
+            Triple("09:15", 10f, Alignment.CenterStart),
             Triple("09:30", 120f, Alignment.CenterStart),
-            Triple("11:30", 120f, Alignment.Center),
-            Triple("15:00", 120f, Alignment.CenterEnd)
+            Triple("11:30/13:00", 120f, Alignment.CenterStart),
+            Triple("15:00", 0.0001f, Alignment.CenterEnd)
         )
     } else {
+        // 关闭竞价：总刻度 240（午休不占宽，11:30 与 13:00 重合于中点）
+        // 位置：0 / 120 / 240 —— 网格铺满整个分时区
         listOf(
             Triple("09:30", 120f, Alignment.CenterStart),
-            Triple("11:30", 120f, Alignment.Center),
-            Triple("15:00", 120f, Alignment.CenterEnd)
+            Triple("11:30/13:00", 120f, Alignment.CenterStart),
+            Triple("15:00", 0.0001f, Alignment.CenterEnd)
         )
     }
     Row(
