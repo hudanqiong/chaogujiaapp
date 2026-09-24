@@ -1025,7 +1025,6 @@ private fun fmtVol(v: Double): String {
     return if (v >= 10000) String.format("%.2f万", v / 10000.0) else v.toLong().toString()
 }
 
-@Composable
 /**
  * 分时价格区间（严格 A）：上=当日最高价，下=当日最低价，必须包含昨收（0% 线落区内）。
  * 仅留 2% 薄边，让最高/最低价贴近顶/底（贴近同花顺观感）。
@@ -1081,6 +1080,7 @@ private fun MinuteAxisRight(maxP: Double, minP: Double, preClose: Double, modifi
     }
 }
 
+@Composable
 private fun MinutePriceCanvas(
     trends: List<DetailTrend>,
     preClose: Double,
