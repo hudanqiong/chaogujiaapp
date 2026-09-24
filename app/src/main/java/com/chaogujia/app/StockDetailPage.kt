@@ -841,25 +841,16 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                 .weight(1f - ORDERBOOK_RATIO)
                 .fillMaxHeight()
         ) {
-            // ---------- 上部：三栏网格（早盘竞价 10 : 主轴 240 : 收盘竞价 5，高度撑满剩余）----------
+            // ---------- 上部：单一分时主轴（含集合竞价，真实时间比例：09:15-11:30 + 13:00-15:00 = 255 分钟）----------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                // 左栏：早盘集合竞价（9:15-9:25，10 分钟）
-                if (showAuction) {
-                    AuctionColumn(
-                        title = "9:15-9:25",
-                        modifier = Modifier
-                            .weight(AUCTION_AM_MINUTES)
-                            .fillMaxHeight()
-                    )
-                }
-                // 中间：分时主轴（240 分钟）—— 价图（70%）+ 量图（30%），中间不再插时间轴
+                // 分时主轴（255 分钟，含竞价）—— 价图（70%）+ 时间轴 + 量图（30%）
                 Column(
                     modifier = Modifier
-                        .weight(MINUTE_MAIN_MINUTES)
+                        .weight(1f)
                         .fillMaxHeight()
                 ) {
                     // 上部价格图（占 70%）：画布占满，价格/涨跌幅标注画在网格四角内部
@@ -877,7 +868,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             modifier = Modifier.fillMaxSize()
                         )
                     }
-                    // 中间：时间轴（价图与量图之间）
+                    // 中间：时间轴（价图与量图之间）——刻度含集合竞价
                     TimeAxis(showAuction, Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT))
                     // 下部量图（占 30%）
                     Box(
@@ -887,15 +878,6 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                     ) {
                         MinuteVolumeCanvas(trends)
                     }
-                }
-                // 右栏：收盘集合竞价（14:55-15:00，5 分钟）
-                if (showAuction) {
-                    AuctionColumn(
-                        title = "14:55-15:00",
-                        modifier = Modifier
-                            .weight(AUCTION_PM_MINUTES)
-                            .fillMaxHeight()
-                    )
                 }
             }
         } // end 分时区 Column
@@ -916,9 +898,6 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 // ============================================================
 private const val ORDERBOOK_RATIO = 0.30f      // 右侧盘口栏宽度占比（分时图自动占剩余）
 private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
-private const val AUCTION_AM_MINUTES = 10f     // 早盘竞价 9:15-9:25 = 10 分钟（宽度权重）
-private const val AUCTION_PM_MINUTES = 5f      // 收盘竞价 14:55-15:00 = 5 分钟（宽度权重）
-private const val MINUTE_MAIN_MINUTES = 240f   // 分时主图 9:30-15:00 = 240 分钟（宽度权重）
 private val TIME_BAR_HEIGHT = 16.dp            // 分时时间栏高度
 private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度
 private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
@@ -1187,19 +1166,20 @@ private fun MinutePriceCanvas(
         val span = maxP - minP
 
         fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
-        // x：按真实交易分钟 min(0..240) 映射，保证与 TimeAxis 刻度对齐
-        // （A股分时 = 241 分钟：9:30-11:30 计 120 + 13:00-15:00 计 120）
-        val MIN_SPAN = 240f
-        fun xOf(t: DetailTrend): Float = (t.min.coerceIn(0, 240).toFloat() / MIN_SPAN) * w
+        // x：含集合竞价的时间轴真实比例映射。
+        // 轴 = 09:15-11:30(135 分钟) + 13:00-15:00(120 分钟) = 255 分钟（午休不占宽度）。
+        // 数据 min 以 09:30 为 0，故轴内位置 = min + 15（09:15→15 偏移）。
+        val MIN_SPAN = 255f
+        fun xOf(t: DetailTrend): Float = ((t.min.coerceIn(0, 240) + 15).toFloat() / MIN_SPAN) * w
 
-        // 横网格：4 条装饰横线（4 等分，仅视觉参考）
-        for (k in 1..4) {
-            val y = h * k / 5f
+        // 横网格：3 条装饰横线（4 等分，落在 1/4、2/4、3/4）
+        for (k in 1..3) {
+            val y = h * k / 4f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
-        // 竖网格：4 条装饰竖线（4 等分，与 4 条横线共同构成 4x4 网格）
-        for (k in 1..4) {
-            val x = w * k / 5f
+        // 竖网格：3 条装饰竖线（4 等分，与 3 条横线共同构成 4x4 网格）
+        for (k in 1..3) {
+            val x = w * k / 4f
             drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
         }
 
@@ -1282,12 +1262,12 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>) {
         val h = size.height
         if (trends.isEmpty()) return@Canvas
         val maxV = trends.maxOf { it.vol }.coerceAtLeast(1e-6)
-        // 每分钟柱占 1/240 宽，按 min 定位，与价图/时间轴对齐
-        val MIN_SPAN = 240f
+        // 每分钟柱占 1/255 宽（含集合竞价），按 min+15 定位，与价图/时间轴对齐
+        val MIN_SPAN = 255f
         val bw = w / MIN_SPAN
         trends.forEach { t ->
             val vh = (t.vol / maxV * h).toFloat()
-            val x = (t.min.coerceIn(0, 240).toFloat() / MIN_SPAN) * w
+            val x = ((t.min.coerceIn(0, 240) + 15).toFloat() / MIN_SPAN) * w
             drawRect(
                 color = Color(0xFF9AA0A6),
                 topLeft = Offset(x, h - vh),
@@ -1314,104 +1294,39 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
 }
 
 /**
- * 时间轴：位于价图与量图之间，仅覆盖中间主轴（240 分钟）
- * 关闭/开启竞价均为：9:30 — 11:30/13:00 — 15:00，权重 [120, 120]
+ * 时间轴：位于价图与量图之间，覆盖整条含竞价主轴（255 分钟真实比例）
+ * 轴 = 09:15-11:30(135 分钟) + 13:00-15:00(120 分钟)，午休不占宽度（11:30 与 13:00 同点）
+ * 刻度按真实分钟宽度分布：09:15(0) / 09:30(15) / 11:30(135, 13:00 同点) / 15:00(255)
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    // 时间轴只在中间主轴宽度内。11:30 与 13:00 实为同一分界（连续），只标 11:30。
-    // 三刻度均匀分布：09:30 贴左、11:30 居中、15:00 贴右。每项 = (标签, 权重, 对齐)
-    val segs: List<Triple<String, Float, Alignment>> = listOf(
-        Triple("09:30", 1f, Alignment.CenterStart),
-        Triple("11:30", 1f, Alignment.Center),
-        Triple("15:00", 1f, Alignment.CenterEnd)
+    // (标签, 轴内起始分钟, 对齐)。轴总宽 255 分钟。
+    // 竞价段 0-15 放“09:15”贴左；09:30 起为主数据起点；11:30 与 13:00 合并标于 135；
+    // 15:00 贴右。用相邻刻度的分钟差作为权重，实现真实比例分布。
+    data class Tick(val label: String, val at: Float, val align: Alignment)
+    val ticks = listOf(
+        Tick("09:15", 0f, Alignment.CenterStart),
+        Tick("09:30", 15f, Alignment.CenterStart),
+        Tick("11:30", 135f, Alignment.Center),
+        Tick("15:00", 255f, Alignment.CenterEnd)
     )
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        segs.forEach { (label, weight, align) ->
+        for (i in ticks.indices) {
+            val start = ticks[i].at
+            val end = if (i + 1 < ticks.size) ticks[i + 1].at else 255f
+            val weight = (end - start).coerceAtLeast(0.0001f)
             Box(
-                modifier = Modifier.weight(weight.coerceAtLeast(0.0001f)),
-                contentAlignment = when (align) {
+                modifier = Modifier.weight(weight),
+                contentAlignment = when (ticks[i].align) {
                     Alignment.CenterStart -> Alignment.CenterStart
                     Alignment.CenterEnd -> Alignment.CenterEnd
                     else -> Alignment.Center
                 }
             ) {
-                Text(label, color = TEXT_SUB, fontSize = 10.sp)
-            }
-        }
-    }
-}
-
-/**
- * 集合竞价独立栏（早盘 9:15-9:25 / 收盘 14:55-15:00）
- * 三块高度与中间主轴对齐：走势线 weight0.7 + 时间栏 TIME_BAR_HEIGHT + 量区 weight0.3
- * 整栏浅灰背景，与分时主轴视觉区分。走势线/量数据暂为占位。
- */
-@Composable
-private fun AuctionColumn(title: String, modifier: Modifier) {
-    // 整栏灰底填充（AUCTION_BG），与中间白色分时区明显区分
-    // 价区（高，占 70%）：2 横 + 4 竖 网格
-    // 量区（矮，占 30%）：2 横 + 2 竖 网格
-    // 左右两侧加边界竖线，凸显「分时网格收缩、两侧让位给竞价」的效果
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .background(AUCTION_BG)
-    ) {
-        // 价区（占 70%）：2 横 x 4 竖 浅灰网格
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.7f)
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = size.width
-                val h = size.height
-                // 竖向 4 条（分成 5 列）
-                for (k in 1..4) {
-                    val x = w * k / 5f
-                    drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
-                }
-                // 横向 2 条（分成 3 行）
-                for (k in 1..2) {
-                    val y = h * k / 3f
-                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-                }
-                // 边框
-                drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
-            }
-        }
-        // 时间栏等高占位：与主轴中间的时间轴等高，保证三栏价图/时间栏/量区的高度一致。
-        // 时间文字由主轴中间的 TimeAxis 绘制，此处仅留灰底占位。
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(TIME_BAR_HEIGHT)
-                .background(AUCTION_BG)
-        )
-        // 量区（占 30%）：2 横 x 2 竖 浅灰网格
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(0.3f)
-        ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = size.width
-                val h = size.height
-                // 竖向 2 条（分成 3 列）
-                for (k in 1..2) {
-                    val x = w * k / 3f
-                    drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
-                }
-                // 横向 2 条（分成 3 行）
-                for (k in 1..2) {
-                    val y = h * k / 3f
-                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-                }
-                drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
+                Text(ticks[i].label, color = TEXT_SUB, fontSize = 10.sp)
             }
         }
     }
