@@ -819,7 +819,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
                     .fillMaxWidth()
                     .weight(0.7f)
             ) {
-                val range = minuteRange(trends, preClose)
+                val range = minuteRange(trends, preClose, d?.base?.high ?: 0.0, d?.base?.low ?: 0.0)
                 Row(modifier = Modifier.fillMaxSize()) {
                     MinuteAxisLeft(
                         maxP = range.first,
@@ -1026,16 +1026,25 @@ private fun fmtVol(v: Double): String {
 }
 
 /**
- * 分时价格区间（严格 A）：上=当日最高价，下=当日最低价，必须包含昨收（0% 线落区内）。
- * 仅留 2% 薄边，让最高/最低价贴近顶/底（贴近同花顺观感）。
+ * 分时价格区间（方案 A / 准确性优先）：
+ * 优先用后端权威的当日最高/最低价（base.high / base.low）定上下边界，
+ * 避免 trends 里的脏点污染缩放；若 high/low 无效则回退到 trends 极值。
+ * 边界必须包含昨收（保证 0% 基准线落在图内），仅留 1% 薄边贴近同花顺观感。
  */
-private fun minuteRange(trends: List<DetailTrend>, preClose: Double): Pair<Double, Double> {
-    if (trends.isEmpty()) {
-        val pc = if (preClose > 0) preClose else 1.0
+private fun minuteRange(
+    trends: List<DetailTrend>,
+    preClose: Double,
+    dayHigh: Double = 0.0,
+    dayLow: Double = 0.0
+): Pair<Double, Double> {
+    val pc = if (preClose > 0) preClose else 1.0
+    // 权威高低价优先；无效则回退 trends 极值
+    var hi = if (dayHigh > 0) dayHigh else (trends.maxOfOrNull { it.price } ?: pc)
+    var lo = if (dayLow > 0) dayLow else (trends.minOfOrNull { it.price } ?: pc)
+    if (trends.isEmpty() && dayHigh <= 0 && dayLow <= 0) {
         return Pair(pc * 1.01, pc * 0.99)
     }
-    var hi = trends.maxOf { it.price }
-    var lo = trends.minOf { it.price }
+    // 必须包含昨收，确保 0% 线在图内
     if (preClose > 0) {
         hi = max(hi, preClose)
         lo = min(lo, preClose)
@@ -1044,7 +1053,7 @@ private fun minuteRange(trends: List<DetailTrend>, preClose: Double): Pair<Doubl
         hi += 0.01
         lo -= 0.01
     }
-    val pad = (hi - lo) * 0.02
+    val pad = (hi - lo) * 0.01
     return Pair(hi + pad, lo - pad)
 }
 
