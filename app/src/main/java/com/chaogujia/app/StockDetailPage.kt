@@ -1801,7 +1801,8 @@ private fun KLineChart(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(start = 2.dp, end = chipW, bottom = 4.dp),
+                    // 抬到「时间轴条带」正上方：预留 TA_H + 间距，避免压住刻度线
+                    .padding(start = 2.dp, end = chipW, bottom = TA_H + 6.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1989,7 +1990,7 @@ private fun ChevronIcon(
     boxSize: androidx.compose.ui.unit.Dp,
     double: Boolean = false,
     rotate45: Boolean = false,
-    strokeW: androidx.compose.ui.unit.Dp = 2.dp
+    strokeW: androidx.compose.ui.unit.Dp = 1.6.dp
 ) {
     // 符号色 = KBTN_FG
     val color = KBTN_FG
@@ -1997,10 +1998,12 @@ private fun ChevronIcon(
         val w = size.width
         val h = size.height
         val sw = strokeW.toPx()
-        // 撑满圆约 65%，留边距不溢出
-        val armW = w * 0.32f   // 单尖角：水平方向半臂长
-        val armH = h * 0.32f   // 单尖角：垂直方向半臂长
-        val gap  = w * 0.10f   // 双尖角：中间缝隙
+        // 几何：折角两臂在「尖点」处的夹角恒为 90°（两臂向量 (armW,-armH) 与 (armW,+armH) 点积为 0）
+        // scale 控制整体大小（占圆底比例），越小越精致
+        val scale = 0.42f
+        val armW = w * scale * 0.5f   // 水平半臂长（tip 到 back 的水平距离）
+        val armH = h * scale * 0.5f   // 垂直半臂长（= armW → 保证 90°）
+        val gap  = w * 0.06f          // 双尖角：中间缝隙
 
         // 画一个 90° 折线尖角（顶点 tipX, 中线 cy）
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
