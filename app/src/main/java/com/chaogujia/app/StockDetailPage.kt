@@ -798,19 +798,25 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
     Row(
         modifier = Modifier.fillMaxSize().padding(top = 6.dp)
     ) {
-        // ===== 左栏：早盘集合竞价（9:15-9:25）=====
+        // ===== 分时区（竞价栏 + 主轴）：按时间刻度 10:240:5 分宽，盘口栏不参与 =====
+        Row(
+            modifier = Modifier
+                .weight(1f - ORDERBOOK_RATIO)
+                .fillMaxHeight()
+        ) {
+        // ===== 左栏：早盘集合竞价（9:15-9:25，10 分钟）=====
         if (showAuction) {
             AuctionColumn(
                 title = "9:15-9:25",
                 modifier = Modifier
-                    .width(AUCTION_COL_WIDTH)
+                    .weight(AUCTION_AM_MINUTES)
                     .fillMaxHeight()
             )
         }
-        // ================= 中间：分时主轴 =================
+        // ================= 中间：分时主轴（240 分钟）=================
         Column(
             modifier = Modifier
-                .weight(1f)
+                .weight(MINUTE_MAIN_MINUTES)
                 .fillMaxHeight()
         ) {
             // 上部价格图（占 70%）：左=价格轴，中=画布，右=涨跌幅轴
@@ -853,17 +859,17 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
                 MinuteVolumeCanvas(trends)
             }
         }
-        // ===== 右栏：收盘集合竞价（14:55-15:00），不参与主轴时间轴 =====
+        // ===== 右栏：收盘集合竞价（14:55-15:00，5 分钟），不参与主轴时间轴 =====
         if (showAuction) {
             AuctionColumn(
                 title = "14:55-15:00",
                 modifier = Modifier
-                    .width(AUCTION_COL_WIDTH)
+                    .weight(AUCTION_PM_MINUTES)
                     .fillMaxHeight()
             )
         }
-
-        // ================= 右侧：五档盘口 + 成交明细 =================
+        } // end 分时区 Row
+        // ================= 右侧：五档盘口 + 成交明细（宽度固定占比，不被竞价栏挤压）=================
         OrderBookPanel(
             ob = ob,
             preClose = preClose,
@@ -879,7 +885,10 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
 // 布局比例常量（便于微调）
 // ============================================================
 private const val ORDERBOOK_RATIO = 0.38f      // 右侧盘口栏宽度占比（分时图自动占剩余）
-private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度
+private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
+private const val AUCTION_AM_MINUTES = 10f     // 早盘竞价 9:15-9:25 = 10 分钟（宽度权重）
+private const val AUCTION_PM_MINUTES = 5f      // 收盘竞价 14:55-15:00 = 5 分钟（宽度权重）
+private const val MINUTE_MAIN_MINUTES = 240f   // 分时主图 9:30-15:00 = 240 分钟（宽度权重）
 private val TIME_BAR_HEIGHT = 16.dp            // 分时时间栏高度
 private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度
 private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
@@ -1168,7 +1177,8 @@ private fun MinutePriceCanvas(
             if (!started) { avgPath.moveTo(x, y); started = true } else avgPath.lineTo(x, y)
         }
         if (started) {
-            drawPath(avgPath, Color(0xFFFFB300), style = Stroke(width = 1.8f))
+            // 均价线加粗+提亮，确保在浅灰网格与价格线下清晰可见
+            drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 2.6f))
         }
         // 淡灰边框
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
@@ -1259,17 +1269,18 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
  */
 @Composable
 private fun AuctionColumn(title: String, modifier: Modifier) {
+    // 灰底只覆盖「价图区」与「量图区」，中间的 TimeAxis 一行不填灰（(甲) 不贯穿时间轴）
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .background(AUCTION_BG)
-            .padding(horizontal = 2.dp)
+            .padding(horizontal = 1.dp)
     ) {
-        // 走势线区（占 70%）
+        // 走势线区（占 70%）：灰底
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.7f)
+                .background(AUCTION_BG)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
@@ -1293,25 +1304,20 @@ private fun AuctionColumn(title: String, modifier: Modifier) {
                 // 边框
                 drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
             }
-            Text(
-                "竞价走势",
-                color = TEXT_SUB,
-                fontSize = 8.sp,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp)
-            )
         }
-        // 时间栏占位（与主轴时间栏等高）
+        // 时间栏占位（与主轴时间栏等高）—— 不填灰
         Box(
             modifier = Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT),
             contentAlignment = Alignment.Center
         ) {
-            Text(title, color = TEXT_SUB, fontSize = 8.sp)
+            Text(title, color = TEXT_SUB, fontSize = 8.sp, maxLines = 1)
         }
-        // 量区（占 30%）
+        // 量区（占 30%）：灰底
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.3f)
+                .background(AUCTION_BG)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
