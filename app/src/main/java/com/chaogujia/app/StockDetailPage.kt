@@ -3109,7 +3109,7 @@ private fun DetailBottomBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(84.dp),
+            .height(66.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 1) 概念按钮（动态：概念名 + 涨跌幅）
@@ -3136,7 +3136,7 @@ private fun DetailBottomBar(
             Image(
                 painter = painterResource(id = R.drawable.ic_dbar_concept),
                 contentDescription = null,
-                modifier = Modifier.size(60.dp)
+                modifier = Modifier.size(20.dp)
             )
             Text(
                 text = cName,
@@ -3154,9 +3154,9 @@ private fun DetailBottomBar(
             )
         }
         // 2) 下单
-        BottomAction("下单", R.drawable.ic_dbar_order, 60.dp, Modifier.weight(1f), onOrder)
+        BottomAction("下单", R.drawable.ic_dbar_order, 20.dp, Modifier.weight(1f), onOrder)
         // 3) 诊股
-        BottomAction("诊股", R.drawable.ic_dbar_diagnose, 60.dp, Modifier.weight(1f), onDiagnose)
+        BottomAction("诊股", R.drawable.ic_dbar_diagnose, 20.dp, Modifier.weight(1f), onDiagnose)
         // 4) 自选 / 删自选（图标随是否已加自选切换）
         val wTxt = when (watched) {
             true -> "删自选"
