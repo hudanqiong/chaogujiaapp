@@ -1810,7 +1810,7 @@ private fun KLineChart(
                 KLineButton(
                     text = "",
                     onClick = {},
-                    content = { ChevronIcon(tipLeft = true, boxSize = 30.dp) }
+                    content = { ChevronIcon(tipLeft = true, boxSize = 30.dp, twin = true, scaleMult = 0.78f) }
                 )
                 // 2) ＋ 放大
                 KLineButton(
@@ -1841,7 +1841,7 @@ private fun KLineChart(
                         // 若已选中，跟随移动选中框
                         selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                     },
-                    content = { ChevronIcon(tipLeft = true, boxSize = 30.dp) }
+                    content = { ChevronIcon(tipLeft = true, boxSize = 30.dp, scaleMult = 0.8f) }
                 )
                 // 5) 右移一格：尖朝右
                 KLineButton(
@@ -1851,13 +1851,13 @@ private fun KLineChart(
                         rightIndex = nr
                         selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                     },
-                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp) }
+                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, scaleMult = 0.8f) }
                 )
                 // 6) 最右：全屏 —— 双尖角背靠背 + 中间留缝 + 整体顺时针 45°，仅展示
                 KLineButton(
                     text = "",
                     onClick = {},
-                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, double = true, rotate45 = true) }
+                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, double = true, rotate45 = true, scaleMult = 0.7f, gapMult = 2.4f) }
                 )
             }
         }
@@ -1967,7 +1967,7 @@ private fun KLineButton(
         if (content != null) {
             content()
         } else {
-            Text(text, color = KBTN_FG, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Text(text, color = KBTN_FG, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1990,7 +1990,13 @@ private fun ChevronIcon(
     boxSize: androidx.compose.ui.unit.Dp,
     double: Boolean = false,
     rotate45: Boolean = false,
-    strokeW: androidx.compose.ui.unit.Dp = 1.6.dp
+    strokeW: androidx.compose.ui.unit.Dp = 1.6.dp,
+    // 折线整体大小倍率（1f=基准 0.32），调小则折角线更短
+    scaleMult: Float = 1f,
+    // 双折线中间缝隙倍率（1f=基准 0.06w），调大则两条分得更开
+    gapMult: Float = 1f,
+    // 是否画两条并排同向折线（最左按钮用）
+    twin: Boolean = false
 ) {
     // 符号色 = KBTN_FG
     val color = KBTN_FG
@@ -2000,10 +2006,10 @@ private fun ChevronIcon(
         val sw = strokeW.toPx()
         // 几何：一竖 + 一横两条线，拐角处严格垂直（90°）；armW=armH 保证两臂等长
         // scale 控制整体大小（占圆底比例），越小越精致
-        val scale = 0.32f
+        val scale = 0.32f * scaleMult
         val armW = w * scale * 0.5f   // 水平半臂长（tip 到 back 的水平距离）
         val armH = h * scale * 0.5f   // 垂直半臂长（= armW → 保证 90°）
-        val gap  = w * 0.06f          // 双尖角：中间缝隙
+        val gap  = w * 0.06f * gapMult // 双尖角：中间缝隙（gapMult 调大可分开两条线）
 
         // 画一个真正的 90° 直角折线：一「竖」+ 一「横」在拐角处相接。
         // 例如 尖朝右(>) 时：上端点 →(竖直向上到下端点) 的水平臂在 y=topY，
@@ -2029,7 +2035,12 @@ private fun ChevronIcon(
 
         val cx = w / 2f
         val cy = h / 2f
-        if (double) {
+        if (twin) {
+            // 两条并排、同朝向的折线（最左按钮）：整体再缩小到 0.62，两条水平错开
+            val tx = w * 0.16f
+            chevron(cx = cx - tx, cy = cy, tipLeftLocal = true)
+            chevron(cx = cx + tx, cy = cy, tipLeftLocal = true)
+        } else if (double) {
             // 双尖角背靠背：左尖朝左、右尖朝右、中间留缝
             // 整体顺时针旋转 45°（rotate45）得到「斜着的双箭头」
             val drawBoth: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
