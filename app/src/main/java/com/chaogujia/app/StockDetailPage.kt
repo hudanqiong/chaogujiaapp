@@ -38,6 +38,10 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -847,34 +851,20 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                 .weight(MINUTE_MAIN_MINUTES)
                 .fillMaxHeight()
         ) {
-            // 上部价格图（占 70%）：左=价格轴，中=画布，右=涨跌幅轴
+            // 上部价格图（占 70%）：画布占满，价格/涨跌幅标注画在网格四角内部
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.7f)
             ) {
                 val range = minuteRange(trends, preClose, d?.base?.high ?: 0.0, d?.base?.low ?: 0.0, symmetric)
-                Row(modifier = Modifier.fillMaxSize()) {
-                    MinuteAxisLeft(
-                        maxP = range.first,
-                        minP = range.second,
-                        preClose = preClose,
-                        modifier = Modifier.width(44.dp).fillMaxHeight()
-                    )
-                    MinutePriceCanvas(
-                        trends = trends,
-                        preClose = preClose,
-                        maxP = range.first,
-                        minP = range.second,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    )
-                    MinuteAxisRight(
-                        maxP = range.first,
-                        minP = range.second,
-                        preClose = preClose,
-                        modifier = Modifier.width(48.dp).fillMaxHeight()
-                    )
-                }
+                MinutePriceCanvas(
+                    trends = trends,
+                    preClose = preClose,
+                    maxP = range.first,
+                    minP = range.second,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             // 价图与量图之间的分段映射时间栏
             TimeAxis(showAuction, Modifier.height(TIME_BAR_HEIGHT))
@@ -1108,38 +1098,6 @@ private fun minuteRange(
     return Pair(pc + dev, pc - dev)       // 顶=昨收+dev, 底=昨收-dev（昨收正中）
 }
 
-/** 左侧价格轴：上=最高价，中=昨收，下=最低价 */
-@Composable
-private fun MinuteAxisLeft(maxP: Double, minP: Double, preClose: Double, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(start = 2.dp, end = 2.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.End
-    ) {
-        Text(fmtNum2(maxP), color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
-        Text(if (preClose > 0) fmtNum2(preClose) else "--", color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
-        Text(fmtNum2(minP), color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
-    }
-}
-
-/** 右侧涨跌幅轴：上=最高价对应%，中=0.00%，下=最低价对应%（涨红跌绿） */
-@Composable
-private fun MinuteAxisRight(maxP: Double, minP: Double, preClose: Double, modifier: Modifier = Modifier) {
-    val upPct = if (preClose > 0) (maxP - preClose) / preClose * 100 else 0.0
-    val dnPct = if (preClose > 0) (minP - preClose) / preClose * 100 else 0.0
-    fun colOf(v: Double) = when { v > 0.0001 -> RED_UP; v < -0.0001 -> GREEN_TEXT; else -> TEXT_SUB }
-    fun fmtPct(v: Double) = (if (v > 0) "+" else "") + String.format("%.2f", v) + "%"
-    Column(
-        modifier = modifier.padding(start = 2.dp, end = 2.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.Start
-    ) {
-        Text(fmtPct(upPct), color = colOf(upPct), fontSize = 10.sp, fontFamily = DSpNumFont)
-        Text("0.00%", color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
-        Text(fmtPct(dnPct), color = colOf(dnPct), fontSize = 10.sp, fontFamily = DSpNumFont)
-    }
-}
-
 @Composable
 private fun MinutePriceCanvas(
     trends: List<DetailTrend>,
@@ -1148,6 +1106,14 @@ private fun MinutePriceCanvas(
     minP: Double,
     modifier: Modifier = Modifier
 ) {
+    val tm = rememberTextMeasurer()
+    val numStyle = TextStyle(color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
+    val upStyle = TextStyle(color = RED_UP, fontSize = 10.sp, fontFamily = DSpNumFont)
+    val dnStyle = TextStyle(color = GREEN_TEXT, fontSize = 10.sp, fontFamily = DSpNumFont)
+    val insetPx = with(androidx.compose.ui.platform.LocalDensity.current) { 3.dp.toPx() }
+    val upPct = if (preClose > 0) (maxP - preClose) / preClose * 100 else 0.0
+    val dnPct = if (preClose > 0) (minP - preClose) / preClose * 100 else 0.0
+    fun fmtPct(v: Double) = (if (v > 0) "+" else "") + String.format("%.2f", v) + "%"
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
@@ -1161,13 +1127,16 @@ private fun MinutePriceCanvas(
         val MIN_SPAN = 240f
         fun xOf(t: DetailTrend): Float = (t.min.coerceIn(0, 240).toFloat() / MIN_SPAN) * w
 
-        // 网格：4 横 + 4 竖（4x4）
+        // 横网格：4 条装饰横线（4 等分，仅视觉参考）
         for (k in 1..4) {
             val y = h * k / 5f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
-        for (k in 1..4) {
-            val x = w * k / 5f
+        // 竖网格：按真实时间每 30 分钟一条（10:00,10:30,11:00,11:30,13:00,13:30,14:00,14:30）
+        // min 为 0..240 的交易分钟（9:30 起算，午休不占位）；11:30=120 → 50% 正中
+        val segMinutes = listOf(30, 60, 90, 120, 150, 180, 210)
+        segMinutes.forEach { m ->
+            val x = (m.toFloat() / MIN_SPAN) * w
             drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
         }
 
@@ -1213,6 +1182,33 @@ private fun MinutePriceCanvas(
         }
         // 淡灰边框
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
+
+        // ===== 网格内三组角标注 =====
+        // 顶部横线（y≈0）：左=最高价，右=+x%
+        // 昨收虚线（y=h/2）：左=昨收价，右=0.00%
+        // 底部横线（y≈h）：左=最低价，右=-x%
+        val rowH = tm.measure("0", numStyle).size.height.toFloat()
+        // 左列：价格（Top/Center/Bottom）
+        run {
+            val l1 = tm.measure(fmtNum2(maxP), numStyle)
+            drawText(l1, topLeft = Offset(insetPx, insetPx))
+            if (preClose > 0) {
+                val l2 = tm.measure(fmtNum2(preClose), numStyle)
+                drawText(l2, topLeft = Offset(insetPx, h / 2 - rowH / 2))
+            }
+            val l3 = tm.measure(fmtNum2(minP), numStyle)
+            drawText(l3, topLeft = Offset(insetPx, h - rowH - insetPx))
+        }
+        // 右列：涨跌幅（Top/Center/Bottom，右对齐贴右边界）
+        fun pctStyle(v: Double) = when { v > 0.0001 -> upStyle; v < -0.0001 -> dnStyle; else -> numStyle }
+        run {
+            val lu = tm.measure(fmtPct(upPct), pctStyle(upPct))
+            drawText(lu, topLeft = Offset(w - insetPx - lu.size.width, insetPx))
+            val lz = tm.measure("0.00%", numStyle)
+            drawText(lz, topLeft = Offset(w - insetPx - lz.size.width, h / 2 - rowH / 2))
+            val ld = tm.measure(fmtPct(dnPct), pctStyle(dnPct))
+            drawText(ld, topLeft = Offset(w - insetPx - ld.size.width, h - rowH - insetPx))
+        }
     }
 }
 
