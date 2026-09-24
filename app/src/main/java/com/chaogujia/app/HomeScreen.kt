@@ -279,8 +279,8 @@ private fun PreviewChevron(
             val both: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
                 chevron(lx, cy, true); chevron(rx, cy, false)
             }
-            // 去掉外层叠加旋转：chevron 已自带 -45/+45
-            both()
+            // 整体再绕中心顺时针 +45°（与 K 线页一致）
+            if (rot45) rotate(45f, Offset(cx, cy)) { both() } else both()
         } else chevron(cx, cy, tpLeft)
     }
 }

@@ -2085,12 +2085,14 @@ private fun ChevronIcon(
             chevron(cx = cx - tx, cy = cy, tipLeftLocal = true)
             chevron(cx = cx + tx, cy = cy, tipLeftLocal = true)
         } else if (double) {
-            // 双折线背离：左折线朝左(-45) + 右折线朝右(+45)。
-            // chevron() 内部已各自旋转，这里只负责并排摆放，不再做整体旋转。
+            // 双折线背离：左折线朝左(-45) + 右折线朝右(+45)，整体再绕中心顺时针 +45°。
             val leftCx = cx - gap
             val rightCx = cx + gap
-            chevron(cx = leftCx, cy = cy, tipLeftLocal = true)
-            chevron(cx = rightCx, cy = cy, tipLeftLocal = false)
+            val both: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
+                chevron(cx = leftCx, cy = cy, tipLeftLocal = true)
+                chevron(cx = rightCx, cy = cy, tipLeftLocal = false)
+            }
+            if (rotate45) rotate(45f, Offset(cx, cy)) { both() } else both()
         } else {
             chevron(cx = cx, cy = cy, tipLeftLocal = tipLeft)
         }
