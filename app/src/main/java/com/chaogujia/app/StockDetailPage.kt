@@ -1157,9 +1157,9 @@ private fun MinutePriceCanvas(
     modifier: Modifier = Modifier
 ) {
     val tm = rememberTextMeasurer()
-    val numStyle = TextStyle(color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
-    val upStyle = TextStyle(color = RED_UP, fontSize = 10.sp, fontFamily = DSpNumFont)
-    val dnStyle = TextStyle(color = GREEN_TEXT, fontSize = 10.sp, fontFamily = DSpNumFont)
+    val numStyle = TextStyle(color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold)
+    val upStyle = TextStyle(color = RED_UP, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold)
+    val dnStyle = TextStyle(color = GREEN_TEXT, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold)
     val insetPx = with(androidx.compose.ui.platform.LocalDensity.current) { 3.dp.toPx() }
     val upPct = if (preClose > 0) (maxP - preClose) / preClose * 100 else 0.0
     val dnPct = if (preClose > 0) (minP - preClose) / preClose * 100 else 0.0
@@ -1210,10 +1210,11 @@ private fun MinutePriceCanvas(
         // 开启竞价：中间分时区域（09:30→11:30→13:00→15:00）在这段被压窄的区域内仍分 4 格，
         //          两端各画一个集合竞价栏（2 列 × 4 行）。
         if (showAuction) {
-            // 中间正常分时区域（09:30→14:57）在这段被压窄的区域内分 4 格，
-            // 竖线严格落在真实时间：10:30(min=60) / 11:30·13:00(120) / 14:00(180)。
-            for (m in floatArrayOf(60f, 120f, 180f)) {
-                val x = xMinute(m)
+            // 中间正常分时区域在这段被压窄的区域内严格 4 格等分（含两端边框共 5 根竖线）：
+            // 竖线落在 0.20w / 0.40w / 0.60w / 0.80w / 1.00w，与 TimeAxis 标签同源。
+            // 09:30 → 0.20w、11:30·13:00 → 0.60w（正中心线）、15:00 → 1.00w。
+            for (i in 1..3) {
+                val x = (0.20f + i * 0.20f) * w
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
             // ===== 两端集合竞价栏（价区部分）：2 列 × 4 行 =====
@@ -1246,12 +1247,13 @@ private fun MinutePriceCanvas(
             }
         }
 
-        // 昨收基准线：灰色虚线（贯穿画布）
+        // 昨收基准线：灰色虚线（开启竞价时仅画在正常分时压缩区内，不伸进竞价栏）
         if (preClose > 0) {
             val yc = yOf(preClose)
             val dash = 6f
             val gap = 5f
-            var xd = 0f
+            val xStart = if (showAuction) 0.20f * w else 0f
+            var xd = xStart
             while (xd < w) {
                 drawLine(Color(0xFFBBBBBB), Offset(xd, yc), Offset(min(xd + dash, w), yc), strokeWidth = 1.5f)
                 xd += dash + gap
@@ -1294,26 +1296,29 @@ private fun MinutePriceCanvas(
         // 昨收虚线（y=h/2）：左=昨收价，右=0.00%
         // 底部横线（y≈h）：左=最低价，右=-x%
         val rowH = tm.measure("0", numStyle).size.height.toFloat()
+        // 四角标注跟随网格：开启竞价时左端贴正常分时压缩区左线(0.20w)，右端贴最右线(w)
+        val leftX = if (showAuction) 0.20f * w + insetPx else insetPx
+        val rightX = w
         // 左列：价格（Top/Center/Bottom）
         run {
             val l1 = tm.measure(fmtNum2(maxP), numStyle)
-            drawText(l1, topLeft = Offset(insetPx, insetPx))
+            drawText(l1, topLeft = Offset(leftX, insetPx))
             if (preClose > 0) {
                 val l2 = tm.measure(fmtNum2(preClose), numStyle)
-                drawText(l2, topLeft = Offset(insetPx, h / 2 - rowH / 2))
+                drawText(l2, topLeft = Offset(leftX, h / 2 - rowH / 2))
             }
             val l3 = tm.measure(fmtNum2(minP), numStyle)
-            drawText(l3, topLeft = Offset(insetPx, h - rowH - insetPx))
+            drawText(l3, topLeft = Offset(leftX, h - rowH - insetPx))
         }
         // 右列：涨跌幅（Top/Center/Bottom，右对齐贴右边界）
         fun pctStyle(v: Double) = when { v > 0.0001 -> upStyle; v < -0.0001 -> dnStyle; else -> numStyle }
         run {
             val lu = tm.measure(fmtPct(upPct), pctStyle(upPct))
-            drawText(lu, topLeft = Offset(w - insetPx - lu.size.width, insetPx))
+            drawText(lu, topLeft = Offset(rightX - insetPx - lu.size.width, insetPx))
             val lz = tm.measure("0.00%", numStyle)
-            drawText(lz, topLeft = Offset(w - insetPx - lz.size.width, h / 2 - rowH / 2))
+            drawText(lz, topLeft = Offset(rightX - insetPx - lz.size.width, h / 2 - rowH / 2))
             val ld = tm.measure(fmtPct(dnPct), pctStyle(dnPct))
-            drawText(ld, topLeft = Offset(w - insetPx - ld.size.width, h - rowH - insetPx))
+            drawText(ld, topLeft = Offset(rightX - insetPx - ld.size.width, h - rowH - insetPx))
         }
     }
 }
@@ -1342,9 +1347,9 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
         // 竖网格：与价图同款——中间"正常分时"区域始终 4 格，开启竞价时两端各一个竞价栏
         // 注意：量图区域的竞价栏是 2 列 × 2 行（量区竖向比价区短，行数少一半）
         if (showAuction) {
-            // 中间正常分时区域 4 格竖线：严格落在真实时间 10:30(60) / 11:30·13:00(120) / 14:00(180)
-            for (m in floatArrayOf(60f, 120f, 180f)) {
-                val x = xMinute(m)
+            // 中间正常分时区域 4 格等分竖线：0.40w / 0.60w / 0.80w（两端 0.20w / 1.00w 由竞价栏边框）
+            for (i in 1..3) {
+                val x = (0.20f + i * 0.20f) * w
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
             // ===== 两端集合竞价栏（量区部分）：2 列 × 2 行 =====
