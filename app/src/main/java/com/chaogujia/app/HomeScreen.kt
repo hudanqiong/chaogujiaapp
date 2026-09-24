@@ -13,6 +13,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke as DrawStroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.StrokeCap as DrawStrokeCap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -241,7 +248,7 @@ private fun PreviewChevron(
     strokeW: androidx.compose.ui.unit.Dp = 1.6.dp,
     tint: Color = Color(0xFF222222)
 ) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(boxSize)) {
+    Canvas(modifier = Modifier.size(boxSize)) {
         val w = size.width
         val h = size.height
         val sw = strokeW.toPx()
@@ -254,17 +261,17 @@ private fun PreviewChevron(
             val backX: Float
             if (tipLeftLocal) { tipX = cx - armW; backX = cx + armW }
             else { tipX = cx + armW; backX = cx - armW }
-            val top = androidx.compose.ui.geometry.Offset(backX, cy - armH)
-            val mid = androidx.compose.ui.geometry.Offset(tipX, cy)
-            val bot = androidx.compose.ui.geometry.Offset(backX, cy + armH)
-            val path = androidx.compose.ui.graphics.Path().apply {
+            val top = Offset(backX, cy - armH)
+            val mid = Offset(tipX, cy)
+            val bot = Offset(backX, cy + armH)
+            val path = Path().apply {
                 moveTo(top.x, top.y); lineTo(mid.x, mid.y); lineTo(bot.x, bot.y)
             }
             drawPath(
                 path, color = tint,
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                style = DrawStroke(
                     width = sw,
-                    cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    cap = DrawStrokeCap.Round
                 )
             )
         }
@@ -275,7 +282,7 @@ private fun PreviewChevron(
                 chevron(cx - gap, cy, true); chevron(cx + gap, cy, false)
             }
             if (rot45) {
-                androidx.compose.ui.graphics.drawscope.rotate(45f, androidx.compose.ui.geometry.Offset(cx, cy)) { both() }
+                rotate(45f, Offset(cx, cy)) { both() }
             } else both()
         } else chevron(cx, cy, tpLeft)
     }
@@ -288,7 +295,7 @@ private fun CompareItem(label: String, box: androidx.compose.ui.unit.Dp, scale: 
         Box(
             modifier = Modifier
                 .size(30.dp)
-                .clip(androidx.compose.foundation.shape.CircleShape)
+                .clip(CircleShape)
                 .background(Color(0x66EEEEEE)),
             contentAlignment = Alignment.Center
         ) {
