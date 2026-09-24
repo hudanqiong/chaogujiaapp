@@ -1803,7 +1803,7 @@ private fun KLineCanvas(
                 val y = yOf(k.close)
                 if (!startedClose) { pathClose.moveTo(cx, y); startedClose = true } else pathClose.lineTo(cx, y)
             }
-            if (startedClose) drawPath(pathClose, K_NARROW_COLOR, style = Stroke(width = max(slot * 0.9f, 2.5f)))
+            if (startedClose) drawPath(pathClose, K_NARROW_COLOR, style = Stroke(width = max(slot * 0.9f, 3.8f)))
         } else {
             line.forEachIndexed { i, k ->
                 val cx = i * slot + slot / 2
