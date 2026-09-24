@@ -920,12 +920,14 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
         // ---------- 五档盘口（自适应铺满：行高 = 可用高/10 并封顶，避免行距过疏） ----------
         // 收起态：卖5→卖1 + 买1→买5（10 行）；展开态：仅卖1 + 买1（2 行）
         val obRowCount = if (dealsExpanded) 2 else 10
+        // 五档区高度 = 整个盘口栏的 70%，与左侧「价图 weight(0.7f)」严格同权等高；
+        // 明细区 = 剩余 30%，与左侧「量图 weight(0.3f)」同权。四组件版式与参考图对齐。
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .weight(0.7f)
         ) {
-            // 自适应行高：拿实际可用高度分 10 行，再用上下限收敛（不超过 34dp，行距不夸张）
+            // 自适应行高：拿本区实际可用高度分 10 行，再用上下限收敛（对齐参考图 ≈23dp 行距）
             val obRowHeight = (maxHeight / obRowCount).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
             Column(
                 modifier = Modifier
@@ -1007,8 +1009,8 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
-        // 明细列表：收起=固定 4 行高且不滚动；展开=撑满剩余空间可滚动
-        val rowHeight = 15.dp
+        // 明细列表：收起=占面板下 30%（与左侧量图 weight(0.3f) 同权，行高自适应）；
+        //           展开=撑满剩余空间可滚动
         if (dealsExpanded) {
             Column(
                 modifier = Modifier
@@ -1019,12 +1021,16 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                 deals.forEach { d -> DealRow(d, pc = pcD) }
             }
         } else {
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(rowHeight * 4)
+                    .weight(0.3f)
             ) {
-                deals.take(4).forEach { d -> DealRow(d, pc = pcD) }
+                // 收起态固定 4 行：行高 = 本区可用高 / 4，用上下限收敛（对齐参考图 ≈21dp 行距）
+                val dealRowH = (maxHeight / 4).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    deals.take(4).forEach { d -> DealRow(d, pc = pcD, rowHeight = dealRowH) }
+                }
             }
         }
     }
@@ -1072,7 +1078,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
 
 /** 逐笔成交单行：时间 / 价格 / 手数 */
 @Composable
-private fun DealRow(d: DealItem, pc: Double) {
+private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
     val color = when {
         d.price > pc -> RED_UP
         d.price < pc -> GREEN_TEXT
@@ -1081,7 +1087,8 @@ private fun DealRow(d: DealItem, pc: Double) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 1.dp, vertical = 0.5.dp),
+            .height(rowHeight)
+            .padding(horizontal = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
