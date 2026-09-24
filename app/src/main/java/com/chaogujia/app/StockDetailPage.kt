@@ -1859,7 +1859,7 @@ private fun KLineChart(
                 KLineButton(
                     text = "",
                     onClick = {},
-                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, double = true, rotate45 = true, scaleMult = 0.7f, gapMult = 2.4f) }
+                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, double = true, rotate45 = true, scaleMult = 0.55f, gapMult = 3.4f) }
                 )
             }
         }
@@ -2057,36 +2057,41 @@ private fun ChevronIcon(
         val armH = h * scale * 0.5f   // 垂直半臂长（= armW → 保证 90°）
         val gap  = w * 0.06f * gapMult // 双尖角：中间缝隙（gapMult 调大可分开两条线）
 
-        // 画一个 90° 直角折线：一「竖」+ 一「横」两条线在拐点处严格垂直。
-        // 拐点朝外即「尖角」。
-        // 拐点朝左(<)：竖臂在左侧(cx-armW)垂直贯穿，横臂从顶端水平的向右伸出 → 拐点在左上角
-        // 拐点朝右(>)：竖臂在右侧(cx+armW)垂直贯穿，横臂从顶端水平的向左伸出 → 拐点在右上角
+        // 画一个 90° 直角折线：两条线在「正中」交汇成直角，交汇点(拐点)固定在 (cx,cy)。
+        // 朝左(tipLeftLocal=true)：两臂伸向右上/右下，整体逆时针转 45° → 拐点朝左
+        // 朝右(tipLeftLocal=false)：两臂伸向左上/左下，整体顺时针转 45° → 拐点朝右
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            val vertX  = if (tipLeftLocal) cx - armW else cx + armW  // 竖臂的 x（拐点所在侧）
-            val horizX = if (tipLeftLocal) cx + armW else cx - armW  // 横臂远端的 x（向内侧伸出）
+            val farX = if (tipLeftLocal) cx + armW else cx - armW  // 两臂远端的 x（朝向内侧展开）
             val topY = cy - armH
             val botY = cy + armH
+            // 拐点在角上的直角折线（左上/右上），随后整体旋转让拐点斜到中间
             val path = Path().apply {
-                moveTo(vertX, botY)   // 竖臂下端
-                lineTo(vertX, topY)   // 竖臂上端 = 拐点
-                lineTo(horizX, topY)  // 横臂从拐点水平伸出
+                moveTo(cx, cy)
+                lineTo(farX, topY)
+                moveTo(cx, cy)
+                lineTo(farX, botY)
             }
-            drawPath(path, color = color, style = Stroke(width = sw, cap = StrokeCap.Round))
+            val deg = if (tipLeftLocal) -45f else 45f
+            rotate(degrees = deg, pivot = Offset(cx, cy)) {
+                drawPath(path, color = color, style = Stroke(width = sw, cap = StrokeCap.Round))
+            }
         }
 
         val cx = w / 2f
         val cy = h / 2f
         if (twin) {
-            // 两条并排、同朝向的折线（最左按钮）：整体再缩小到 0.62，两条水平错开
+            // 两条并排、同朝向的折线（最左按钮）：都朝左 -45°
             val tx = w * 0.16f
             chevron(cx = cx - tx, cy = cy, tipLeftLocal = true)
             chevron(cx = cx + tx, cy = cy, tipLeftLocal = true)
         } else if (double) {
-            // 双尖角背靠背：左尖朝左、右尖朝右、中间留缝
-            // 整体顺时针旋转 45°（rotate45）得到「斜着的双箭头」
+            // 双折线：左折线朝左(-45)、右折线朝右(+45)背离张开，
+            // 随后两者作为整体再绕中心顺时针转 45°。
+            val leftCx = cx - gap
+            val rightCx = cx + gap
             val drawBoth: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
-                chevron(cx = cx - gap, cy = cy, tipLeftLocal = true)
-                chevron(cx = cx + gap, cy = cy, tipLeftLocal = false)
+                chevron(cx = leftCx, cy = cy, tipLeftLocal = true)
+                chevron(cx = rightCx, cy = cy, tipLeftLocal = false)
             }
             if (rotate45) {
                 rotate(degrees = 45f, pivot = Offset(cx, cy)) { drawBoth() }
