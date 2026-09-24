@@ -1265,12 +1265,12 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    // 时间轴只在中间主轴宽度内，故刻度只需覆盖 9:30→11:30→13:00→15:00。
-    // 每项 = (标签, 该标签所在区段权重, 对齐方式)
+    // 时间轴只在中间主轴宽度内。11:30 与 13:00 实为同一分界（连续），只标 11:30。
+    // 三刻度均匀分布：09:30 贴左、11:30 居中、15:00 贴右。每项 = (标签, 权重, 对齐)
     val segs: List<Triple<String, Float, Alignment>> = listOf(
-        Triple("09:30", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
-        Triple("11:30/13:00", MINUTE_MAIN_MINUTES / 2f, Alignment.CenterStart),
-        Triple("15:00", 0.0001f, Alignment.CenterEnd)
+        Triple("09:30", 1f, Alignment.CenterStart),
+        Triple("11:30", 1f, Alignment.Center),
+        Triple("15:00", 1f, Alignment.CenterEnd)
     )
     Row(
         modifier = modifier.fillMaxWidth(),
