@@ -58,7 +58,7 @@ internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮�
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一黑色（全历史黑波浪）
 // 缩放到最小（一屏约1400+根）时：蜡烛/量柱/均线全部转黑，整体成一条黑波浪线
-private const val K_NARROW_VISIBLE = 1200
+private const val K_NARROW_VISIBLE = 1500
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
 private val LINE_GRID = Color(0xFFEEEEEE)
