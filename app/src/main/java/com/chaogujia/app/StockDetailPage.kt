@@ -958,29 +958,55 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
         }
         // 分隔线
         Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
-        // 明细表头
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("时间", color = TEXT_SUB, fontSize = 9.sp,
-                modifier = Modifier.weight(1.15f), textAlign = TextAlign.Start)
-            Text("价格", color = TEXT_SUB, fontSize = 9.sp,
-                modifier = Modifier.weight(0.85f), textAlign = TextAlign.End)
-            Text("手数", color = TEXT_SUB, fontSize = 9.sp,
-                modifier = Modifier.weight(0.85f), textAlign = TextAlign.End)
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
-        // ---------- 逐笔成交明细（最新在上，可滚动） ----------
+        // ---------- 逐笔成交明细（可折叠：默认收起只显示 4 条，点击标题行展开/收起） ----------
         val deals = ob?.deals ?: emptyList()
-        Column(
+        val pcD = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
+        var dealsExpanded by remember { mutableStateOf(false) }
+        // 标题行：「明细 + 三角」。收起时三角朝上(▲)，展开时朝下(▼)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
+                .clickable { dealsExpanded = !dealsExpanded }
+                .padding(vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            deals.forEach { d ->
-                DealRow(d, pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose)
+            Text("明细", color = TEXT_SUB, fontSize = 9.sp)
+            // 三角：收起朝上、展开朝下
+            Canvas(modifier = Modifier.padding(start = 3.dp).size(7.dp)) {
+                val w = size.width
+                val h = size.height
+                val path = Path().apply {
+                    if (dealsExpanded) {
+                        // 朝下 ▼
+                        moveTo(0f, 0f); lineTo(w, 0f); lineTo(w / 2f, h); close()
+                    } else {
+                        // 朝上 ▲
+                        moveTo(w / 2f, 0f); lineTo(w, h); lineTo(0f, h); close()
+                    }
+                }
+                drawPath(path, color = TEXT_SUB)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
+        // 明细列表：收起=固定 4 行高且不滚动；展开=撑满剩余空间可滚动
+        val rowHeight = 15.dp
+        if (dealsExpanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                deals.forEach { d -> DealRow(d, pc = pcD) }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(rowHeight * 4)
+            ) {
+                deals.take(4).forEach { d -> DealRow(d, pc = pcD) }
             }
         }
     }
