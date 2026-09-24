@@ -56,16 +56,23 @@ fun MemberHeaderBar(
     onDetailPrev: () -> Unit = {},
     onDetailNext: () -> Unit = {}
 ) {
+    // ★ 只有详情页是 edge-to-edge（状态栏透明、由内容绘制），
+    //   此时红条背景必须铺满到屏幕最顶（含状态栏区域），内容再下移该高度；
+    //   否则状态栏会露出系统色(纯 #F03036)，与红条渐变形成“上下两截不同红”的 bug。
+    //   其他页面未开 edge-to-edge，红条保持原高度、由系统画状态栏，不受影响。
+    val edgeToEdge = current == "detail"
+    val statusInset =
+        if (edgeToEdge) WindowInsets.statusBars.asPaddingValues().calculateTopPadding() else 0.dp
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(BarHeight)                 // ★ 高度写死，5 页统一
+            .height(BarHeight + statusInset)   // 详情页 = 74dp + 状态栏；其他页 = 74dp
             .background(
                 Brush.verticalGradient(
                     listOf(Color(Config.COLOR_PRIMARY), Color(0xFFD0202A))
                 )
             )
-            .statusBarsPadding(),
+            .padding(top = statusInset),       // 详情页内容下移；其他页为 0
         contentAlignment = Alignment.Center             // 内容整体在红条内居中
     ) {
         when (current) {

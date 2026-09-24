@@ -80,14 +80,20 @@ fun ChaoGuJiaApp() {
     DisposableEffect(detail) {
         val window = (view.context as? android.app.Activity)?.window
         if (window != null) {
+            val ctrl = WindowCompat.getInsetsController(window, view)
             if (detail != null) {
                 WindowCompat.setDecorFitsSystemWindows(window, false)
+                // 状态栏透明：让详情页顶部红条自身铺满状态栏区域，避免“系统红 + 内容红”两截色
+                window.statusBarColor = android.graphics.Color.TRANSPARENT
                 window.navigationBarColor = android.graphics.Color.BLACK
-                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+                ctrl.isAppearanceLightStatusBars = false
+                ctrl.isAppearanceLightNavigationBars = false
             } else {
                 WindowCompat.setDecorFitsSystemWindows(window, true)
+                window.statusBarColor = android.graphics.Color.parseColor("#F03036")
                 window.navigationBarColor = android.graphics.Color.parseColor("#F5F5F5")
-                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = true
+                ctrl.isAppearanceLightStatusBars = false
+                ctrl.isAppearanceLightNavigationBars = true
             }
         }
         onDispose { }
