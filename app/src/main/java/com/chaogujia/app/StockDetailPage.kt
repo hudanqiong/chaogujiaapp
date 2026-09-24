@@ -2167,33 +2167,14 @@ private fun KLineTimeAxis(
     if (n <= 0) return
     // 左侧固定区宽度（与底部按钮行左侧预留对齐）
     val fixedW = 78.dp
-    // ★ 刻度/标签按「像素间距」动态决定，保证屏幕上的视觉密度恒定，
-    //   与缩放解耦：无论柱子多窄，屏幕上恒定约 3 个日期标签、刻度不糊。
-    //   （具体数值在下面 BoxWithConstraints 内按 slot 计算）
+    // 每几根柱子打一个刻度 / 每几根柱子显示一次日期
+    val tickEvery = 2
+    val labelEvery = 10
 
     Box(modifier = modifier.height(20.dp)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalW = maxWidth
             val slot = totalW / n  // 每根柱子的宽度（与主图同口径 w / show.size）
-
-            // ===== 按像素间距动态决定刻度/日期步长 =====
-            // 右侧滑动可用宽度（左侧固定区不参与标签排布）
-            val availW = (totalW - fixedW).coerceAtLeast(1.dp)
-            // 目标：屏幕上约 3 个日期标签 → 每个标签目标像素间距
-            val labelSpanPx = with(androidx.compose.ui.platform.LocalDensity.current) { availW.toPx() } / 3f
-            val slotPx = with(androidx.compose.ui.platform.LocalDensity.current) { slot.toPx() }
-            // 换算成「柱数」，再吸附到整齐步长，避免缩放时密度抖动
-            fun niceStep(raw: Float): Int {
-                val v = raw.coerceAtLeast(1f)
-                var step = 1f
-                val levels = floatArrayOf(1f, 2f, 5f, 10f, 20f, 50f, 100f, 200f, 500f, 1000f)
-                for (lv in levels) { if (lv <= v) step = lv else break }
-                return step.toInt()
-            }
-            val labelEvery = niceStep(labelSpanPx / slotPx)
-            // 小刻度：保证像素间距 >= 约 7dp，缩小时不糊
-            val tickMinPx = with(androidx.compose.ui.platform.LocalDensity.current) { 7.dp.toPx() }
-            val tickEvery = max(1, kotlin.math.ceil((tickMinPx / slotPx).toDouble()).toInt())
 
             // 尺子横线（框架）
             Box(
@@ -2226,7 +2207,7 @@ private fun KLineTimeAxis(
                             // 刻度竖线：从尺子横线往下伸
                             Box(
                                 modifier = Modifier
-                                    .width(1.dp)
+                                    .width(2.dp)
                                     .height(tickH)
                                     .background(TIME_AXIS_LINE)
                             )
