@@ -1809,22 +1809,28 @@ private fun KLineChart(
                 KLineButton(
                     text = "",
                     onClick = {},
-                    content = { ChevronIcon(tipLeft = true, size = 30.dp) }
+                    content = { ChevronIcon(tipLeft = true, boxSize = 30.dp) }
                 )
                 // 2) ＋ 放大
-                KLineButton(text = "＋") {
-                    visible = (visible / K_BTN_ZOOM_STEP).toInt()
-                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
-                    rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                }
+                KLineButton(
+                    text = "＋",
+                    onClick = {
+                        visible = (visible / K_BTN_ZOOM_STEP).toInt()
+                            .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                            .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
+                        rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
+                    }
+                )
                 // 3) − 缩小
-                KLineButton(text = "−") {
-                    visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
-                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
-                    rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                }
+                KLineButton(
+                    text = "−",
+                    onClick = {
+                        visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
+                            .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                            .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
+                        rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
+                    }
+                )
                 // 4) 左移一格：尖朝左
                 KLineButton(
                     text = "",
@@ -1834,7 +1840,7 @@ private fun KLineChart(
                         // 若已选中，跟随移动选中框
                         selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                     },
-                    content = { ChevronIcon(tipLeft = true, size = 30.dp) }
+                    content = { ChevronIcon(tipLeft = true, boxSize = 30.dp) }
                 )
                 // 5) 右移一格：尖朝右
                 KLineButton(
@@ -1844,13 +1850,13 @@ private fun KLineChart(
                         rightIndex = nr
                         selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                     },
-                    content = { ChevronIcon(tipLeft = false, size = 30.dp) }
+                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp) }
                 )
                 // 6) 最右：全屏 —— 双尖角背靠背 + 中间留缝 + 整体顺时针 45°，仅展示
                 KLineButton(
                     text = "",
                     onClick = {},
-                    content = { ChevronIcon(tipLeft = false, size = 30.dp, double = true, rotate45 = true) }
+                    content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, double = true, rotate45 = true) }
                 )
             }
         }
@@ -1937,7 +1943,7 @@ private fun KLineButton(
             .padding(horizontal = 4.dp)
             .size(30.dp)
             // 圆形浅灰半透明底（不压过行情线）
-            .background(Color(KBTN_BG), shape = CircleShape)
+            .background(KBTN_BG, shape = CircleShape)
             .pointerInput(text) {
                 detectTapGestures(
                     onPress = {
@@ -1960,7 +1966,7 @@ private fun KLineButton(
         if (content != null) {
             content()
         } else {
-            Text(text, color = Color(KBTN_FG), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Text(text, color = KBTN_FG, fontSize = 19.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1980,16 +1986,16 @@ private fun KLineButton(
 @Composable
 private fun ChevronIcon(
     tipLeft: Boolean,
-    size: androidx.compose.ui.unit.Dp,
+    boxSize: androidx.compose.ui.unit.Dp,
     double: Boolean = false,
     rotate45: Boolean = false,
     strokeW: androidx.compose.ui.unit.Dp = 2.dp
 ) {
     // 符号色 = KBTN_FG
-    val color = Color(KBTN_FG)
-    Canvas(modifier = Modifier.size(size)) {
-        val w = size.width.toPx()
-        val h = size.height.toPx()
+    val color = KBTN_FG
+    Canvas(modifier = Modifier.size(boxSize)) {
+        val w = size.width
+        val h = size.height
         val sw = strokeW.toPx()
         // 撑满圆约 65%，留边距不溢出
         val armW = w * 0.32f   // 单尖角：水平方向半臂长
