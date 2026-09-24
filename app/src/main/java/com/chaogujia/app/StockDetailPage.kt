@@ -2149,7 +2149,6 @@ private fun KLineCanvas(
     }
 }
 
-@Composable
 /**
  * 底部时间轴「尺子」：
  *  - 左侧固定区：显示当前窗口最左柱子的完整年月日（如 2025-07-30），不随滑动位移；
@@ -2247,6 +2246,7 @@ private fun KLineTimeAxis(
     }
 }
 
+@Composable
 private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
