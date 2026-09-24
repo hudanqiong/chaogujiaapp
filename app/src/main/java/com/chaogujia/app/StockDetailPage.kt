@@ -961,6 +961,7 @@ private fun DealRow(d: DealItem, pc: Double) {
 
 /** 手数格式化：>=1万 显示为 x.xx万 */
 private fun fmtVol(v: Double): String {
+    if (v.isNaN()) return "--"
     return if (v >= 10000) String.format("%.2f万", v / 10000.0) else v.toLong().toString()
 }
 
@@ -1332,6 +1333,22 @@ private fun computeMA(line: List<KLinePoint>, period: Int): DoubleArray {
 }
 
 /**
+ * 计算「量均线」：与 computeMA 同口径，但对成交量 vol 做周期均值。
+ * 数据不足 period 的位置返回 Double.NaN（该点不画）。
+ */
+private fun computeVolMA(line: List<KLinePoint>, period: Int): DoubleArray {
+    val out = DoubleArray(line.size) { Double.NaN }
+    if (period <= 0 || line.isEmpty()) return out
+    var sum = 0.0
+    for (i in line.indices) {
+        sum += line[i].vol
+        if (i >= period) sum -= line[i - period].vol
+        if (i >= period - 1) out[i] = sum / period
+    }
+    return out
+}
+
+/**
  * MACD 指标：EMA12 / EMA26 / DIF / DEA(9) / MACD 柱。
  * 口径与同花顺一致：
  *   EMA(n) 递归平滑（首值取首个收盘价）
@@ -1570,6 +1587,7 @@ private fun KLineChart(
                 showMacd = currentSub == SubIndicator.MACD,
                 labIdx = subLocal,
                 macdShow = macdShow,
+                volLine = if (currentSub == SubIndicator.VOL) show else null,
                 onTag = { subPickerOpen = true }
             )
         }
@@ -1596,6 +1614,7 @@ private fun KLineChart(
                 showMacd = currentSub2 == SubIndicator.MACD,
                 labIdx = subLocal2,
                 macdShow = macdShow,
+                volLine = if (currentSub2 == SubIndicator.VOL) show else null,
                 onTag = { subPickerOpen2 = true }
             )
         }
@@ -1869,33 +1888,73 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val w = size.width
         val h = size.height
         if (line.isEmpty()) return@Canvas
-        val maxV = line.maxOf { it.vol }.coerceAtLeast(1e-6)
+        // ===== 量均线：对成交量做 MA5 / MA10 =====
+        val volMa5 = computeVolMA(line, 5)
+        val volMa10 = computeVolMA(line, 10)
+        // 纵轴最大值统一纳入量柱与量均线，保证均线天然落在区域内
+        var maxV = line.maxOf { it.vol }
+        for (v in volMa5) if (!v.isNaN() && v > maxV) maxV = v
+        for (v in volMa10) if (!v.isNaN() && v > maxV) maxV = v
+        maxV = maxV.coerceAtLeast(1e-6)
         val n = line.size
         val slot = w / n
         val bw = max(slot * 0.92f, 1f)
-        line.forEachIndexed { i, k ->
-            val cx = i * slot + slot / 2
-            val up = k.close >= k.open
-            val vh = (k.vol / maxV * h).toFloat()
-            // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致；缩到最小时统一实心黑色
-            drawRect(
-                color = if (up) RED_UP else GREEN_DOWN,
-                topLeft = Offset(cx - bw / 2, h - vh),
-                size = Size(bw, vh),
-                style = if (up) Stroke(width = 3.0f) else Fill
-            )
+        // 统一裁剪到成交量显示区，量柱/量均线/竖线都不会越界
+        clipRect(0f, 0f, w, h) {
+            line.forEachIndexed { i, k ->
+                val cx = i * slot + slot / 2
+                val up = k.close >= k.open
+                val vh = (k.vol / maxV * h).toFloat()
+                // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致；缩到最小时统一实心黑色
+                drawRect(
+                    color = if (up) RED_UP else GREEN_DOWN,
+                    topLeft = Offset(cx - bw / 2, h - vh),
+                    size = Size(bw, vh),
+                    style = if (up) Stroke(width = 3.0f) else Fill
+                )
+            }
+            // ===== 量均线 MA5（黑）/ MA10（橙），加粗 2.5f =====
+            drawVolMA(volMa5, slot, w, h, maxV, maColorOf(5))
+            drawVolMA(volMa10, slot, w, h, maxV, maColorOf(10))
+            // ===== 选中竖线（与主图对齐） =====
+            val sel = selLocal
+            if (sel != null && sel in line.indices) {
+                val cx = sel * slot + slot / 2
+                drawLine(
+                    color = K_CROSS_COLOR,
+                    start = Offset(cx, 0f),
+                    end = Offset(cx, h),
+                    strokeWidth = 1.5f
+                )
+            }
+        } // end clipRect
+    }
+}
+
+/** 在成交量副图绘制一条量均线（点值 clamp 到 [0,h]，双保险不越界）。 */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVolMA(
+    ma: DoubleArray,
+    slot: Float,
+    w: Float,
+    h: Float,
+    maxV: Double,
+    color: Color
+) {
+    val path = androidx.compose.ui.graphics.Path()
+    var started = false
+    ma.forEachIndexed { i, v ->
+        if (v.isNaN()) return@forEachIndexed
+        val cx = i * slot + slot / 2
+        val y = (h - (v / maxV * h)).toFloat().coerceIn(0f, h)
+        if (!started) {
+            path.moveTo(cx, y)
+            started = true
+        } else {
+            path.lineTo(cx, y)
         }
-        // ===== 选中竖线（与主图对齐） =====
-        val sel = selLocal
-        if (sel != null && sel in line.indices) {
-            val cx = sel * slot + slot / 2
-            drawLine(
-                color = K_CROSS_COLOR,
-                start = Offset(cx, 0f),
-                end = Offset(cx, h),
-                strokeWidth = 1.5f
-            )
-        }
+    }
+    if (started) {
+        drawPath(path = path, color = color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
     }
 }
 
@@ -1909,6 +1968,7 @@ private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
     showMacd: Boolean,
     labIdx: Int?,
     macdShow: MacdResult,
+    volLine: List<KLinePoint>?,
     onTag: () -> Unit
 ) {
     Row(
@@ -1918,6 +1978,22 @@ private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SubIndicatorTag(text = main) { onTag() }
+        // ===== 成交量副图：标签框后追加 量均线 MA5 / MA10 当前值（颜色与均线一致） =====
+        if (volLine != null && volLine.isNotEmpty()) {
+            val idx = labIdx?.takeIf { it in volLine.indices } ?: (volLine.size - 1)
+            val ma5 = computeVolMA(volLine, 5)
+            val ma10 = computeVolMA(volLine, 10)
+            if (idx in volLine.indices) {
+                val c5 = maColorOf(5)
+                val c10 = maColorOf(10)
+                Spacer(Modifier.width(6.dp))
+                Text("M5", color = c5, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(fmtVol(ma5[idx]), color = c5, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(8.dp))
+                Text("M10", color = c10, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(fmtVol(ma10[idx]), color = c10, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
         if (showMacd) {
             val idx = labIdx?.takeIf { it in macdShow.dif.indices }
                 ?: (macdShow.dif.size - 1).takeIf { it >= 0 }
