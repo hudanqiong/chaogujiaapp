@@ -3133,6 +3133,11 @@ private fun DetailBottomBar(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_dbar_concept),
+                contentDescription = null,
+                modifier = Modifier.height(20.dp)
+            )
             Text(
                 text = cName,
                 color = Color.White,
@@ -3149,18 +3154,19 @@ private fun DetailBottomBar(
             )
         }
         // 2) 下单
-        BottomAction("下单", Modifier.weight(1f), onOrder)
+        BottomAction("下单", R.drawable.ic_dbar_order, Modifier.weight(1f), onOrder)
         // 3) 诊股
-        BottomAction("诊股", Modifier.weight(1f), onDiagnose)
-        // 4) 自选 / 删自选
+        BottomAction("诊股", R.drawable.ic_dbar_diagnose, Modifier.weight(1f), onDiagnose)
+        // 4) 自选 / 删自选（图标随是否已加自选切换）
         val wTxt = when (watched) {
             true -> "删自选"
             false -> "加自选"
             else -> "自选"
         }
-        BottomAction(wTxt, Modifier.weight(1f), onToggleWatch)
+        val wIconRes = if (watched == true) R.drawable.ic_dbar_watch_on else R.drawable.ic_dbar_watch_off
+        BottomAction(wTxt, wIconRes, Modifier.weight(1f), onToggleWatch)
         // 5) 功能
-        BottomAction("功能", Modifier.weight(1f), onMore)
+        BottomAction("功能", R.drawable.ic_dbar_more, Modifier.weight(1f), onMore)
     }
     // 底部系统虚拟按键区（纯黑填充）
     Spacer(Modifier.height(navInset))
@@ -3168,14 +3174,20 @@ private fun DetailBottomBar(
 }
 
 @Composable
-private fun BottomAction(text: String, modifier: Modifier, onClick: () -> Unit) {
-    Box(
+private fun BottomAction(text: String, iconRes: Int, modifier: Modifier, onClick: () -> Unit) {
+    Column(
         modifier = modifier
             .fillMaxHeight()
             .clickable { onClick() },
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Text(text = text, color = Color.White, fontSize = 13.sp, maxLines = 1)
+        Image(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier.height(20.dp)
+        )
+        Text(text = text, color = Color.White, fontSize = 12.sp, maxLines = 1)
     }
 }
 
