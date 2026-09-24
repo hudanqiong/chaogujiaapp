@@ -75,10 +75,6 @@ private val TIME_AXIS_LINE = Color(0xFFBDBDBD)
 // 时间轴条带：浅灰底（非纯白）、高度
 private val TA_BG = Color(0xFFF5F5F5)
 private val MINUTE_BORDER = Color(0xFFDDDDDD)      // 分时画布淡灰边框
-private val AUCTION_BG = Color(0xFFF7F8FA)         // 集合竞价栏浅灰背景
-private val AUCTION_LINE = Color(0xFFE64A3B)       // 竞价走势线（占位）
-private val AUCTION_MATCHED = Color(0xFF5B8FF9)    // 竞价已匹配量
-private val AUCTION_UNMATCHED = Color(0xFFF6BD16)  // 竞价未匹配量
 private val TA_H = 22.dp
 // 缩放按钮：浅灰半透明圆底 + 黑色符号
 private val KBTN_BG = Color(0x66EEEEEE)
@@ -989,7 +985,8 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         price < preClose -> GREEN_TEXT
         else -> TEXT_MAIN
     }
-    val labelColor = if (isAsk) GREEN_TEXT else RED_UP
+    // 标签（买/卖）统一黑色；涨跌配色只体现在中间价格列
+    val labelColor = Color(0xFF111111)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1010,7 +1007,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
-            color = TEXT_MAIN, fontSize = ORDERBOOK_FONT,
+            color = Color(0xFF111111), fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
@@ -1150,20 +1147,20 @@ private fun MinutePriceCanvas(
             drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
         }
 
-        // 昨收基准线（灰虚线效果：实线灰）
+        // 昨收基准线：灰色虚线（贯穿画布）
         if (preClose > 0) {
             val yc = yOf(preClose)
-            drawLine(Color(0xFFCCCCCC), Offset(0f, yc), Offset(w, yc), strokeWidth = 1.5f)
+            val dash = 6f
+            val gap = 5f
+            var xd = 0f
+            while (xd < w) {
+                drawLine(Color(0xFFBBBBBB), Offset(xd, yc), Offset(min(xd + dash, w), yc), strokeWidth = 1.5f)
+                xd += dash + gap
+            }
         }
 
-        // 价格曲线颜色：相对昨收
-        val last = trends.last().price
-        val lineColor = when {
-            preClose <= 0 -> RED_UP
-            last > preClose -> RED_UP
-            last < preClose -> GREEN_TEXT
-            else -> GRAY_FLAT
-        }
+        // 价格曲线：统一黑色（涨跌都用黑色，涨跌信息由顶部数字/五档表达）
+        val priceColor = Color(0xFF111111)
 
         // 曲线路径
         val path = Path()
@@ -1173,21 +1170,8 @@ private fun MinutePriceCanvas(
             val y = yOf(t.price)
             if (!pathStarted) { path.moveTo(x, y); pathStarted = true } else path.lineTo(x, y)
         }
-        drawPath(path, lineColor, style = Stroke(width = 2.2f))
+        drawPath(path, priceColor, style = Stroke(width = 2.2f))
 
-        // 曲线下方淡色渐变填充
-        val fill = Path().apply {
-            moveTo(0f, h)
-            trends.forEach { t -> lineTo(xOf(t), yOf(t.price)) }
-            lineTo(xOf(trends.last()), h)
-            close()
-        }
-        drawPath(
-            fill,
-            Brush.verticalGradient(
-                listOf(lineColor.copy(alpha = 0.18f), lineColor.copy(alpha = 0.02f))
-            )
-        )
 
         // ===== 均价线（黄色，随累计均价）=====
         val avgPath = Path()
@@ -1294,37 +1278,30 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
  */
 @Composable
 private fun AuctionColumn(title: String, modifier: Modifier) {
-    // 灰底只覆盖「价图区」与「量图区」，中间的 TimeAxis 一行不填灰（(甲) 不贯穿时间轴）
+    // 无灰底；价区/量区各自画浅灰网格，中间 TimeAxis 一行不画（后续对接真实竞价数据）
     Column(
         modifier = modifier
             .fillMaxHeight()
             .padding(horizontal = 1.dp)
     ) {
-        // 走势线区（占 70%）：灰底
+        // 价区（占 70%）：无灰底，只画 2 横 x 4 竖 浅灰网格（后续对接真实竞价数据）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.7f)
-                .background(AUCTION_BG)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
-                // 网格 4x4
-                for (k in 1..4) {
-                    val y = h * k / 5f
+                // 横向 2 条（分成 3 行）
+                for (k in 1..2) {
+                    val y = h * k / 3f
                     drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
                 }
+                // 竖向 4 条（分成 5 列）
                 for (k in 1..4) {
                     val x = w * k / 5f
                     drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
-                }
-                // 走势线占位：水平虚线
-                val yc = h / 2f
-                var x = 0f
-                while (x < w) {
-                    drawLine(AUCTION_LINE, Offset(x, yc), Offset(min(x + 4f, w), yc), strokeWidth = 1.4f)
-                    x += 8f
                 }
                 // 边框
                 drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
@@ -1337,31 +1314,24 @@ private fun AuctionColumn(title: String, modifier: Modifier) {
         ) {
             Text(title, color = TEXT_SUB, fontSize = 8.sp, maxLines = 1)
         }
-        // 量区（占 30%）：灰底
+        // 量区（占 30%）：无灰底，只画 2 横 x 2 竖 浅灰网格（后续对接真实竞价数据）
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(0.3f)
-                .background(AUCTION_BG)
         ) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val w = size.width
                 val h = size.height
-                val n = 5
-                val bw = w / n
-                for (i in 0 until n) {
-                    val vh = h * (0.35f + 0.1f * ((i * 7) % 5))
-                    // 未匹配（黄）在左，已匹配（蓝）在右
-                    drawRect(
-                        color = AUCTION_UNMATCHED,
-                        topLeft = Offset(i * bw + 1f, h - vh),
-                        size = Size(bw * 0.35f, vh)
-                    )
-                    drawRect(
-                        color = AUCTION_MATCHED,
-                        topLeft = Offset(i * bw + bw * 0.4f, h - vh * 0.8f),
-                        size = Size(bw * 0.35f, vh * 0.8f)
-                    )
+                // 横向 2 条（分成 3 行）
+                for (k in 1..2) {
+                    val y = h * k / 3f
+                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+                }
+                // 竖向 2 条（分成 3 列）
+                for (k in 1..2) {
+                    val x = w * k / 3f
+                    drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
                 }
                 drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
             }
