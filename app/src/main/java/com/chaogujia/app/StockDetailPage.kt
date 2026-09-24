@@ -56,6 +56,7 @@ internal val RED_UP = Color(0xFFE64A3B)       // 涨：红
 internal val GREEN_DOWN = Color(0xFF306612)   // 跌：绿（图表柱体/影线/量柱，墨绿 #306612，同花顺实测）
 internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮绿）
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
+private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一黑色（全历史黑波浪）
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
 private val LINE_GRID = Color(0xFFEEEEEE)
@@ -1789,11 +1790,14 @@ private fun KLineCanvas(
         lastSlot = slot
         // 缩到很小时保证柱宽至少 1px，视觉上连成一条线（同花顺观感）
         val bw = max(slot * 0.92f, 1f)
+        // 缩到最小（每根K线不足约1.6px，红绿已无法分辨）时，柱子统一改为黑色，
+        // 使全历史数据整体看起来像一条黑色波浪线（同花顺观感）。
+        val tooNarrow = slot < 1.6f
 
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
-            val c = if (up) RED_UP else GREEN_DOWN
+            val c = if (tooNarrow) K_NARROW_COLOR else if (up) RED_UP else GREEN_DOWN
             val yHigh = yOf(k.high)
             val yLow = yOf(k.low)
             val yO = yOf(k.open)
@@ -1806,12 +1810,12 @@ private fun KLineCanvas(
             // 影线：只画上下两段，不穿过实体中心（同花顺观感）
             if (yHigh < yTop) drawLine(c, Offset(cx, yHigh), Offset(cx, yTop), strokeWidth = sw)
             if (yLow > yBot) drawLine(c, Offset(cx, yBot), Offset(cx, yLow), strokeWidth = sw)
-            // 实体：涨=空心（描边）、跌=实心（同花顺风格）
+            // 实体：涨=空心（描边）、跌=实心（同花顺风格）；缩到最小时统一实心黑色
             drawRect(
                 color = c,
                 topLeft = Offset(cx - bw / 2, yTop),
                 size = Size(bw, bh),
-                style = if (up) Stroke(width = barSw) else Fill
+                style = if (up && !tooNarrow) Stroke(width = barSw) else Fill
             )
         }
 
@@ -1854,16 +1858,18 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val n = line.size
         val slot = w / n
         val bw = max(slot * 0.92f, 1f)
+        // 缩到最小（每根K线不足约1.6px）时量柱统一改黑，和主图黑波浪保持一致。
+        val tooNarrow = slot < 1.6f
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
             val vh = (k.vol / maxV * h).toFloat()
-            // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致
+            // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致；缩到最小时统一实心黑色
             drawRect(
-                color = if (up) RED_UP else GREEN_DOWN,
+                color = if (tooNarrow) K_NARROW_COLOR else if (up) RED_UP else GREEN_DOWN,
                 topLeft = Offset(cx - bw / 2, h - vh),
                 size = Size(bw, vh),
-                style = if (up) Stroke(width = 3.0f) else Fill
+                style = if (up && !tooNarrow) Stroke(width = 3.0f) else Fill
             )
         }
         // ===== 选中竖线（与主图对齐） =====
