@@ -881,7 +881,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             .fillMaxWidth()
                             .weight(0.3f)
                     ) {
-                        MinuteVolumeCanvas(trends, showAuction)
+                        MinuteVolumeCanvas(trends, showAuction, preClose)
                     }
                 }
             }
@@ -1269,7 +1269,7 @@ private fun MinutePriceCanvas(
             val y = yOf(t.price)
             if (!pathStarted) { path.moveTo(x, y); pathStarted = true } else path.lineTo(x, y)
         }
-        drawPath(path, priceColor, style = Stroke(width = 2.2f))
+        drawPath(path, priceColor, style = Stroke(width = 3.0f))
 
 
         // ===== 均价线（黄色，随累计均价）=====
@@ -1319,7 +1319,7 @@ private fun MinutePriceCanvas(
 }
 
 @Composable
-private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean = false) {
+private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean = false, preClose: Double = 0.0) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
@@ -1373,8 +1373,14 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
         trends.forEach { t ->
             val vh = (t.vol / maxV * h).toFloat()
             val x = xMinute(t.min.coerceIn(0, 237).toFloat())
+            // 量柱红绿：该分钟价格 ≥ 昨收 → 红（涨），< 昨收 → 绿（跌），无昨收则中性灰
+            val barColor = when {
+                preClose <= 0.0 -> Color(0xFF9AA0A6)
+                t.price >= preClose -> RED_UP
+                else -> GREEN_DOWN
+            }
             drawRect(
-                color = Color(0xFF9AA0A6),
+                color = barColor,
                 topLeft = Offset(x, h - vh),
                 size = Size(max(bw - 0.6f, 0.6f), vh)
             )
@@ -1407,16 +1413,19 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
  */
 @Composable
 private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
-    // 刻度采用与 MinutePriceCanvas 完全一致的映射，保证刻度与曲线严格对齐：
-    //   开启竞价：09:15(min=-15)->0 / 09:30(0)->20% / 11:30·13:00(120) 按 237 分钟铺到 93.33% / 14:57(237)->93.33% / 15:00(240)->100%。
-    //   关闭竞价：09:30-15:00(240min) 等比铺满 [0,w]。
+    // 时间刻度锚点 = 分时价画布的"网格格位"（不是物理时间）：
+    //   开启竞价：中间正常分时区被两端竞价栏压缩到 [0.20w, 0.9333w]（73.33%），
+    //             其内部固定 4 格等分。三个时间标签跟随该压缩区网格移动：
+    //             09:30 -> 压缩区左端(0.20w) / 11:30 -> 压缩区中格(约 0.5667w) / 15:00 -> 右端(1.00w)。
+    //             另在早盘竞价栏左端补一个 "09:15"。
+    //   关闭竞价：09:30 / 11:30 / 15:00 按 240 分钟等比铺满 [0,w]。
+    //   数字加粗、在时间轴上垂居中。
     data class Tick(val label: String, val min: Float, val first: Boolean, val last: Boolean)
     val ticks = if (showAuction) {
         listOf(
-            Tick("09:15", -15f, true, false),
+            Tick("09:15", -15f, true, false),   // 早盘竞价栏左端
             Tick("09:30", 0f, false, false),
             Tick("11:30", 120f, false, false),
-            Tick("14:57", 237f, false, false),
             Tick("15:00", 240f, false, true)
         )
     } else {
@@ -1426,14 +1435,16 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
             Tick("15:00", 240f, false, true)
         )
     }
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    BoxWithConstraints(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.CenterStart
+    ) {
         val w = constraints.maxWidth.toFloat()
         fun xOf(min: Float): Float {
             return if (showAuction) {
                 when {
-                    min < 0f -> ((min + 15f) / 10f) * 0.20f * w                     // 早盘竞价 → [0,0.20w]
-                    min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w          // 09:30-14:57 (73.33%)
-                    else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w        // 14:57-15:00 (6.67%)
+                    min < 0f -> 0f                                               // 09:15 → 早盘竞价栏左端
+                    else -> 0.20f * w + (min / 240f) * 0.80f * w                 // 跟随中间压缩区网格（09:30=0.20w / 15:00=1.00w）
                 }
             } else {
                 (min.coerceIn(0f, 240f) / 240f) * w
@@ -1442,11 +1453,11 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
         val density = androidx.compose.ui.platform.LocalDensity.current
         ticks.forEach { tk ->
             val x = xOf(tk.min)
-            // 首个贴左，末个贴右，中间以刻度为中心
-            val halfLabelPx = with(density) { 22.dp.toPx() }
+            // 09:15 贴左；15:00 贴右；其余以刻度为水平中心
+            val halfLabelPx = with(density) { 24.dp.toPx() }
             val leftDp = with(density) {
                 when {
-                    tk.first -> 0f
+                    tk.min < 0f -> 0f
                     tk.last -> (w - halfLabelPx).coerceAtLeast(0f)
                     else -> (x - halfLabelPx / 2f).coerceIn(0f, (w - halfLabelPx).coerceAtLeast(0f))
                 }.toDp()
@@ -1455,6 +1466,7 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
                 tk.label,
                 color = TEXT_SUB,
                 fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 modifier = Modifier.offset(x = leftDp)
             )
