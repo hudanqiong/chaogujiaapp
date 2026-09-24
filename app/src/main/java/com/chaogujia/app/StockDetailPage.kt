@@ -813,13 +813,34 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
                 .weight(1f)
                 .fillMaxHeight()
         ) {
-            // 上部价格图（占 70%）
+            // 上部价格图（占 70%）：左=价格轴，中=画布，右=涨跌幅轴
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.7f)
             ) {
-                MinutePriceCanvas(trends, preClose)
+                val range = minuteRange(trends, preClose)
+                Row(modifier = Modifier.fillMaxSize()) {
+                    MinuteAxisLeft(
+                        maxP = range.first,
+                        minP = range.second,
+                        preClose = preClose,
+                        modifier = Modifier.width(44.dp).fillMaxHeight()
+                    )
+                    MinutePriceCanvas(
+                        trends = trends,
+                        preClose = preClose,
+                        maxP = range.first,
+                        minP = range.second,
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    )
+                    MinuteAxisRight(
+                        maxP = range.first,
+                        minP = range.second,
+                        preClose = preClose,
+                        modifier = Modifier.width(48.dp).fillMaxHeight()
+                    )
+                }
             }
             // 价图与量图之间的分段映射时间栏
             TimeAxis(showAuction, Modifier.height(TIME_BAR_HEIGHT))
@@ -1005,27 +1026,73 @@ private fun fmtVol(v: Double): String {
 }
 
 @Composable
-private fun MinutePriceCanvas(trends: List<DetailTrend>, preClose: Double) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
+/**
+ * 分时价格区间（严格 A）：上=当日最高价，下=当日最低价，必须包含昨收（0% 线落区内）。
+ * 仅留 2% 薄边，让最高/最低价贴近顶/底（贴近同花顺观感）。
+ */
+private fun minuteRange(trends: List<DetailTrend>, preClose: Double): Pair<Double, Double> {
+    if (trends.isEmpty()) {
+        val pc = if (preClose > 0) preClose else 1.0
+        return Pair(pc * 1.01, pc * 0.99)
+    }
+    var hi = trends.maxOf { it.price }
+    var lo = trends.minOf { it.price }
+    if (preClose > 0) {
+        hi = max(hi, preClose)
+        lo = min(lo, preClose)
+    }
+    if (hi - lo < 1e-6) {
+        hi += 0.01
+        lo -= 0.01
+    }
+    val pad = (hi - lo) * 0.02
+    return Pair(hi + pad, lo - pad)
+}
+
+/** 左侧价格轴：上=最高价，中=昨收，下=最低价 */
+@Composable
+private fun MinuteAxisLeft(maxP: Double, minP: Double, preClose: Double, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(start = 2.dp, end = 2.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.End
+    ) {
+        Text(fmtNum2(maxP), color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
+        Text(if (preClose > 0) fmtNum2(preClose) else "--", color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
+        Text(fmtNum2(minP), color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
+    }
+}
+
+/** 右侧涨跌幅轴：上=最高价对应%，中=0.00%，下=最低价对应%（涨红跌绿） */
+@Composable
+private fun MinuteAxisRight(maxP: Double, minP: Double, preClose: Double, modifier: Modifier = Modifier) {
+    val upPct = if (preClose > 0) (maxP - preClose) / preClose * 100 else 0.0
+    val dnPct = if (preClose > 0) (minP - preClose) / preClose * 100 else 0.0
+    fun colOf(v: Double) = when { v > 0.0001 -> RED_UP; v < -0.0001 -> GREEN_TEXT; else -> TEXT_SUB }
+    fun fmtPct(v: Double) = (if (v > 0) "+" else "") + String.format("%.2f", v) + "%"
+    Column(
+        modifier = modifier.padding(start = 2.dp, end = 2.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(fmtPct(upPct), color = colOf(upPct), fontSize = 10.sp, fontFamily = DSpNumFont)
+        Text("0.00%", color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont)
+        Text(fmtPct(dnPct), color = colOf(dnPct), fontSize = 10.sp, fontFamily = DSpNumFont)
+    }
+}
+
+private fun MinutePriceCanvas(
+    trends: List<DetailTrend>,
+    preClose: Double,
+    maxP: Double,
+    minP: Double,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         if (trends.size < 2) return@Canvas
 
-        // 价格范围（含昨收，保证基准线在中间）
-        var maxP = trends.maxOf { it.price }
-        var minP = trends.minOf { it.price }
-        if (preClose > 0) {
-            maxP = max(maxP, preClose)
-            minP = min(minP, preClose)
-        }
-        if (maxP - minP < 1e-6) {
-            maxP += 0.01
-            minP -= 0.01
-        }
-        // 上下各留 6% 空间
-        val range = maxP - minP
-        maxP += range * 0.06
-        minP -= range * 0.06
         val span = maxP - minP
 
         fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
