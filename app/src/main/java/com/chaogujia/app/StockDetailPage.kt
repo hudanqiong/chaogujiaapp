@@ -1861,18 +1861,16 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val n = line.size
         val slot = w / n
         val bw = max(slot * 0.92f, 1f)
-        // 缩放到最小（一屏约1400+根）时量柱统一改黑，和主图黑波浪保持一致。
-        val tooNarrow = n >= K_NARROW_VISIBLE
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
             val vh = (k.vol / maxV * h).toFloat()
             // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致；缩到最小时统一实心黑色
             drawRect(
-                color = if (tooNarrow) K_NARROW_COLOR else if (up) RED_UP else GREEN_DOWN,
+                color = if (up) RED_UP else GREEN_DOWN,
                 topLeft = Offset(cx - bw / 2, h - vh),
                 size = Size(bw, vh),
-                style = if (up && !tooNarrow) Stroke(width = 3.0f) else Fill
+                style = if (up) Stroke(width = 3.0f) else Fill
             )
         }
         // ===== 选中竖线（与主图对齐） =====
