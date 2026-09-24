@@ -2251,9 +2251,9 @@ private fun ChevronIcon(
 @Composable
 private fun MaSettingDialog(
     initial: List<Int>,
-    onDismiss: (,
+    onDismiss: () -> Unit,
     auction: Boolean = false,
-    onAuctionChange: (Boolean) -> Unit = {}) -> Unit,
+    onAuctionChange: (Boolean) -> Unit = {},
     onConfirm: (List<Int>) -> Unit
 ) {
     // 每行一个输入框：默认 4 个（沿用初始参数），可点“＋增加一条”追加
