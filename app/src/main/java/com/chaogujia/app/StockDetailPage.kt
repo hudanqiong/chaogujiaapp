@@ -1143,11 +1143,9 @@ private fun MinutePriceCanvas(
             val y = h * k / 5f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
-        // 竖网格：按真实时间每 30 分钟一条（10:00,10:30,11:00,11:30,13:00,13:30,14:00,14:30）
-        // min 为 0..240 的交易分钟（9:30 起算，午休不占位）；11:30=120 → 50% 正中
-        val segMinutes = listOf(30, 60, 90, 120, 150, 180, 210)
-        segMinutes.forEach { m ->
-            val x = (m.toFloat() / MIN_SPAN) * w
+        // 竖网格：4 条装饰竖线（4 等分，与 4 条横线共同构成 4x4 网格）
+        for (k in 1..4) {
+            val x = w * k / 5f
             drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
         }
 
