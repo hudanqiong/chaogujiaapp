@@ -3164,9 +3164,9 @@ private fun DetailBottomBar(
             else -> "自选"
         }
         val wIconRes = if (watched == true) R.drawable.ic_dbar_watch_on else R.drawable.ic_dbar_watch_off
-        BottomAction(wTxt, wIconRes, 15.dp, Modifier.weight(1f), onToggleWatch)
+        BottomAction(wTxt, wIconRes, 20.dp, Modifier.weight(1f), onToggleWatch)
         // 5) 功能
-        BottomAction("功能", R.drawable.ic_dbar_more, 30.dp, Modifier.weight(1f), onMore)
+        BottomAction("功能", R.drawable.ic_dbar_more, 20.dp, Modifier.weight(1f), onMore)
     }
     // 底部系统虚拟按键区（纯黑填充）
     Spacer(Modifier.height(navInset))
