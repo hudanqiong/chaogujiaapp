@@ -869,10 +869,18 @@ object Api {
             run {
                 val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
                 val thsCode = when (k) { "week" -> "11"; "month" -> "21"; else -> "01" }
-                val thsUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/last.js"
-                val rawThs = Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/")
-                val ths = parseThsKline(rawThs)
-                if (ths.isNotEmpty()) line = ths
+                // 优先取全历史（all.js 的 sortYear 逐年 {year}.js 拼接），失败回退 last.js 最近一段
+                val ths = if (k == "day" || k == "week" || k == "month") {
+                    parseThsKlineFull(pure, thsCode)
+                } else ArrayList<KLinePoint>()
+                if (ths.isNotEmpty()) {
+                    line = ths
+                } else {
+                    val thsUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/last.js"
+                    val rawThs = Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/")
+                    val thsLast = parseThsKline(rawThs)
+                    if (thsLast.isNotEmpty()) line = thsLast
+                }
                 // ===== 多源 fallback：同花顺拿不到数据时切东财 / 腾讯 / 新浪，保证 K 线稳定出数据 =====
                 if (line.isEmpty()) {
                     line = fetchKlineFallback(market, pure, k)
@@ -901,6 +909,60 @@ object Api {
      * @param pure   6 位纯代码
      * @param k      "day" / "week" / "month"
      */
+    /**
+     * 全历史取数：请求 all.js 拿 sortYear 年份清单 -> 逐年请求 {year}.js -> 拼接升序。
+     * 同花顺逐年接口偶发 502，单年最多重试 3 次；个别年份彻底失败不影响整体。
+     * 返回空表示整体失败（上层回退 last.js / 其它源）。
+     *
+     * @param pure    6 位纯代码，如 "000651"
+     * @param thsCode 同花顺周期码："01"日 / "11"周 / "21"月
+     */
+    private fun parseThsKlineFull(pure: String, thsCode: String): ArrayList<KLinePoint> {
+        return try {
+            val referer = "https://stockpage.10jqka.com.cn/"
+            val baseUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/"
+            // 1) all.js 取 sortYear: [[year,count],...]（偶发 502，重试 3 次）
+            var allRaw: String? = null
+            for (attempt in 0 until 3) {
+                allRaw = Net.getRaw(baseUrl + "all.js", referer = referer)
+                if (allRaw != null && allRaw.contains("(")) break
+            }
+            val raw0: String = allRaw ?: return ArrayList()
+            if (raw0.isEmpty()) return ArrayList()
+            val a = raw0.indexOf('(')
+            val b = raw0.lastIndexOf(')')
+            if (a < 0 || b <= a) return ArrayList()
+            val jo = JSONObject(raw0.substring(a + 1, b))
+            val sortYear = jo.optJSONArray("sortYear") ?: return ArrayList()
+            val years = ArrayList<Int>(sortYear.length())
+            for (i in 0 until sortYear.length()) {
+                val pair = sortYear.optJSONArray(i) ?: continue
+                val y = pair.optInt(0, 0)
+                if (y > 1900) years.add(y)
+            }
+            if (years.isEmpty()) return ArrayList()
+            // 2) 逐年请求 {year}.js，带重试
+            val all = LinkedHashMap<String, KLinePoint>()
+            for (y in years) {
+                var rows: ArrayList<KLinePoint>? = null
+                for (attempt in 0 until 3) {
+                    val rawY = Net.getRaw(baseUrl + y + ".js", referer = referer)
+                    val r = parseThsKline(rawY)
+                    if (r.isNotEmpty()) { rows = r; break }
+                }
+                if (rows != null) for (pt in rows) all[pt.date] = pt
+            }
+            if (all.isEmpty()) return ArrayList()
+            // 3) 去重 + 日期升序
+            val out = ArrayList(all.values).sortedWith(compareBy({ it.date }))
+            android.util.Log.i("Api", "K线(同花顺全历史) $pure/$thsCode 成功: ${out.size} 根, ${out.firstOrNull()?.date}~${out.lastOrNull()?.date}")
+            ArrayList(out)
+        } catch (e: Exception) {
+            android.util.Log.w("Api", "K线(同花顺全历史) 失败: ${e.message}")
+            ArrayList()
+        }
+    }
+
     /**
      * 解析同花顺 K线 JSONP：quotebridge_v6_line_hs_xxx_01_last({...})
      * data 为分号分隔，每条：日期,开,高,低,收,成交量(股),成交额(元),换手率(%),,,,,

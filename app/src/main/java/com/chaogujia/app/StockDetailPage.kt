@@ -13,7 +13,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -1935,21 +1938,42 @@ private fun SubIndicatorTag(text: String, modifier: Modifier = Modifier, onClick
 /**
  * 副图指标选择弹层：列出全部指标，点哪个换哪个。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @androidx.compose.runtime.Composable
 private fun SubIndicatorPicker(
     current: SubIndicator,
     onPick: (SubIndicator) -> Unit,
     onDismiss: () -> Unit
 ) {
-    androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFD9D9D9))
+                )
+            }
+        }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.White)
-                .padding(vertical = 8.dp)
+                .padding(bottom = 16.dp)
         ) {
             Text(
-                text = "指标切换",
+                text = "分时指标",
                 color = TEXT_MAIN,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
