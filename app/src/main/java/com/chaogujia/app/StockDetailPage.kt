@@ -64,6 +64,8 @@ private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
 private val LINE_GRID = Color(0xFFEEEEEE)
 private val LINE_AXIS = Color(0xFFF0F0F0)
+// 时间轴「尺子」线条/刻度颜色（比普通网格略深，保证看得清）
+private val TIME_AXIS_LINE = Color(0xFFBDBDBD)
 // 均线图例“均线”按钮：浅灰底/近白，极淡
 private val MA_BTN_BG = Color(0xFFEDEDED)
 private val MA_BTN_FG = Color(0xFF9E9E9E)
@@ -1778,6 +1780,7 @@ private fun KLineChart(
             // ===== 底部时间轴「尺子」刻度：左侧固定年月日 + 右侧可滑动 MM-DD =====
             KLineTimeAxis(
                 show = show,
+                globalStart = start,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
@@ -1818,12 +1821,6 @@ private fun KLineChart(
                     rightIndex = nr
                     selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
                 }
-                Spacer(Modifier.weight(1f))
-                Text(
-                    selIdx?.takeIf { it in line.indices }?.let { line[it].date } ?: show.last().date,
-                    color = if (selIdx != null) Color(Config.COLOR_PRIMARY) else TEXT_SUB,
-                    fontSize = 10.sp
-                )
             }
         }
         // ===== 副图1（默认成交量；点标签框弹层选 / 点空白循环切下一个）=====
@@ -2152,90 +2149,118 @@ private fun KLineCanvas(
 /**
  * 底部时间轴「尺子」：
  *  - 左侧固定区：显示当前窗口最左柱子的完整年月日（如 2025-07-30），不随滑动位移；
- *  - 右侧滑动区：在可见区内均匀取 4 个刻度，显示 MM-DD 且让刻度落在对应柱子正中间；
- *  - 滑动内容滑进左侧固定区时被不透明底 + 渐隐遮罩盖住，形成「从固定内容处逐渐隐藏」的效果。
+ *  - 右侧滑动区：刻度绑定在具体柱子上（按全局索引对齐），滑动时随柱子一起移动；
+ *    每个小刻度对应 1 根柱子；每 LABEL_EVERY 根柱子一个「带日期」的长刻度，显示 MM-DD；
+ *    无日期的刻度短、有日期的刻度长，刻度统一加粗；
+ *  - 上方一条横线作为尺子框架；滑动内容进入左侧固定区即被遮住并渐隐。
  */
 @Composable
 private fun KLineTimeAxis(
     show: List<KLinePoint>,
+    globalStart: Int,
     modifier: Modifier = Modifier
 ) {
     val n = show.size
     if (n <= 0) return
-    // 固定区宽度（与底部按钮行左侧预留的 72.dp 对齐）
-    val fixedW = 74.dp
+    // 左侧固定区宽度（与底部按钮行左侧预留对齐）
+    val fixedW = 78.dp
+    // 每几根柱子打一个刻度 / 每几根柱子显示一次日期
+    val tickEvery = 2
+    val labelEvery = 10
 
-    Box(modifier = modifier.height(16.dp)) {
-        // ===== 右侧滑动区：用 BoxWithConstraints 拿到实际宽度，按柱子中心均匀放 4 个刻度 =====
+    Box(modifier = modifier.height(20.dp)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalW = maxWidth
-            val slot = totalW / n  // 每根柱子占宽（与主图同口径：w / show.size）
-            // 可见区内均匀取 4 个刻度下标（含首尾的中间值分布）
-            val tickIdx = (0 until 4).map { k ->
-                ((k + 0.5f) * n / 4f).toInt().coerceIn(0, n - 1)
-            }.distinct()
-            tickIdx.forEach { i ->
-                // 刻度落在该柱子正中间：x = i * slot + slot / 2
-                val cx = slot * i + slot / 2
-                Box(
-                    modifier = Modifier
-                        .offset(x = cx - 20.dp, y = 0.dp)
-                        .width(40.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
+            val slot = totalW / n  // 每根柱子的宽度（与主图同口径 w / show.size）
+
+            // 尺子横线（框架）
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(TIME_AXIS_LINE)
+            )
+
+            // 遍历「全局索引」上所有刻度柱：每 tickEvery 根打一个刻度，
+            // 这样滑动时 globalStart 变化 → cx 同步左移，刻度随柱子移动。
+            val gStart = globalStart
+            val gEnd = globalStart + n - 1
+            var g = ((gStart + tickEvery - 1) / tickEvery) * tickEvery  // 首个 >= gStart 的 tickEvery 倍数
+            while (g <= gEnd) {
+                val local = g - gStart
+                if (local in 0 until n) {
+                    val cx = slot * local + slot / 2          // 该柱中心
+                    val hasLabel = (g % labelEvery == 0)      // 每 labelEvery 根显示日期
+                    val tickH = if (hasLabel) 8.dp else 4.dp  // 有日期长、无日期短
+                    Box(
+                        modifier = Modifier
+                            .offset(x = cx - 24.dp, y = 0.dp)
+                            .width(48.dp)
                     ) {
-                        // 刻度小竖线
-                        Box(
-                            modifier = Modifier
-                                .width(1.dp)
-                                .height(3.dp)
-                                .background(LINE_AXIS)
-                        )
-                        Spacer(Modifier.height(1.dp))
-                        Text(
-                            text = show[i].date.substring(5),  // MM-DD（年月日用减号隔开）
-                            color = TEXT_SUB,
-                            fontSize = 9.sp,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            // 刻度竖线：从尺子横线往下伸
+                            Box(
+                                modifier = Modifier
+                                    .width(2.dp)
+                                    .height(tickH)
+                                    .background(TIME_AXIS_LINE)
+                            )
+                            if (hasLabel) {
+                                Spacer(Modifier.height(1.dp))
+                                Text(
+                                    text = show[local].date.substring(5),  // MM-DD
+                                    color = TEXT_SUB,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
                     }
                 }
+                g += tickEvery
             }
         }
 
-        // ===== 左侧固定区：不透明底 + 右侧渐隐，盖住滑入的刻度 =====
+        // ===== 左侧固定区：显示窗口最左柱子年月日，不随滑动位移 =====
         Row(
             modifier = Modifier
-                .align(Alignment.CenterStart)
+                .align(Alignment.TopStart)
                 .fillMaxHeight()
                 .width(fixedW)
                 .background(Color.White),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Box(
-                modifier = Modifier
-                    .width(2.dp)
-                    .height(6.dp)
-                    .background(LINE_AXIS)
-            )
-            Spacer(Modifier.width(3.dp))
+            Column(
+                modifier = Modifier.padding(top = 5.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .height(8.dp)
+                        .background(TIME_AXIS_LINE)
+                )
+            }
+            Spacer(Modifier.width(4.dp))
             Text(
-                text = show.first().date,  // 固定年份年月日：取屏幕最左那根柱子
+                text = show.first().date,   // 固定年月日：屏幕最左那根柱子
                 color = TEXT_SUB,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 maxLines = 1,
-                softWrap = false
+                softWrap = false,
+                modifier = Modifier.padding(top = 7.dp)
             )
         }
-        // 固定区右边缘的渐隐过渡，让滑动内容「逐渐隐藏」
+        // 固定区右缘渐隐，让滑入内容「逐渐隐藏」
         Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
+                .align(Alignment.TopStart)
                 .offset(x = fixedW)
-                .width(10.dp)
+                .width(12.dp)
                 .fillMaxHeight()
                 .background(
                     Brush.horizontalGradient(
