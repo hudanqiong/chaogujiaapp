@@ -30,6 +30,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -67,6 +69,12 @@ private val LINE_GRID = Color(0xFFEEEEEE)
 private val LINE_AXIS = Color(0xFFF0F0F0)
 // 时间轴「尺子」线条/刻度颜色（比普通网格略深，保证看得清）
 private val TIME_AXIS_LINE = Color(0xFFBDBDBD)
+// 时间轴条带：浅灰底（非纯白）、高度
+private val TA_BG = Color(0xFFF5F5F5)
+private val TA_H = 22.dp
+// 缩放按钮：浅灰半透明圆底 + 黑色符号
+private val KBTN_BG = Color(0x66EEEEEE)
+private val KBTN_FG = Color(0xFF222222)
 // 均线图例“均线”按钮：浅灰底/近白，极淡
 private val MA_BTN_BG = Color(0xFFEDEDED)
 private val MA_BTN_FG = Color(0xFF9E9E9E)
@@ -1751,8 +1759,8 @@ private fun KLineChart(
                     val ni = (rightIndex - moved).coerceIn(lo, line.lastIndex)
                     rightIndex = ni
                 },
-                // 底部留出叠层按钮行的高度，避免蜡烛图被半透明条压住；右侧让出筹码峰宽度
-                modifier = Modifier.fillMaxSize().padding(bottom = 26.dp, end = chipW)
+                // 底部留出时间轴条带高度（绘图不越界到分割线下边）；右侧让出筹码峰宽度
+                modifier = Modifier.fillMaxSize().padding(bottom = TA_H, end = chipW)
             )
             PriceAxis(
                 maxV = show.maxOf { it.high },
@@ -1762,7 +1770,7 @@ private fun KLineChart(
                     .align(Alignment.TopEnd)
                     .wrapContentWidth()
                     .fillMaxHeight()
-                    .padding(top = 2.dp, end = chipW)
+                    .padding(top = 2.dp, end = chipW, bottom = TA_H)
             )
             // ===== 右侧纵向筹码峰（方案A：与K线同高、同价格轴 → 联动缩放）=====
             if (showChip && chip != null) {
@@ -1775,53 +1783,75 @@ private fun KLineChart(
                         .align(Alignment.TopEnd)
                         .width(72.dp)
                         .fillMaxHeight()
-                        .padding(bottom = 26.dp)
+                        .padding(bottom = TA_H)
                 )
             }
-            // ===== 底部时间轴「尺子」刻度：左侧固定年月日 + 右侧可滑动 MM-DD =====
+            // ===== 底部时间轴条带：宽度随K线区收缩（右侧让出 chipW）=====
             KLineTimeAxis(
                 show = show,
                 globalStart = start,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .padding(bottom = 22.dp)
-                    .padding(horizontal = 4.dp)
+                    .padding(end = chipW, start = 2.dp)
             )
             // ===== 缩放 / 平移圆形按钮：浮在主图（分时/K线主图）底部 =====
+            // 6 个按钮：仅展示(尖朝左) / ＋ / − / 左移(尖朝左) / 右移(尖朝右) / 仅展示(双尖角 45°)
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(end = 2.dp, bottom = 4.dp)
-                    .padding(horizontal = 4.dp),
+                    .padding(start = 2.dp, end = chipW, bottom = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(Modifier.width(72.dp))
-                Spacer(Modifier.weight(1f))
-                KLineButton(text = "−") {
-                    visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
-                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
-                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
-                    rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                }
+                // 1) 最左：手绘尖角，尖朝左 —— 仅展示
+                KLineButton(
+                    text = "",
+                    onClick = {},
+                    content = { ChevronIcon(tipLeft = true, size = 30.dp) }
+                )
+                // 2) ＋ 放大
                 KLineButton(text = "＋") {
                     visible = (visible / K_BTN_ZOOM_STEP).toInt()
                         .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
                         .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
                     rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
                 }
-                KLineButton(text = "＜") {
-                    val nr = (rightIndex - 1).coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                    rightIndex = nr
-                    // 若已选中，跟随移动选中框
-                    selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
+                // 3) − 缩小
+                KLineButton(text = "−") {
+                    visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
+                        .coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE)
+                        .coerceAtMost(line.size.coerceAtLeast(K_MIN_VISIBLE))
+                    rightIndex = rightIndex.coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
                 }
-                KLineButton(text = "＞") {
-                    val nr = (rightIndex + 1).coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
-                    rightIndex = nr
-                    selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
-                }
+                // 4) 左移一格：尖朝左
+                KLineButton(
+                    text = "",
+                    onClick = {
+                        val nr = (rightIndex - 1).coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
+                        rightIndex = nr
+                        // 若已选中，跟随移动选中框
+                        selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
+                    },
+                    content = { ChevronIcon(tipLeft = true, size = 30.dp) }
+                )
+                // 5) 右移一格：尖朝右
+                KLineButton(
+                    text = "",
+                    onClick = {
+                        val nr = (rightIndex + 1).coerceIn((visible - 1).coerceAtMost(line.lastIndex), line.lastIndex)
+                        rightIndex = nr
+                        selIdx?.let { onSelect(it.coerceIn(startOf(nr, visible, line.size), nr)) }
+                    },
+                    content = { ChevronIcon(tipLeft = false, size = 30.dp) }
+                )
+                // 6) 最右：全屏 —— 双尖角背靠背 + 中间留缝 + 整体顺时针 45°，仅展示
+                KLineButton(
+                    text = "",
+                    onClick = {},
+                    content = { ChevronIcon(tipLeft = false, size = 30.dp, double = true, rotate45 = true) }
+                )
             }
         }
         // ===== 副图1（默认成交量；点标签框弹层选 / 点空白循环切下一个）=====
@@ -1894,7 +1924,11 @@ private fun KLineChart(
  * 短按 = 执行 1 档；长按 = 每 70ms 连续执行。
  */
 @Composable
-private fun KLineButton(text: String, onClick: () -> Unit) {
+private fun KLineButton(
+    text: String,
+    onClick: () -> Unit,
+    content: (@Composable () -> Unit)? = null
+) {
     val scope = rememberCoroutineScope()
     // 用 rememberUpdatedState 保证 pointerInput 内始终调用最新 lambda（避免闭包捕获旧状态）
     val curOnClick by rememberUpdatedState(onClick)
@@ -1902,8 +1936,8 @@ private fun KLineButton(text: String, onClick: () -> Unit) {
         modifier = Modifier
             .padding(horizontal = 4.dp)
             .size(30.dp)
-            // 圆形灰底半透明：0x66111111 ≈ 40% 深灰
-            .background(Color(0x66111111), shape = CircleShape)
+            // 圆形浅灰半透明底（不压过行情线）
+            .background(Color(KBTN_BG), shape = CircleShape)
             .pointerInput(text) {
                 detectTapGestures(
                     onPress = {
@@ -1923,7 +1957,84 @@ private fun KLineButton(text: String, onClick: () -> Unit) {
             },
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        if (content != null) {
+            content()
+        } else {
+            Text(text, color = Color(KBTN_FG), fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+/**
+ * 手绘尖角图标（同花顺风格）。
+ *
+ * 用两条互相垂直的线段画出 90° 折线（V 形），整体构成尖角：
+ *  - tipLeft  = true  → 尖朝左  ＜
+ *  - tipLeft  = false → 尖朝右  ＞
+ *  - double   = true  → 双尖角背靠背（中间留缝）：❮❯
+ *  - rotate45 = true  → 整体顺时针旋转 45°（配合 double 得到「斜着的双箭头」）
+ *
+ * @param size     图标外框尺寸（应与按钮圆底一致，内部按比例留边距）
+ * @param strokeW  线条粗细
+ */
+@Composable
+private fun ChevronIcon(
+    tipLeft: Boolean,
+    size: androidx.compose.ui.unit.Dp,
+    double: Boolean = false,
+    rotate45: Boolean = false,
+    strokeW: androidx.compose.ui.unit.Dp = 2.dp
+) {
+    // 符号色 = KBTN_FG
+    val color = Color(KBTN_FG)
+    Canvas(modifier = Modifier.size(size)) {
+        val w = size.width.toPx()
+        val h = size.height.toPx()
+        val sw = strokeW.toPx()
+        // 撑满圆约 65%，留边距不溢出
+        val armW = w * 0.32f   // 单尖角：水平方向半臂长
+        val armH = h * 0.32f   // 单尖角：垂直方向半臂长
+        val gap  = w * 0.10f   // 双尖角：中间缝隙
+
+        // 画一个 90° 折线尖角（顶点 tipX, 中线 cy）
+        fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
+            val tipX: Float
+            val backX: Float
+            if (tipLeftLocal) {
+                tipX = cx - armW
+                backX = cx + armW
+            } else {
+                tipX = cx + armW
+                backX = cx - armW
+            }
+            val top = Offset(backX, cy - armH)
+            val mid = Offset(tipX, cy)
+            val bot = Offset(backX, cy + armH)
+            val path = Path().apply {
+                moveTo(top.x, top.y)
+                lineTo(mid.x, mid.y)
+                lineTo(bot.x, bot.y)
+            }
+            drawPath(path, color = color, style = Stroke(width = sw, cap = StrokeCap.Round))
+        }
+
+        val cx = w / 2f
+        val cy = h / 2f
+        if (double) {
+            // 双尖角背靠背：左尖朝左、右尖朝右、中间留缝
+            // 整体顺时针旋转 45°（rotate45）得到「斜着的双箭头」
+            val drawBoth: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
+                chevron(cx = cx - gap, cy = cy, tipLeftLocal = true)
+                chevron(cx = cx + gap, cy = cy, tipLeftLocal = false)
+            }
+            if (rotate45) {
+                rotate(degrees = 45f, pivot = Offset(cx, cy)) { drawBoth() }
+            } else {
+                drawBoth()
+            }
+        } else {
+            chevron(cx = cx, cy = cy, tipLeftLocal = tipLeft)
+        }
     }
 }
 
@@ -2195,7 +2306,22 @@ private fun KLineTimeAxis(
     // 目标让屏幕（除左侧固定区外）恒定约 4 个日期标签；缩小时自动加大间隔、放大时自动缩小，
     // 并做兜底保证任何缩放级别都至少命中 1 个标签（不会消失）。
 
-    Box(modifier = modifier.height(20.dp)) {
+    Box(modifier = modifier.height(TA_H).background(TA_BG)) {
+        // 上、下分割线：把时间轴框成一条独立条带
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(TIME_AXIS_LINE)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(TIME_AXIS_LINE)
+        )
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalW = maxWidth
             val slot = totalW / n  // 每根柱子的宽度（与主图同口径 w / show.size）
@@ -2218,14 +2344,6 @@ private fun KLineTimeAxis(
             var tickEvery = kotlin.math.ceil((tickMinPx / slotPx).toDouble()).toInt()
             tickEvery = tickEvery.coerceIn(1, if (n < 1) 1 else n)
 
-            // 尺子横线（框架）
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(TIME_AXIS_LINE)
-            )
-
             // 遍历「全局索引」：刻度线每 tickEvery 根一条；日期标签每 labelEvery 根一次。
             // 两者都绑定全局索引 → 滑动时随柱子移动（右滑新标签从右进、旧标签从右出）。
             val gStart = globalStart
@@ -2239,9 +2357,9 @@ private fun KLineTimeAxis(
                     val cx = slot * local + slot / 2
                     Box(
                         modifier = Modifier
-                            .offset(x = cx - 1.dp, y = 0.dp)
+                            .offset(x = cx - 1.dp, y = 1.dp)
                             .width(1.dp)
-                            .height(4.dp)
+                            .height(6.dp)
                             .background(TIME_AXIS_LINE)
                     )
                 }
@@ -2262,25 +2380,27 @@ private fun KLineTimeAxis(
                     val cx = slot * local + slot / 2
                     Box(
                         modifier = Modifier
-                            .offset(x = cx - 24.dp, y = 0.dp)
+                            .offset(x = cx - 24.dp, y = 1.dp)
                             .width(48.dp)
+                            .height(TA_H - 2.dp),
+                        contentAlignment = Alignment.TopCenter
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // 长刻度竖线
+                            // 长刻度竖线：从上分割线往下伸
                             Box(
                                 modifier = Modifier
                                     .width(1.dp)
-                                    .height(8.dp)
+                                    .height(7.dp)
                                     .background(TIME_AXIS_LINE)
                             )
                             Spacer(Modifier.height(1.dp))
                             Text(
                                 text = mdOf(show[local].date),  // MM-DD（兼容多种原始格式）
                                 color = TEXT_SUB,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -2291,46 +2411,48 @@ private fun KLineTimeAxis(
             }
         }
 
-        // ===== 左侧固定区：显示窗口最左柱子年月日，不随滑动位移 =====
+        // ===== 左侧固定区：不透明浅灰遮罩（盖竖线+文字，上下各留1dp让分割线可见） =====
         Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .padding(top = 1.dp, bottom = 1.dp)
                 .fillMaxHeight()
                 .width(fixedW)
-                .background(Color.White),
-            verticalAlignment = Alignment.Top
+                .background(TA_BG),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Spacer(Modifier.width(4.dp))
             Column(
-                modifier = Modifier.padding(top = 5.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // 固定区长刻度：从上分割线往下（与滑区视觉一致）
                 Box(
                     modifier = Modifier
                         .width(2.dp)
-                        .height(8.dp)
+                        .height(7.dp)
                         .background(TIME_AXIS_LINE)
                 )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = normDate(show.first().date),   // 固定年月日：屏幕最左那根柱子（归一化为带横线）
+                    color = TEXT_SUB,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = normDate(show.first().date),   // 固定年月日：屏幕最左那根柱子（归一化为带横线）
-                color = TEXT_SUB,
-                fontSize = 12.sp,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.padding(top = 7.dp)
-            )
         }
-        // 固定区右缘渐隐，让滑入内容「逐渐隐藏」
+        // 固定区右缘渐隐（浅灰->透明），让滑入内容「逐渐隐藏」
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .padding(top = 1.dp, bottom = 1.dp)
                 .offset(x = fixedW)
                 .width(12.dp)
                 .fillMaxHeight()
                 .background(
                     Brush.horizontalGradient(
-                        listOf(Color.White, Color.White.copy(alpha = 0f))
+                        listOf(TA_BG, TA_BG.copy(alpha = 0f))
                     )
                 )
         )
