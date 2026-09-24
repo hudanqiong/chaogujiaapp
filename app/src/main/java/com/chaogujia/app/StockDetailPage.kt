@@ -2057,19 +2057,19 @@ private fun ChevronIcon(
         val armH = h * scale * 0.5f   // 垂直半臂长（= armW → 保证 90°）
         val gap  = w * 0.06f * gapMult // 双尖角：中间缝隙（gapMult 调大可分开两条线）
 
-        // 画一个 90° 直角折线：两条线在「正中」交汇成直角，交汇点(拐点)固定在 (cx,cy)。
-        // 朝左(tipLeftLocal=true)：两臂伸向右上/右下，整体逆时针转 45° → 拐点朝左
-        // 朝右(tipLeftLocal=false)：两臂伸向左上/左下，整体顺时针转 45° → 拐点朝右
+        // 画一个 90° 直角折线：基准 = 拐点在角落的正直角（一竖一横），整体绕 (cx,cy) 旋转。
+        // 朝左(tipLeftLocal=true)：绕 (cx,cy) 逆时针 -45°；朝右(tipLeftLocal=false)：顺时针 +45°。
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            val farX = if (tipLeftLocal) cx + armW else cx - armW  // 两臂远端的 x（朝向内侧展开）
+            // 严格按确认图算法：基准是「一横一竖的正 90° 直角」，拐点在角落，
+            // 三个顶点为 竖臂两端 + 横臂外端；再整体绕 (cx,cy) 旋转。
+            val ax = if (tipLeftLocal) cx - armW else cx + armW  // 竖臂的 x（拐点在那一侧）
+            val bx = if (tipLeftLocal) cx + armW else cx - armW  // 横臂的外端 x
             val topY = cy - armH
             val botY = cy + armH
-            // 拐点在角上的直角折线（左上/右上），随后整体旋转让拐点斜到中间
             val path = Path().apply {
-                moveTo(cx, cy)
-                lineTo(farX, topY)
-                moveTo(cx, cy)
-                lineTo(farX, botY)
+                moveTo(ax, botY)   // 竖臂下端
+                lineTo(ax, topY)   // 拐点(角)
+                lineTo(bx, topY)   // 横臂外端
             }
             val deg = if (tipLeftLocal) -45f else 45f
             rotate(degrees = deg, pivot = Offset(cx, cy)) {
@@ -2085,19 +2085,12 @@ private fun ChevronIcon(
             chevron(cx = cx - tx, cy = cy, tipLeftLocal = true)
             chevron(cx = cx + tx, cy = cy, tipLeftLocal = true)
         } else if (double) {
-            // 双折线：左折线朝左(-45)、右折线朝右(+45)背离张开，
-            // 随后两者作为整体再绕中心顺时针转 45°。
+            // 双折线背离：左折线朝左(-45) + 右折线朝右(+45)。
+            // chevron() 内部已各自旋转，这里只负责并排摆放，不再做整体旋转。
             val leftCx = cx - gap
             val rightCx = cx + gap
-            val drawBoth: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
-                chevron(cx = leftCx, cy = cy, tipLeftLocal = true)
-                chevron(cx = rightCx, cy = cy, tipLeftLocal = false)
-            }
-            if (rotate45) {
-                rotate(degrees = 45f, pivot = Offset(cx, cy)) { drawBoth() }
-            } else {
-                drawBoth()
-            }
+            chevron(cx = leftCx, cy = cy, tipLeftLocal = true)
+            chevron(cx = rightCx, cy = cy, tipLeftLocal = false)
         } else {
             chevron(cx = cx, cy = cy, tipLeftLocal = tipLeft)
         }

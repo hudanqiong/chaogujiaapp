@@ -257,17 +257,17 @@ private fun PreviewChevron(
         val gap = w * 0.06f
 
         fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            // 90° 直角折线: 拐点(交汇点)在正中，整体旋转 -45°(朝左)/+45°(朝右)
-            val farX = if (tipLeftLocal) cx + armW else cx - armW
+            // 照抄 d15_final.py：基准 = 拐点在角落的正 90° 直角（一竖一横），整体绕 (cx,cy) 旋转
             val topY = cy - armH
             val botY = cy + armH
+            val ax = if (tipLeftLocal) cx - armW else cx + armW   // 拐点所在 x
+            val bx = if (tipLeftLocal) cx + armW else cx - armW   // 横臂另一端 x
             val deg = if (tipLeftLocal) -45f else 45f
             rotate(deg, Offset(cx, cy)) {
                 val path = Path().apply {
-                    moveTo(cx, cy)
-                    lineTo(farX, topY)
-                    moveTo(cx, cy)
-                    lineTo(farX, botY)
+                    moveTo(ax, botY)
+                    lineTo(ax, topY)
+                    lineTo(bx, topY)
                 }
                 drawPath(path, color = tint, style = DrawStroke(width = sw, cap = DrawStrokeCap.Round))
             }
@@ -279,9 +279,8 @@ private fun PreviewChevron(
             val both: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
                 chevron(lx, cy, true); chevron(rx, cy, false)
             }
-            if (rot45) {
-                rotate(45f, Offset(cx, cy)) { both() }
-            } else both()
+            // 去掉外层叠加旋转：chevron 已自带 -45/+45
+            both()
         } else chevron(cx, cy, tpLeft)
     }
 }
