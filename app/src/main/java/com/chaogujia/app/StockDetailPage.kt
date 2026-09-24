@@ -1386,6 +1386,259 @@ private fun computeMACD(line: List<KLinePoint>): MacdResult {
     return MacdResult(dif, dea, macd)
 }
 
+
+// ============================================================
+// 副图指标算法（全部基于「全量」line，递归/平滑与历史一致；绘制时再切片）
+// ============================================================
+
+/** 简单移动平均（对任意 DoubleArray 窗口），返回等长数组，不足周期为 NaN。 */
+private fun smaOf(src: DoubleArray, period: Int): DoubleArray {
+    val out = DoubleArray(src.size) { Double.NaN }
+    if (period <= 0 || src.isEmpty()) return out
+    var sum = 0.0
+    for (i in src.indices) {
+        sum += src[i]
+        if (i >= period) sum -= src[i - period]
+        if (i >= period - 1) out[i] = sum / period
+    }
+    return out
+}
+
+/** 滑动窗口标准差（总体），不足周期为 NaN。 */
+private fun stdOf(src: DoubleArray, period: Int): DoubleArray {
+    val out = DoubleArray(src.size) { Double.NaN }
+    if (period <= 0 || src.isEmpty()) return out
+    val ma = smaOf(src, period)
+    for (i in src.indices) {
+        if (ma[i].isNaN()) continue
+        var acc = 0.0
+        for (j in i - period + 1..i) {
+            val d = src[j] - ma[i]
+            acc += d * d
+        }
+        out[i] = kotlin.math.sqrt(acc / period)
+    }
+    return out
+}
+
+/** 更高周期 EMA 的“前置值”：同花顺口径 SMA 用；此处直接用 ema 递归。 */
+private fun emaOf(src: DoubleArray, n: Int): DoubleArray = ema(src, n)
+
+/** KDJ(9,3,3)：返回 K/D/J 三条，等长，不足周期为 NaN。 */
+private class KdjResult(val k: DoubleArray, val d: DoubleArray, val j: DoubleArray)
+
+private fun computeKDJ(line: List<KLinePoint>, n: Int = 9, m1: Int = 3, m2: Int = 3): KdjResult {
+    val sz = line.size
+    val K = DoubleArray(sz) { Double.NaN }
+    val D = DoubleArray(sz) { Double.NaN }
+    val J = DoubleArray(sz) { Double.NaN }
+    if (sz == 0) return KdjResult(K, D, J)
+    var prevK = 50.0
+    var prevD = 50.0
+    for (i in 0 until sz) {
+        val lo = (i - (n - 1)).coerceAtLeast(0)
+        var hh = Double.NEGATIVE_INFINITY
+        var ll = Double.POSITIVE_INFINITY
+        for (j in lo..i) {
+            if (line[j].high > hh) hh = line[j].high
+            if (line[j].low < ll) ll = line[j].low
+        }
+        val rsv = if (hh - ll < 1e-12) 50.0 else (line[i].close - ll) / (hh - ll) * 100.0
+        // 同花顺：K = (2/3)*prevK + (1/3)*RSV；D = (2/3)*prevD + (1/3)*K；J = 3K - 2D
+        val kk = (2.0 / 3.0) * prevK + (1.0 / 3.0) * rsv
+        val dd = (2.0 / 3.0) * prevD + (1.0 / 3.0) * kk
+        prevK = kk
+        prevD = dd
+        K[i] = kk
+        D[i] = dd
+        J[i] = 3 * kk - 2 * dd
+    }
+    return KdjResult(K, D, J)
+}
+
+/** RSI(6,12,24)：经典 Wilder 口径的简化（用简单涨跌幅均值），返回三条。 */
+private class RsiResult(val r6: DoubleArray, val r12: DoubleArray, val r24: DoubleArray)
+
+private fun rsiOf(close: DoubleArray, period: Int): DoubleArray {
+    val sz = close.size
+    val out = DoubleArray(sz) { Double.NaN }
+    if (period <= 0 || sz == 0) return out
+    var upSum = 0.0
+    var dnSum = 0.0
+    for (i in 1 until sz) {
+        val chg = close[i] - close[i - 1]
+        val up = if (chg > 0) chg else 0.0
+        val dn = if (chg < 0) -chg else 0.0
+        upSum += up
+        dnSum += dn
+        if (i > period) {
+            val old = close[i - period] - close[i - period - 1]
+            upSum -= if (old > 0) old else 0.0
+            dnSum -= if (old < 0) -old else 0.0
+        }
+        if (i >= period) {
+            out[i] = if (upSum + dnSum < 1e-12) 50.0 else upSum / (upSum + dnSum) * 100.0
+        }
+    }
+    return out
+}
+
+private fun computeRSI(line: List<KLinePoint>): RsiResult {
+    val c = DoubleArray(line.size) { line[it].close }
+    return RsiResult(rsiOf(c, 6), rsiOf(c, 12), rsiOf(c, 24))
+}
+
+/** WR(14)：威廉指标，0~100，数值=超买小/超卖大（同花顺口径取负号归一）。 */
+private fun computeWR(line: List<KLinePoint>, n: Int = 14): DoubleArray {
+    val sz = line.size
+    val out = DoubleArray(sz) { Double.NaN }
+    for (i in 0 until sz) {
+        val lo = (i - (n - 1)).coerceAtLeast(0)
+        var hh = Double.NEGATIVE_INFINITY
+        var ll = Double.POSITIVE_INFINITY
+        for (j in lo..i) {
+            if (line[j].high > hh) hh = line[j].high
+            if (line[j].low < ll) ll = line[j].low
+        }
+        if (i >= n - 1) {
+            out[i] = if (hh - ll < 1e-12) 0.0 else (hh - line[i].close) / (hh - ll) * 100.0
+        }
+    }
+    return out
+}
+
+/** CCI(14)：典型价 TP，CCI = (TP-MA(TP)) / (0.015*MD)。 */
+private fun computeCCI(line: List<KLinePoint>, n: Int = 14): DoubleArray {
+    val sz = line.size
+    val out = DoubleArray(sz) { Double.NaN }
+    val tp = DoubleArray(sz) { (line[it].high + line[it].low + line[it].close) / 3.0 }
+    val matp = smaOf(tp, n)
+    for (i in 0 until sz) {
+        if (matp[i].isNaN()) continue
+        var md = 0.0
+        for (j in i - n + 1..i) md += kotlin.math.abs(tp[j] - matp[i])
+        md /= n
+        out[i] = if (md < 1e-12) 0.0 else (tp[i] - matp[i]) / (0.015 * md)
+    }
+    return out
+}
+
+/** BIAS(6,12,24)：乖离率 %，返回三条。 */
+private class BiasResult(val b6: DoubleArray, val b12: DoubleArray, val b24: DoubleArray)
+
+private fun biasOf(close: DoubleArray, period: Int): DoubleArray {
+    val ma = smaOf(close, period)
+    return DoubleArray(close.size) { i ->
+        if (ma[i].isNaN() || kotlin.math.abs(ma[i]) < 1e-12) Double.NaN
+        else (close[i] - ma[i]) / ma[i] * 100.0
+    }
+}
+
+private fun computeBIAS(line: List<KLinePoint>): BiasResult {
+    val c = DoubleArray(line.size) { line[it].close }
+    return BiasResult(biasOf(c, 6), biasOf(c, 12), biasOf(c, 24))
+}
+
+/** PSY(12)：心理线 %，统计近 n 根上涨根占比×100。 */
+private fun computePSY(line: List<KLinePoint>, n: Int = 12): DoubleArray {
+    val sz = line.size
+    val out = DoubleArray(sz) { Double.NaN }
+    for (i in 0 until sz) {
+        if (i < n) continue
+        var up = 0
+        for (j in i - n + 1..i) if (line[j].close > line[j - 1].close) up++
+        out[i] = up.toDouble() / n * 100.0
+    }
+    val up0 = if (sz > 0) { var c = 0; for (j in 1..0) c++; c } else 0
+    return out
+}
+
+/** OBV：能量潮，收涨则累加当日量、收跌则累减，平盘不变。 */
+private fun computeOBV(line: List<KLinePoint>): DoubleArray {
+    val sz = line.size
+    val out = DoubleArray(sz)
+    if (sz == 0) return out
+    out[0] = line[0].vol
+    for (i in 1 until sz) {
+        out[i] = when {
+            line[i].close > line[i - 1].close -> out[i - 1] + line[i].vol
+            line[i].close < line[i - 1].close -> out[i - 1] - line[i].vol
+            else -> out[i - 1]
+        }
+    }
+    return out
+}
+
+/** DMI(14,6)：返回 +DI / -DI / ADX 三条。 */
+private class DmiResult(val pdi: DoubleArray, val mdi: DoubleArray, val adx: DoubleArray)
+
+private fun computeDMI(line: List<KLinePoint>, n: Int = 14, m: Int = 6): DmiResult {
+    val sz = line.size
+    val pdi = DoubleArray(sz) { Double.NaN }
+    val mdi = DoubleArray(sz) { Double.NaN }
+    val adx = DoubleArray(sz) { Double.NaN }
+    if (sz == 0) return DmiResult(pdi, mdi, adx)
+    val tr = DoubleArray(sz)
+    val pdm = DoubleArray(sz)
+    val mdm = DoubleArray(sz)
+    for (i in 1 until sz) {
+        val h = line[i].high
+        val l = line[i].low
+        val pc = line[i - 1].close
+        val ph = line[i - 1].high
+        val pl = line[i - 1].low
+        tr[i] = maxOf(h - l, kotlin.math.abs(h - pc), kotlin.math.abs(l - pc))
+        val upMove = h - ph
+        val dnMove = pl - l
+        pdm[i] = if (upMove > dnMove && upMove > 0) upMove else 0.0
+        mdm[i] = if (dnMove > upMove && dnMove > 0) dnMove else 0.0
+    }
+    // 用累加法平滑（近似 Wilder）
+    val trSum = DoubleArray(sz)
+    val pSum = DoubleArray(sz)
+    val mSum = DoubleArray(sz)
+    for (i in 1 until sz) {
+        if (i <= n) {
+            trSum[i] = trSum[i - 1] + tr[i]
+            pSum[i] = pSum[i - 1] + pdm[i]
+            mSum[i] = mSum[i - 1] + mdm[i]
+        } else {
+            trSum[i] = trSum[i - 1] - trSum[i - 1] / n + tr[i]
+            pSum[i] = pSum[i - 1] - pSum[i - 1] / n + pdm[i]
+            mSum[i] = mSum[i - 1] - mSum[i - 1] / n + mdm[i]
+        }
+        if (i >= n) {
+            val p = if (trSum[i] < 1e-12) 0.0 else pSum[i] / trSum[i] * 100.0
+            val mm = if (trSum[i] < 1e-12) 0.0 else mSum[i] / trSum[i] * 100.0
+            pdi[i] = p
+            mdi[i] = mm
+        }
+    }
+    // ADX = MA(|+DI - -DI| / (+DI + -DI) * 100, m)
+    val dx = DoubleArray(sz) { Double.NaN }
+    for (i in 0 until sz) {
+        if (!pdi[i].isNaN() && !mdi[i].isNaN()) {
+            val sum = pdi[i] + mdi[i]
+            dx[i] = if (sum < 1e-12) 0.0 else kotlin.math.abs(pdi[i] - mdi[i]) / sum * 100.0
+        }
+    }
+    val adxTmp = smaOf(dx.map { if (it.isNaN()) 0.0 else it }.toDoubleArray(), m)
+    for (i in 0 until sz) if (!dx[i].isNaN()) adx[i] = adxTmp[i]
+    return DmiResult(pdi, mdi, adx)
+}
+
+/** BOLL(20,2)：返回上/中/下轨。 */
+private class BollResult(val up: DoubleArray, val mid: DoubleArray, val low: DoubleArray)
+
+private fun computeBOLL(line: List<KLinePoint>, n: Int = 20, k: Double = 2.0): BollResult {
+    val c = DoubleArray(line.size) { line[it].close }
+    val mid = smaOf(c, n)
+    val sd = stdOf(c, n)
+    val up = DoubleArray(c.size) { i -> if (mid[i].isNaN()) Double.NaN else mid[i] + k * sd[i] }
+    val low = DoubleArray(c.size) { i -> if (mid[i].isNaN()) Double.NaN else mid[i] - k * sd[i] }
+    return BollResult(up, mid, low)
+}
+
 /** 已知窗口右端下标 right、窗口根数 visible 时，窗口左端下标 */
 private fun startOf(right: Int, visible: Int, size: Int): Int =
     (right - visible + 1).coerceAtLeast(0).coerceAtMost(size - 1)
@@ -1522,6 +1775,15 @@ private fun KLineChart(
                         .padding(bottom = 26.dp)
                 )
             }
+            // ===== 底部时间轴「尺子」刻度：左侧固定年月日 + 右侧可滑动 MM-DD =====
+            KLineTimeAxis(
+                show = show,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(bottom = 22.dp)
+                    .padding(horizontal = 4.dp)
+            )
             // ===== 缩放 / 平移圆形按钮：浮在主图（分时/K线主图）底部 =====
             Row(
                 modifier = Modifier
@@ -1531,7 +1793,7 @@ private fun KLineChart(
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(show.first().date, color = TEXT_SUB, fontSize = 10.sp)
+                Spacer(Modifier.width(72.dp))
                 Spacer(Modifier.weight(1f))
                 KLineButton(text = "−") {
                     visible = (visible * 1f * K_BTN_ZOOM_STEP).toInt()
@@ -1580,7 +1842,7 @@ private fun KLineChart(
                 SubIndicator.MACD -> KLineMacdCanvas(
                     dif = macdShow.dif, dea = macdShow.dea, macd = macdShow.macd, selLocal = subLocal
                 )
-                else -> SubPlaceholderCanvas(text = currentSub.label)
+                else -> SubGenericCanvas(idx = currentSub, line = show, globalStart = start, selLocal = subLocal)
             }
             // ===== 首行：指标名标签框 + 紧跟其后的数值（不重叠）=====
             SubLabelRow(
@@ -1589,7 +1851,9 @@ private fun KLineChart(
                 labIdx = subLocal,
                 macdShow = macdShow,
                 volLine = if (currentSub == SubIndicator.VOL) show else null,
-                onTag = { subPickerOpen = true }
+                onTag = { subPickerOpen = true },
+                subIdx = currentSub,
+                subShow = show
             )
         }
         // ===== 副图2（默认 MACD；独立可切）=====
@@ -1608,7 +1872,7 @@ private fun KLineChart(
                 SubIndicator.MACD -> KLineMacdCanvas(
                     dif = macdShow.dif, dea = macdShow.dea, macd = macdShow.macd, selLocal = subLocal2
                 )
-                else -> SubPlaceholderCanvas(text = currentSub2.label)
+                else -> SubGenericCanvas(idx = currentSub2, line = show, globalStart = start, selLocal = subLocal2)
             }
             SubLabelRow(
                 main = if (currentSub2 == SubIndicator.MACD) currentSub2.tag else currentSub2.label,
@@ -1616,7 +1880,9 @@ private fun KLineChart(
                 labIdx = subLocal2,
                 macdShow = macdShow,
                 volLine = if (currentSub2 == SubIndicator.VOL) show else null,
-                onTag = { subPickerOpen2 = true }
+                onTag = { subPickerOpen2 = true },
+                subIdx = currentSub2,
+                subShow = show
             )
         }
     }
@@ -1884,11 +2150,112 @@ private fun KLineCanvas(
 }
 
 @Composable
+/**
+ * 底部时间轴「尺子」：
+ *  - 左侧固定区：显示当前窗口最左柱子的完整年月日（如 2025-07-30），不随滑动位移；
+ *  - 右侧滑动区：在可见区内均匀取 4 个刻度，显示 MM-DD 且让刻度落在对应柱子正中间；
+ *  - 滑动内容滑进左侧固定区时被不透明底 + 渐隐遮罩盖住，形成「从固定内容处逐渐隐藏」的效果。
+ */
+@Composable
+private fun KLineTimeAxis(
+    show: List<KLinePoint>,
+    modifier: Modifier = Modifier
+) {
+    val n = show.size
+    if (n <= 0) return
+    // 固定区宽度（与底部按钮行左侧预留的 72.dp 对齐）
+    val fixedW = 74.dp
+
+    Box(modifier = modifier.height(16.dp)) {
+        // ===== 右侧滑动区：用 BoxWithConstraints 拿到实际宽度，按柱子中心均匀放 4 个刻度 =====
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val totalW = maxWidth
+            val slot = totalW / n  // 每根柱子占宽（与主图同口径：w / show.size）
+            // 可见区内均匀取 4 个刻度下标（含首尾的中间值分布）
+            val tickIdx = (0 until 4).map { k ->
+                ((k + 0.5f) * n / 4f).toInt().coerceIn(0, n - 1)
+            }.distinct()
+            tickIdx.forEach { i ->
+                // 刻度落在该柱子正中间：x = i * slot + slot / 2
+                val cx = slot * i + slot / 2
+                Box(
+                    modifier = Modifier
+                        .offset(x = cx - 20.dp, y = 0.dp)
+                        .width(40.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // 刻度小竖线
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(3.dp)
+                                .background(LINE_AXIS)
+                        )
+                        Spacer(Modifier.height(1.dp))
+                        Text(
+                            text = show[i].date.substring(5),  // MM-DD（年月日用减号隔开）
+                            color = TEXT_SUB,
+                            fontSize = 9.sp,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+        }
+
+        // ===== 左侧固定区：不透明底 + 右侧渐隐，盖住滑入的刻度 =====
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .width(fixedW)
+                .background(Color.White),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(6.dp)
+                    .background(LINE_AXIS)
+            )
+            Spacer(Modifier.width(3.dp))
+            Text(
+                text = show.first().date,  // 固定年份年月日：取屏幕最左那根柱子
+                color = TEXT_SUB,
+                fontSize = 10.sp,
+                maxLines = 1,
+                softWrap = false
+            )
+        }
+        // 固定区右边缘的渐隐过渡，让滑动内容「逐渐隐藏」
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = fixedW)
+                .width(10.dp)
+                .fillMaxHeight()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color.White, Color.White.copy(alpha = 0f))
+                    )
+                )
+        )
+    }
+}
+
 private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
-        val h = size.height
+        val hFull = size.height
         if (line.isEmpty()) return@Canvas
+        // ===== 顶部限高：为栏顶数字标签预留高度，量柱最高不超过标签底部 =====
+        val topReserve = 18.dp.toPx()
+        val h = (hFull - topReserve).coerceAtLeast(1f)
+        val baseY = hFull
         // ===== 量均线：对成交量做 MA5 / MA10 =====
         val volMa5 = computeVolMA(line, 5)
         val volMa10 = computeVolMA(line, 10)
@@ -1900,8 +2267,8 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val n = line.size
         val slot = w / n
         val bw = max(slot * 0.92f, 1f)
-        // 统一裁剪到成交量显示区，量柱/量均线/竖线都不会越界
-        clipRect(0f, 0f, w, h) {
+        // 统一裁剪到成交量显示区（顶部让出标签高度），量柱/量均线/竖线都不会越界
+        clipRect(0f, 0f, w, hFull) {
             line.forEachIndexed { i, k ->
                 val cx = i * slot + slot / 2
                 val up = k.close >= k.open
@@ -1909,14 +2276,14 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
                 // 同花顺风格：涨=红空心（描边）、跌=绿实心（填充），与蜡烛配色一致；缩到最小时统一实心黑色
                 drawRect(
                     color = if (up) RED_UP else GREEN_DOWN,
-                    topLeft = Offset(cx - bw / 2, h - vh),
+                    topLeft = Offset(cx - bw / 2, baseY - vh),
                     size = Size(bw, vh),
                     style = if (up) Stroke(width = 3.0f) else Fill
                 )
             }
-            // ===== 量均线 MA5（黑）/ MA10（橙），加粗 2.5f =====
-            drawVolMA(volMa5, slot, w, h, maxV, maColorOf(5))
-            drawVolMA(volMa10, slot, w, h, maxV, maColorOf(10))
+            // ===== 量均线 MA5（黑）/ MA10（橙），加粗 2.5f（同样按限高后的基准绘制）=====
+            drawVolMA(volMa5, slot, w, baseY, h, maxV, maColorOf(5))
+            drawVolMA(volMa10, slot, w, baseY, h, maxV, maColorOf(10))
             // ===== 选中竖线（与主图对齐） =====
             val sel = selLocal
             if (sel != null && sel in line.indices) {
@@ -1937,6 +2304,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVolMA(
     ma: DoubleArray,
     slot: Float,
     w: Float,
+    baseY: Float,
     h: Float,
     maxV: Double,
     color: Color
@@ -1946,7 +2314,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawVolMA(
     ma.forEachIndexed { i, v ->
         if (v.isNaN()) return@forEachIndexed
         val cx = i * slot + slot / 2
-        val y = (h - (v / maxV * h)).toFloat().coerceIn(0f, h)
+        val y = (baseY - (v / maxV * h)).toFloat().coerceIn(baseY - h, baseY)
         if (!started) {
             path.moveTo(cx, y)
             started = true
@@ -1970,7 +2338,9 @@ private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
     labIdx: Int?,
     macdShow: MacdResult,
     volLine: List<KLinePoint>?,
-    onTag: () -> Unit
+    onTag: () -> Unit,
+    subIdx: SubIndicator? = null,
+    subShow: List<KLinePoint>? = null
 ) {
     Row(
         modifier = Modifier
@@ -2012,6 +2382,18 @@ private fun androidx.compose.foundation.layout.BoxScope.SubLabelRow(
                 Spacer(Modifier.width(8.dp))
                 Text("MACD", color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text(fmtMacdNum(macdShow.macd[idx]), color = MACD_BAR_COLOR, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        // ===== 其余指标：K/D/J、RSI、WR、CCI、BIAS、PSY、OBV、DMI、BOLL 数值 =====
+        if (subIdx != null && subShow != null && subShow.isNotEmpty() && subIdx != SubIndicator.VOL && subIdx != SubIndicator.MACD) {
+            val idx = labIdx?.takeIf { it in subShow.indices } ?: (subShow.size - 1)
+            val vals = subIndicatorValues(subIdx, subShow, idx)
+            Spacer(Modifier.width(6.dp))
+            vals.forEachIndexed { i, v ->
+                if (i > 0) Spacer(Modifier.width(8.dp))
+                Text(v.first, color = v.second, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(v.third, color = v.second, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                // v: Triple<标签, 颜色, 数值>
             }
         }
     }
@@ -2099,6 +2481,185 @@ private fun SubIndicatorPicker(
                 }
             }
         }
+    }
+}
+
+/** 副图通用指标线定义：一组折线（含可选定色）。 */
+private data class SubLine(val vals: DoubleArray, val color: androidx.compose.ui.graphics.Color, val width: Float = 1.8f)
+
+/**
+ * 副图通用指标画布：支持 KDJ / RSI / WR / CCI / BIAS / PSY / OBV / DMI / BOLL。
+ * line 为「已按可见窗口切片」的数据；算法在画布内对该窗口重算（结果与全量一致：指标值只依赖到当前 bar）。
+ * 统一策略：先算全部序列，再取窗口内的 min/max 做纵轴自适应；正负跨零的画零轴。
+ */
+@Composable
+private fun SubGenericCanvas(
+    idx: SubIndicator,
+    line: List<KLinePoint>,
+    globalStart: Int,
+    selLocal: Int? = null
+) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val n = line.size
+        if (n == 0) return@Canvas
+        val slot = w / n
+
+        // ===== 1) 产出该指标的各条线 =====
+        val lines: List<SubLine> = when (idx) {
+            SubIndicator.KDJ -> {
+                val r = computeKDJ(line)
+                listOf(
+                    SubLine(r.k, Color(0xFF111111), 1.8f),
+                    SubLine(r.d, Color(0xFFE8A33D), 1.8f),
+                    SubLine(r.j, Color(0xFF8E44AD), 1.8f)
+                )
+            }
+            SubIndicator.RSI -> {
+                val r = computeRSI(line)
+                listOf(
+                    SubLine(r.r6, Color(0xFF111111), 1.8f),
+                    SubLine(r.r12, Color(0xFFE8A33D), 1.8f),
+                    SubLine(r.r24, Color(0xFF8E44AD), 1.8f)
+                )
+            }
+            SubIndicator.WR -> listOf(SubLine(computeWR(line), Color(0xFF111111), 1.8f))
+            SubIndicator.CCI -> listOf(SubLine(computeCCI(line), Color(0xFF111111), 1.8f))
+            SubIndicator.BIAS -> {
+                val r = computeBIAS(line)
+                listOf(
+                    SubLine(r.b6, Color(0xFF111111), 1.8f),
+                    SubLine(r.b12, Color(0xFFE8A33D), 1.8f),
+                    SubLine(r.b24, Color(0xFF8E44AD), 1.8f)
+                )
+            }
+            SubIndicator.PSY -> listOf(SubLine(computePSY(line), Color(0xFF111111), 1.8f))
+            SubIndicator.OBV -> listOf(SubLine(computeOBV(line), Color(0xFF111111), 1.8f))
+            SubIndicator.DMI -> {
+                val r = computeDMI(line)
+                listOf(
+                    SubLine(r.pdi, Color(0xFFD32F2F), 1.8f),
+                    SubLine(r.mdi, Color(0xFF1976D2), 1.8f),
+                    SubLine(r.adx, Color(0xFFE8A33D), 1.8f)
+                )
+            }
+            SubIndicator.BOLL -> {
+                val r = computeBOLL(line)
+                listOf(
+                    SubLine(r.up, Color(0xFF1976D2), 1.6f),
+                    SubLine(r.mid, Color(0xFF111111), 1.8f),
+                    SubLine(r.low, Color(0xFF1976D2), 1.6f)
+                )
+            }
+            else -> emptyList()
+        }
+        if (lines.isEmpty()) return@Canvas
+
+        // ===== 2) 纵轴自适应（跨零则零轴居中）=====
+        var lo = Double.MAX_VALUE
+        var hi = -Double.MAX_VALUE
+        for (ln in lines) for (v in ln.vals) {
+            if (v.isNaN()) continue
+            if (v < lo) lo = v
+            if (v > hi) hi = v
+        }
+        if (lo > hi) { lo = 0.0; hi = 1.0 }
+        if (hi - lo < 1e-9) { hi += 1.0; lo -= 1.0 }
+        val pad = (hi - lo) * 0.08
+        lo -= pad; hi += pad
+        val span = (hi - lo).coerceAtLeast(1e-9)
+        fun yOf(v: Double): Float = (h - ((v - lo) / span * h)).toFloat()
+
+        // 零轴（仅当跨零时画）
+        if (lo < 0.0 && hi > 0.0) {
+            val zy = yOf(0.0)
+            drawLine(Color(0xFF9AA0A6), Offset(0f, zy), Offset(w, zy), strokeWidth = 0.8f)
+        }
+
+        // ===== 3) 逐条折线（端点拉满整幅宽度）=====
+        val step = if (n > 1) w / (n - 1) else 0f
+        for (ln in lines) {
+            val path = androidx.compose.ui.graphics.Path()
+            var started = false
+            for (i in 0 until n) {
+                val v = ln.vals[i]
+                if (v.isNaN()) { started = false; continue }
+                val cx = if (n > 1) i * step else w / 2f
+                val cy = yOf(v)
+                if (!started) {
+                    path.moveTo(cx, cy)
+                    started = true
+                } else {
+                    path.lineTo(cx, cy)
+                }
+            }
+            drawPath(path, color = ln.color, style = androidx.compose.ui.graphics.drawscope.Stroke(width = ln.width))
+        }
+
+        // ===== 4) 选中竖线 =====
+        val sel = selLocal
+        if (sel != null && sel in 0 until n) {
+            val cx = sel * slot + slot / 2
+            drawLine(K_CROSS_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.5f)
+        }
+    }
+}
+
+/** 取通用指标在 idx 处的「标签/颜色/值」三元组，用于栏顶数值显示。 */
+private fun subIndicatorValues(
+    idx: SubIndicator,
+    line: List<KLinePoint>,
+    i: Int
+): List<Triple<String, androidx.compose.ui.graphics.Color, String>> {
+    if (line.isEmpty() || i !in line.indices) return emptyList()
+    fun f(v: Double): String = String.format("%.2f", v)
+    return when (idx) {
+        SubIndicator.KDJ -> {
+            val r = computeKDJ(line)
+            listOf(
+                Triple("K", Color(0xFF111111), f(r.k[i])),
+                Triple("D", Color(0xFFE8A33D), f(r.d[i])),
+                Triple("J", Color(0xFF8E44AD), f(r.j[i]))
+            )
+        }
+        SubIndicator.RSI -> {
+            val r = computeRSI(line)
+            listOf(
+                Triple("RSI6", Color(0xFF111111), f(r.r6[i])),
+                Triple("RSI12", Color(0xFFE8A33D), f(r.r12[i])),
+                Triple("RSI24", Color(0xFF8E44AD), f(r.r24[i]))
+            )
+        }
+        SubIndicator.WR -> listOf(Triple("WR14", Color(0xFF111111), f(computeWR(line)[i])))
+        SubIndicator.CCI -> listOf(Triple("CCI14", Color(0xFF111111), f(computeCCI(line)[i])))
+        SubIndicator.BIAS -> {
+            val r = computeBIAS(line)
+            listOf(
+                Triple("BIAS6", Color(0xFF111111), f(r.b6[i])),
+                Triple("BIAS12", Color(0xFFE8A33D), f(r.b12[i])),
+                Triple("BIAS24", Color(0xFF8E44AD), f(r.b24[i]))
+            )
+        }
+        SubIndicator.PSY -> listOf(Triple("PSY12", Color(0xFF111111), f(computePSY(line)[i])))
+        SubIndicator.OBV -> listOf(Triple("OBV", Color(0xFF111111), fmtVol(computeOBV(line)[i])))
+        SubIndicator.DMI -> {
+            val r = computeDMI(line)
+            listOf(
+                Triple("PDI", Color(0xFFD32F2F), f(r.pdi[i])),
+                Triple("MDI", Color(0xFF1976D2), f(r.mdi[i])),
+                Triple("ADX", Color(0xFFE8A33D), f(r.adx[i]))
+            )
+        }
+        SubIndicator.BOLL -> {
+            val r = computeBOLL(line)
+            listOf(
+                Triple("UP", Color(0xFF1976D2), f(r.up[i])),
+                Triple("MID", Color(0xFF111111), f(r.mid[i])),
+                Triple("LOW", Color(0xFF1976D2), f(r.low[i]))
+            )
+        }
+        else -> emptyList()
     }
 }
 
