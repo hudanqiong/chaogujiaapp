@@ -13,12 +13,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -71,6 +74,11 @@ private val LINE_AXIS = Color(0xFFF0F0F0)
 private val TIME_AXIS_LINE = Color(0xFFBDBDBD)
 // 时间轴条带：浅灰底（非纯白）、高度
 private val TA_BG = Color(0xFFF5F5F5)
+private val MINUTE_BORDER = Color(0xFFDDDDDD)      // 分时画布淡灰边框
+private val AUCTION_BG = Color(0xFFF7F8FA)         // 集合竞价栏浅灰背景
+private val AUCTION_LINE = Color(0xFFE64A3B)       // 竞价走势线（占位）
+private val AUCTION_MATCHED = Color(0xFF5B8FF9)    // 竞价已匹配量
+private val AUCTION_UNMATCHED = Color(0xFFF6BD16)  // 竞价未匹配量
 private val TA_H = 22.dp
 // 缩放按钮：浅灰半透明圆底 + 黑色符号
 private val KBTN_BG = Color(0x66EEEEEE)
@@ -148,6 +156,11 @@ fun StockDetailPage(
         var maPeriods by remember { mutableStateOf(MA_DEFAULT_PERIODS) }
         // 均线设置页显隐（父层持有，齿轮与 ⚙ 共用）
         var showMaSetting by remember { mutableStateOf(false) }
+    val ctx = LocalContext.current
+    var showAuction by remember {
+        mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+            .getBoolean("minute_auction", false))
+    }
         // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
         var showChip by remember { mutableStateOf(false) }
     // 所属概念（含实时涨跌幅）
@@ -222,7 +235,13 @@ fun StockDetailPage(
             MaSettingDialog(
                 initial = maPeriods,
                 onDismiss = { showMaSetting = false },
-                onConfirm = { maPeriods = it; showMaSetting = false }
+                onConfirm = { maPeriods = it; showMaSetting = false },
+                auction = showAuction,
+                onAuctionChange = { v ->
+                    showAuction = v
+                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+                        .edit().putBoolean("minute_auction", v).apply()
+                }
             )
         }
 
@@ -233,7 +252,7 @@ fun StockDetailPage(
                 .weight(1f)
         ) {
             when (period) {
-                "minute" -> MinuteChart(detail)
+                "minute" -> MinuteChart(detail, showAuction)
                 "fiveday" -> FiveDayChart(detail)
                 else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
             }
@@ -748,7 +767,7 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
 //   右：上=五档盘口（卖5→卖1 / 买1→买5），下=逐笔成交明细
 // ============================================================
 @Composable
-private fun MinuteChart(d: StockDetail?) {
+private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false) {
     val trends = d?.trends ?: emptyList()
     val preClose = d?.base?.preClose ?: 0.0
 
@@ -775,14 +794,23 @@ private fun MinuteChart(d: StockDetail?) {
         return
     }
 
-    // 外层左右分栏：左侧分时图（62），右侧盘口栏（38）
+    // 外层分栏：可选[早盘竞价] + 分时主轴 + 可选[收盘竞价] + 盘口栏
     Row(
         modifier = Modifier.fillMaxSize().padding(top = 6.dp)
     ) {
-        // ================= 左侧：分时图 =================
+        // ===== 左栏：早盘集合竞价（9:15-9:25）=====
+        if (showAuction) {
+            AuctionColumn(
+                title = "9:15-9:25",
+                modifier = Modifier
+                    .width(AUCTION_COL_WIDTH)
+                    .fillMaxHeight()
+            )
+        }
+        // ================= 中间：分时主轴 =================
         Column(
             modifier = Modifier
-                .weight(MINUTE_CHART_RATIO)
+                .weight(1f)
                 .fillMaxHeight()
         ) {
             // 上部价格图（占 70%）
@@ -790,31 +818,28 @@ private fun MinuteChart(d: StockDetail?) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.7f)
-                    .padding(end = 40.dp)
             ) {
                 MinutePriceCanvas(trends, preClose)
-                // 右侧价格刻度（最高/中/最低）
-                PriceAxis(
-                    maxV = trends.maxOf { it.price },
-                    minV = trends.minOf { it.price },
-                    midV = preClose,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .width(40.dp)
-                        .fillMaxHeight()
-                )
             }
+            // 价图与量图之间的分段映射时间栏
+            TimeAxis(showAuction, Modifier.height(TIME_BAR_HEIGHT))
             // 下部量图（占 30%）
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.3f)
-                    .padding(end = 40.dp, top = 4.dp)
             ) {
                 MinuteVolumeCanvas(trends)
             }
-            // 时间轴
-            TimeAxis()
+        }
+        // ===== 右栏：收盘集合竞价（14:55-15:00），不参与主轴时间轴 =====
+        if (showAuction) {
+            AuctionColumn(
+                title = "14:55-15:00",
+                modifier = Modifier
+                    .width(AUCTION_COL_WIDTH)
+                    .fillMaxHeight()
+            )
         }
 
         // ================= 右侧：五档盘口 + 成交明细 =================
@@ -822,9 +847,9 @@ private fun MinuteChart(d: StockDetail?) {
             ob = ob,
             preClose = preClose,
             modifier = Modifier
-                .weight(1f - MINUTE_CHART_RATIO)
+                .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
-                .padding(start = 4.dp, end = 2.dp)
+                .padding(start = 2.dp, end = 2.dp)
         )
     }
 }
@@ -832,7 +857,9 @@ private fun MinuteChart(d: StockDetail?) {
 // ============================================================
 // 布局比例常量（便于微调）
 // ============================================================
-private const val MINUTE_CHART_RATIO = 0.62f   // 左侧分时图宽度占比
+private const val ORDERBOOK_RATIO = 0.38f      // 右侧盘口栏宽度占比（分时图自动占剩余）
+private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度
+private val TIME_BAR_HEIGHT = 16.dp            // 分时时间栏高度
 private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度
 private val ORDERBOOK_FONT = 11.sp             // 五档/明细字号
 
@@ -1006,13 +1033,15 @@ private fun MinutePriceCanvas(trends: List<DetailTrend>, preClose: Double) {
         val n = max(trends.size - 1, 1)
         fun xOf(i: Int): Float = (i.toFloat() / n) * w
 
-        // 网格横线（3 条）
-        for (k in 1..3) {
-            val y = h * k / 4f
+        // 网格：4 横 + 4 竖（4x4）
+        for (k in 1..4) {
+            val y = h * k / 5f
             drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
         }
-        // 中轴竖线
-        drawLine(LINE_GRID, Offset(w / 2f, 0f), Offset(w / 2f, h), strokeWidth = 1f)
+        for (k in 1..4) {
+            val x = w * k / 5f
+            drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+        }
 
         // 昨收基准线（灰虚线效果：实线灰）
         if (preClose > 0) {
@@ -1065,6 +1094,8 @@ private fun MinutePriceCanvas(trends: List<DetailTrend>, preClose: Double) {
         if (started) {
             drawPath(avgPath, Color(0xFFFFB300), style = Stroke(width = 1.8f))
         }
+        // 淡灰边框
+        drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
     }
 }
 
@@ -1085,6 +1116,8 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>) {
                 size = Size(max(bw - 0.6f, 0.6f), vh)
             )
         }
+        // 淡灰边框
+        drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
     }
 }
 
@@ -1102,18 +1135,130 @@ private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifi
     }
 }
 
-/** 时间轴：09:30 / 11:30 / 15:00 */
+/**
+ * 时间轴：分段映射（休盘 11:30-13:00 不占宽）
+ * 关闭：9:30 — 11:30 — 15:00     权重 [120, 120]
+ * 开启：9:15 — 9:30 — 11:30 — 15:00  权重 [15, 0, 120, 120]（首段对齐 CenterEnd）
+ */
 @Composable
-private fun TimeAxis() {
+private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier) {
+    val segs: List<Triple<String, Float, Alignment>> = if (showAuction) {
+        // 开启竞价：09:15 -> 15:00 共 255 分钟，段宽=节点间真实分钟数
+        listOf(
+            Triple("09:15", 15f, Alignment.CenterStart),
+            Triple("09:30", 120f, Alignment.CenterStart),
+            Triple("11:30", 120f, Alignment.Center),
+            Triple("15:00", 120f, Alignment.CenterEnd)
+        )
+    } else {
+        listOf(
+            Triple("09:30", 120f, Alignment.CenterStart),
+            Triple("11:30", 120f, Alignment.Center),
+            Triple("15:00", 120f, Alignment.CenterEnd)
+        )
+    }
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(end = 46.dp, top = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("09:30", color = TEXT_SUB, fontSize = 10.sp)
-        Text("11:30", color = TEXT_SUB, fontSize = 10.sp)
-        Text("15:00", color = TEXT_SUB, fontSize = 10.sp)
+        segs.forEachIndexed { i, (label, weight, align) ->
+            Box(
+                modifier = Modifier.weight(weight.coerceAtLeast(0.0001f)),
+                contentAlignment = when (align) {
+                    Alignment.CenterStart -> Alignment.CenterStart
+                    Alignment.CenterEnd -> Alignment.CenterEnd
+                    else -> Alignment.Center
+                }
+            ) {
+                Text(label, color = TEXT_SUB, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+/**
+ * 集合竞价独立栏（早盘 9:15-9:25 / 收盘 14:55-15:00）
+ * 三块高度与中间主轴对齐：走势线 weight0.7 + 时间栏 TIME_BAR_HEIGHT + 量区 weight0.3
+ * 整栏浅灰背景，与分时主轴视觉区分。走势线/量数据暂为占位。
+ */
+@Composable
+private fun AuctionColumn(title: String, modifier: Modifier) {
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .background(AUCTION_BG)
+            .padding(horizontal = 2.dp)
+    ) {
+        // 走势线区（占 70%）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.7f)
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                // 网格 4x4
+                for (k in 1..4) {
+                    val y = h * k / 5f
+                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+                }
+                for (k in 1..4) {
+                    val x = w * k / 5f
+                    drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+                }
+                // 走势线占位：水平虚线
+                val yc = h / 2f
+                var x = 0f
+                while (x < w) {
+                    drawLine(AUCTION_LINE, Offset(x, yc), Offset(min(x + 4f, w), yc), strokeWidth = 1.4f)
+                    x += 8f
+                }
+                // 边框
+                drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
+            }
+            Text(
+                "竞价走势",
+                color = TEXT_SUB,
+                fontSize = 8.sp,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 1.dp)
+            )
+        }
+        // 时间栏占位（与主轴时间栏等高）
+        Box(
+            modifier = Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(title, color = TEXT_SUB, fontSize = 8.sp)
+        }
+        // 量区（占 30%）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.3f)
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                val n = 5
+                val bw = w / n
+                for (i in 0 until n) {
+                    val vh = h * (0.35f + 0.1f * ((i * 7) % 5))
+                    // 未匹配（黄）在左，已匹配（蓝）在右
+                    drawRect(
+                        color = AUCTION_UNMATCHED,
+                        topLeft = Offset(i * bw + 1f, h - vh),
+                        size = Size(bw * 0.35f, vh)
+                    )
+                    drawRect(
+                        color = AUCTION_MATCHED,
+                        topLeft = Offset(i * bw + bw * 0.4f, h - vh * 0.8f),
+                        size = Size(bw * 0.35f, vh * 0.8f)
+                    )
+                }
+                drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
+            }
+        }
     }
 }
 
@@ -2106,7 +2251,9 @@ private fun ChevronIcon(
 @Composable
 private fun MaSettingDialog(
     initial: List<Int>,
-    onDismiss: () -> Unit,
+    onDismiss: (,
+    auction: Boolean = false,
+    onAuctionChange: (Boolean) -> Unit = {}) -> Unit,
     onConfirm: (List<Int>) -> Unit
 ) {
     // 每行一个输入框：默认 4 个（沿用初始参数），可点“＋增加一条”追加
@@ -2161,6 +2308,22 @@ private fun MaSettingDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     androidx.compose.material3.Text("＋ 增加一条", fontSize = 14.sp, color = Color(Config.COLOR_PRIMARY))
+                }
+                Spacer(Modifier.height(10.dp))
+                androidx.compose.material3.HorizontalDivider(color = LINE_GRID)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        androidx.compose.material3.Text("开启集合竞价", fontSize = 14.sp, color = TEXT_MAIN)
+                        androidx.compose.material3.Text("显示 9:15-9:25 与 14:55-15:00 竞价栏", fontSize = 10.sp, color = TEXT_SUB)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = auction,
+                        onCheckedChange = { onAuctionChange(it) }
+                    )
                 }
             }
         },
