@@ -57,6 +57,8 @@ internal val GREEN_DOWN = Color(0xFF306612)   // 跌：绿（图表柱体/影线
 internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮绿）
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一黑色（全历史黑波浪）
+// 缩放到最小（一屏约1400+根）时：蜡烛/量柱/均线全部转黑，整体成一条黑波浪线
+private const val K_NARROW_VISIBLE = 1200
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
 private val LINE_GRID = Color(0xFFEEEEEE)
@@ -1790,9 +1792,9 @@ private fun KLineCanvas(
         lastSlot = slot
         // 缩到很小时保证柱宽至少 1px，视觉上连成一条线（同花顺观感）
         val bw = max(slot * 0.92f, 1f)
-        // 缩到最小（每根K线不足约1.6px，红绿已无法分辨）时，柱子统一改为黑色，
+        // 缩放到最小（一屏根数达到约1400+，红绿已无法分辨）时，蜡烛+均线统一黑色，
         // 使全历史数据整体看起来像一条黑色波浪线（同花顺观感）。
-        val tooNarrow = slot < 1.6f
+        val tooNarrow = n >= K_NARROW_VISIBLE
 
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
@@ -1822,7 +1824,8 @@ private fun KLineCanvas(
         // ===== 均线（MA）：叠在蜡烛之上，每条一种颜色 =====
         maList.forEachIndexed { mi, ma ->
             if (ma.isEmpty()) return@forEachIndexed
-            val color = maColorOf(maPeriods.getOrElse(mi) { MA_DEFAULT_PERIODS.getOrElse(mi) { 5 } })
+            val color = if (tooNarrow) K_NARROW_COLOR
+                else maColorOf(maPeriods.getOrElse(mi) { MA_DEFAULT_PERIODS.getOrElse(mi) { 5 } })
             val pathMA = Path()
             var started = false
             ma.forEachIndexed { i, v ->
@@ -1858,8 +1861,8 @@ private fun KLineVolumeCanvas(line: List<KLinePoint>, selLocal: Int? = null) {
         val n = line.size
         val slot = w / n
         val bw = max(slot * 0.92f, 1f)
-        // 缩到最小（每根K线不足约1.6px）时量柱统一改黑，和主图黑波浪保持一致。
-        val tooNarrow = slot < 1.6f
+        // 缩放到最小（一屏约1400+根）时量柱统一改黑，和主图黑波浪保持一致。
+        val tooNarrow = n >= K_NARROW_VISIBLE
         line.forEachIndexed { i, k ->
             val cx = i * slot + slot / 2
             val up = k.close >= k.open
