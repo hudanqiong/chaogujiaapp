@@ -2167,14 +2167,32 @@ private fun KLineTimeAxis(
     if (n <= 0) return
     // 左侧固定区宽度（与底部按钮行左侧预留对齐）
     val fixedW = 78.dp
-    // 每几根柱子打一个刻度 / 每几根柱子显示一次日期
-    val tickEvery = 2
-    val labelEvery = 10
+    // 刻度/日期间隔在下面按「屏幕可视宽度」动态计算：
+    // 目标让屏幕（除左侧固定区外）恒定约 4 个日期标签；缩小时自动加大间隔、放大时自动缩小，
+    // 并做兜底保证任何缩放级别都至少命中 1 个标签（不会消失）。
 
     Box(modifier = modifier.height(20.dp)) {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val totalW = maxWidth
             val slot = totalW / n  // 每根柱子的宽度（与主图同口径 w / show.size）
+
+            // ===== 动态计算「日期标签间隔」与「刻度间隔」=====
+            // 右侧滑动区可用宽度（左侧固定区不参与排布）
+            val availW = (totalW - fixedW).coerceAtLeast(1.dp)
+            val density = androidx.compose.ui.platform.LocalDensity.current.density
+            val slotPx = slot.value * density               // 每根柱子像素宽
+            val availPx = availW.value * density            // 可用像素宽
+
+            // 目标：屏幕右侧约 4 个标签 → 目标像素间距 = availPx / 4
+            // 换算成「柱数」，向上取整，再夹到 [1, n]（保证一定能命中）
+            val targetPx = (availPx / 4f).coerceAtLeast(1f)
+            var labelEvery = kotlin.math.ceil((targetPx / slotPx).toDouble()).toInt()
+            labelEvery = labelEvery.coerceIn(1, if (n < 1) 1 else n)
+
+            // 刻度线间隔：跟随标签间隔，但保证刻度像素间距 >= 6dp，避免糊
+            val tickMinPx = 6.dp.value * density
+            var tickEvery = kotlin.math.ceil((tickMinPx / slotPx).toDouble()).toInt()
+            tickEvery = tickEvery.coerceIn(1, if (n < 1) 1 else n)
 
             // 尺子横线（框架）
             Box(
@@ -2184,17 +2202,40 @@ private fun KLineTimeAxis(
                     .background(TIME_AXIS_LINE)
             )
 
-            // 遍历「全局索引」上所有刻度柱：每 tickEvery 根打一个刻度，
-            // 这样滑动时 globalStart 变化 → cx 同步左移，刻度随柱子移动。
+            // 遍历「全局索引」：刻度线每 tickEvery 根一条；日期标签每 labelEvery 根一次。
+            // 两者都绑定全局索引 → 滑动时随柱子移动（右滑新标签从右进、旧标签从右出）。
             val gStart = globalStart
             val gEnd = globalStart + n - 1
-            var g = ((gStart + tickEvery - 1) / tickEvery) * tickEvery  // 首个 >= gStart 的 tickEvery 倍数
-            while (g <= gEnd) {
-                val local = g - gStart
+
+            // ---- 先画小刻度线（背景层） ----
+            var gt = ((gStart + tickEvery - 1) / tickEvery) * tickEvery
+            while (gt <= gEnd) {
+                val local = gt - gStart
                 if (local in 0 until n) {
-                    val cx = slot * local + slot / 2          // 该柱中心
-                    val hasLabel = (g % labelEvery == 0)      // 每 labelEvery 根显示日期
-                    val tickH = if (hasLabel) 8.dp else 4.dp  // 有日期长、无日期短
+                    val cx = slot * local + slot / 2
+                    Box(
+                        modifier = Modifier
+                            .offset(x = cx - 1.dp, y = 0.dp)
+                            .width(1.dp)
+                            .height(4.dp)
+                            .background(TIME_AXIS_LINE)
+                    )
+                }
+                gt += tickEvery
+            }
+
+            // ---- 再画带日期的长刻度 + 文字 ----
+            // 首个 >= gStart 且为 labelEvery 倍数的全局索引
+            var firstLabelG = ((gStart + labelEvery - 1) / labelEvery) * labelEvery
+            // ★ 兜底：若区间内没有任何 labelEvery 倍数命中，就用区间起点强制出一个标签，绝不消失
+            if (firstLabelG > gEnd) firstLabelG = gStart
+
+            var gl = firstLabelG
+            // 用 while 但以 labelEvery 步进；若走了兜底（firstLabelG=gStart），步进依然按 labelEvery
+            while (gl <= gEnd) {
+                val local = gl - gStart
+                if (local in 0 until n) {
+                    val cx = slot * local + slot / 2
                     Box(
                         modifier = Modifier
                             .offset(x = cx - 24.dp, y = 0.dp)
@@ -2204,27 +2245,25 @@ private fun KLineTimeAxis(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            // 刻度竖线：从尺子横线往下伸
+                            // 长刻度竖线
                             Box(
                                 modifier = Modifier
-                                    .width(2.dp)
-                                    .height(tickH)
+                                    .width(1.dp)
+                                    .height(8.dp)
                                     .background(TIME_AXIS_LINE)
                             )
-                            if (hasLabel) {
-                                Spacer(Modifier.height(1.dp))
-                                Text(
-                                    text = show[local].date.substring(5),  // MM-DD
-                                    color = TEXT_SUB,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
+                            Spacer(Modifier.height(1.dp))
+                            Text(
+                                text = show[local].date.substring(5),  // MM-DD
+                                color = TEXT_SUB,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }
-                g += tickEvery
+                gl += labelEvery
             }
         }
 
