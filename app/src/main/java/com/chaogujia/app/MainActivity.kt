@@ -216,11 +216,21 @@ fun ChaoGuJiaApp() {
             }
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
+        // ★ 详情页需要把黑色功能栏铺到物理最底：
+        //   Scaffold 的 padding 默认已让出底部导航栏 inset；若详情页仍消费底部 inset，
+        //   StockDetailPage 底边会停在按键区上方，黑底无法铺到底。
+        //   故详情页时只消费顶部 inset（底部归零），其余页面保持原样。
+        val contentModifier = if (detail != null) {
+            Modifier
+                .fillMaxSize()
+                .padding(top = padding.calculateTopPadding())
+        } else {
+            Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color.White)
+        }
+        Box(
+            modifier = contentModifier.background(Color.White)
         ) {
             when (current) {
                 "index" -> HomeScreen(
