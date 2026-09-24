@@ -906,8 +906,8 @@ private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留
 private val TIME_BAR_HEIGHT = 16.dp            // 分时时间栏高度
 private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度（兼容保留，实际布局已改为自适应）
 private val ORDERBOOK_FONT = 12.sp             // 五档/明细字号（加大加粗）
-private val ORDERBOOK_ROW_MIN = 18.dp          // 五档行高下限（防挤压）
-private val ORDERBOOK_ROW_MAX = 34.dp          // 五档行高上限（行距封顶，避免铺满后过疏）
+private val ORDERBOOK_ROW_MIN = 13.dp          // 五档行高下限（防挤压）
+private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参考截图≈23dp行距，避免铺满后过疏）
 
 // ============================================================
 // 右侧盘口栏：上=五档（卖5→卖1，买1→买5），下=逐笔成交明细
