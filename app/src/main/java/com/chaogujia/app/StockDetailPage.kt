@@ -2852,11 +2852,17 @@ private fun DetailBottomBar(
     onToggleWatch: () -> Unit,
     onMore: () -> Unit
 ) {
+    // 外层黑底容器：高度 = 内容高度 + 系统按键区，使黑色铺到屏幕最底部
+    // 有虚拟按键 → 底部留出黑底 Spacer（按键区）；无按键 → inset=0，内容自然整块居中
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black)
+    ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
-            .navigationBarsPadding()
             .height(58.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2864,10 +2870,10 @@ private fun DetailBottomBar(
         val cName = concept?.name ?: "概念"
         val pct = concept?.pct
         val pctColor = when {
-            pct == null -> GRAY_FLAT
-            pct > 0 -> RED_UP
-            pct < 0 -> GREEN_TEXT
-            else -> GRAY_FLAT
+            pct == null -> Color(0xFFBBBBBB)
+            pct > 0 -> Color(0xFFFF6B5B)
+            pct < 0 -> Color(0xFF3DDC60)
+            else -> Color(0xFFBBBBBB)
         }
         val pctTxt = when {
             pct == null -> "--"
@@ -2883,7 +2889,7 @@ private fun DetailBottomBar(
         ) {
             Text(
                 text = cName,
-                color = TEXT_MAIN,
+                color = Color.White,
                 fontSize = 12.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -2910,6 +2916,9 @@ private fun DetailBottomBar(
         // 5) 功能
         BottomAction("功能", Modifier.weight(1f), onMore)
     }
+    // 底部系统虚拟按键区（纯黑填充）
+    Spacer(Modifier.height(navInset))
+    }
 }
 
 @Composable
@@ -2920,7 +2929,7 @@ private fun BottomAction(text: String, modifier: Modifier, onClick: () -> Unit) 
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, color = TEXT_MAIN, fontSize = 13.sp, maxLines = 1)
+        Text(text = text, color = Color.White, fontSize = 13.sp, maxLines = 1)
     }
 }
 

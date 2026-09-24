@@ -150,6 +150,8 @@ fun ChaoGuJiaApp() {
             }
         },
         bottomBar = {
+            // 个股详情页打开时隐藏底部导航栏
+            if (detail == null) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -188,6 +190,7 @@ fun ChaoGuJiaApp() {
                         )
                     }
                 }
+            }
             }
         }
     ) { padding ->
