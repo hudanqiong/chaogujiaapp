@@ -857,11 +857,11 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                         .weight(1f)
                         .fillMaxHeight()
                 ) {
-                    // 上部价格图（占 70%）：画布占满，价格/涨跌幅标注画在网格四角内部
+                    // 上部价格图：高度按实测复刻（905px÷3.5≈259dp）
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(0.7f)
+                            .weight(259f)
                     ) {
                         val range = minuteRange(trends, preClose, d?.base?.high ?: 0.0, d?.base?.low ?: 0.0, symmetric)
                         MinutePriceCanvas(
@@ -875,11 +875,11 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                     }
                     // 中间：时间轴（价图与量图之间）——刻度含集合竞价
                     TimeAxis(showAuction, Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT))
-                    // 下部量图（占 30%）
+                    // 下部量图：高度按实测复刻（352px÷3.5≈101dp）
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(0.3f)
+                            .weight(101f)
                     ) {
                         MinuteVolumeCanvas(trends, showAuction, preClose)
                     }
@@ -903,8 +903,12 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 // ============================================================
 private const val ORDERBOOK_RATIO = 0.30f      // 右侧盘口栏宽度占比（分时图自动占剩余）
 private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
-private val TIME_BAR_HEIGHT = 16.dp            // 分时时间栏高度
-private val ORDERBOOK_TOP_HEIGHT = 168.dp      // 右侧五档区高度（兼容保留，实际布局已改为自适应）
+private val TIME_BAR_HEIGHT = 17.dp            // 分时时间栏高度（实测 60px÷3.5≈17dp）
+// ===== 分时区（左侧）实测尺寸复刻 =====
+private val PRICE_CANVAS_HEIGHT = 259.dp       // 259dp
+private val VOLUME_CANVAS_HEIGHT = 101.dp      // 101dp
+// ===== 盘口栏（右侧）实测尺寸复刻 =====
+private val ORDERBOOK_TOP_HEIGHT = 294.dp      // 294dp
 private val ORDERBOOK_FONT = 12.sp             // 五档/明细字号（加大加粗）
 private val ORDERBOOK_ROW_MIN = 13.dp          // 五档行高下限（防挤压）
 private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参考截图≈23dp行距，避免铺满后过疏）
@@ -925,7 +929,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.7f)
+                .then(if (dealsExpanded) Modifier.weight(1f) else Modifier.weight(294f))
         ) {
             // 自适应行高：拿本区实际可用高度分 10 行，再用上下限收敛（对齐参考图 ≈23dp 行距）
             val obRowHeight = (maxHeight / obRowCount).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
@@ -1024,7 +1028,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.3f)
+                    .weight(91f)
             ) {
                 // 收起态固定 4 行：行高 = 本区可用高 / 4，用上下限收敛（对齐参考图 ≈21dp 行距）
                 val dealRowH = (maxHeight / 4).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
