@@ -955,8 +955,13 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
         ) {
             // 卖出/买入分界间隙：与一行同高，让买1与卖1之间有明显豁口
             val gapH = 12.dp
-            // 自适应行高：可用高度 / (行数 + 1个间隙)，再用上下限收敛
-            val obRowHeight = (maxHeight / (if (dealsExpanded) 3 else 11)).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
+            val rowAsks = ob?.asks ?: emptyList()
+            val rowBids = ob?.bids ?: emptyList()
+            val bigAsk = pickBigOrder(rowAsks, true)
+            val bigBid = pickBigOrder(rowBids, false)
+            val bigRows = (if (bigAsk != null) 1 else 0) + (if (bigBid != null) 1 else 0)
+            // 自适应行高：可用高度 / (行数 + 1个间隙 + 大单行)，再用上下限收敛
+            val obRowHeight = (maxHeight / ((if (dealsExpanded) 3 else 11) + bigRows)).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -967,6 +972,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
             val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
             if (dealsExpanded) {
                 // 仅显示卖1 + 间隙 + 买1
+                if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
                 OrderLevelRow(
                     label = "卖1",
                     lv = asks.getOrNull(0),
@@ -991,7 +997,10 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     isAsk = false,
                     rowHeight = obRowHeight
                 )
+                if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
             } else {
+                // 卖五上方：卖侧大单
+                if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
                 for (i in 4 downTo 0) {
                     OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, rowHeight = obRowHeight)
                 }
@@ -1008,6 +1017,8 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                 for (i in 0 until 5) {
                     OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, rowHeight = obRowHeight)
                 }
+                // 买五下方：买侧大单
+                if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
             }
             }
         }
@@ -1067,6 +1078,55 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                 }
             }
         }
+    }
+}
+
+// ============================================================
+// 大单判定：取五档全部挂单量的中位数，某档 >= 中位数*3 且 >=300 手
+// 视为大单；卖侧取满足条件的最大一档 -> 卖五上方；买侧 -> 买五下方
+// ============================================================
+private data class BigOrder(val label: String, val vol: Double, val isAsk: Boolean)
+
+private fun pickBigOrder(levels: List<OrderLevel>, isAsk: Boolean): BigOrder? {
+    val vols = levels.map { it.vol }.filter { it > 0 }
+    if (vols.size < 3) return null
+    val sorted = vols.sorted()
+    val med = if (sorted.size % 2 == 1) sorted[sorted.size / 2]
+              else (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2.0
+    if (med <= 0) return null
+    val thr = maxOf(med * 3.0, 300.0)
+    var best: BigOrder? = null
+    levels.forEachIndexed { i, lv ->
+        if (lv.vol >= thr) {
+            val b = BigOrder((if (isAsk) "卖" else "买") + (i + 1), lv.vol, isAsk)
+            if (best == null || b.vol > best!!.vol) best = b
+        }
+    }
+    return best
+}
+
+/** 大单提示行 */
+@Composable
+private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
+    val c = if (b.isAsk) GREEN_TEXT else RED_UP
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(rowHeight)
+            .padding(horizontal = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            "大单 " + b.label,
+            color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.Start
+        )
+        Text(
+            fmtVol(b.vol), color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+        )
     }
 }
 
