@@ -810,7 +810,7 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
             ) {
                 Text(
                     text = label,
-                    color = if (active) Color(Config.COLOR_PRIMARY) else TEXT_MAIN,
+                    color = if (active) TEXT_MAIN else TEXT_SUB,
                     fontSize = 15.sp,
                     fontWeight = if (active) FontWeight.Bold else FontWeight.Normal
                 )
