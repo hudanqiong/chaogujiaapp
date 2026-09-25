@@ -182,6 +182,8 @@ fun StockDetailPage(
     // 是否已加自选（用于底部“自选”按钮）
     var watched by remember { mutableStateOf<Boolean?>(null) }
     var loading by remember { mutableStateOf(false) }
+    // 十字光标分钟（-1 = 无）：由本页持有，传给 MinuteChart，并驱动顶部「分时信息条」联动
+    var cursorMin by remember { mutableStateOf(-1f) }
     val scope = rememberCoroutineScope()
 
     // 切换股票 或 切换周期 → 拉数据
@@ -206,6 +208,7 @@ fun StockDetailPage(
         val d = withContext(Dispatchers.IO) { Api.detail(code, k, 320) }
         if (d != null) detail = d
         selK = null   // 换股票/换周期 → 取消 K 线选中
+        cursorMin = -1f   // 换股票/换周期 → 复位十字光标（信息条恢复显示最新值）
         loading = false
     }
 
@@ -242,7 +245,17 @@ fun StockDetailPage(
         DetailHeadData(detail, selK)
 
         // ================= 标签栏 =================
-        PeriodTabs(period, onPick = { period = it; selK = null }, onGear = { showMaSetting = true })
+        PeriodTabs(period, onPick = { period = it; selK = null; cursorMin = -1f }, onGear = { showMaSetting = true })
+        // 分时信息条：仅在分时/五日视图显示，位于标签栏下方、分时价图上方；
+        // 与十字光标联动：光标在图上时显示该分钟时点值，抬手恢复最新值。
+        if (period == "minute" || period == "fiveday") {
+            val infoTrends = cleanMinuteTrends(detail?.trends ?: emptyList())
+            MinuteInfoBar(
+                trends = infoTrends,
+                preClose = detail?.base?.preClose ?: 0.0,
+                cursorMin = cursorMin
+            )
+        }
         // 均线参数（父层持有，供 KLineChart 与图例共享）
         if (period == "day" || period == "week" || period == "month") MaLegend(maPeriods, showChip = showChip, onToggleChip = { showChip = !showChip })
         if (showMaSetting) {
@@ -283,7 +296,13 @@ fun StockDetailPage(
                         .height(CHART_AREA_HEIGHT)
                 ) {
                     when (period) {
-                        "minute" -> MinuteChart(detail, showAuction, symmetricAxis)
+                        "minute" -> MinuteChart(
+                            d = detail,
+                            showAuction = showAuction,
+                            symmetric = symmetricAxis,
+                            cursorMin = cursorMin,
+                            onCursorChange = { cursorMin = it }
+                        )
                         "fiveday" -> FiveDayChart(detail)
                         else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
                     }
@@ -798,6 +817,94 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
     Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
 }
 
+/**
+ * 分时信息条：横向一排，位于分时标签栏（分时|日K|周K|月K）下方、分时价图上方。
+ * 内容：时间(时:分) · 均价 · 涨跌额 · 涨跌幅。
+ * 与十字光标联动：cursorMin >= -15f 时显示光标所在分钟的时点值；否则显示最新值。
+ * 涨跌额/涨跌幅不显示标签，字体颜色跟随红涨绿跌。
+ */
+@Composable
+private fun MinuteInfoBar(
+    trends: List<DetailTrend>,
+    preClose: Double,
+    cursorMin: Float
+) {
+    if (trends.isEmpty()) return
+    val hasCursor = cursorMin >= -15f
+    // 光标所在分钟（吸附到最近的已有分时点），否则取最新点
+    val point: DetailTrend? = if (hasCursor) {
+        val target = cursorMin.toInt()
+        // 优先精确匹配；否则取 <= target 的最近点
+        trends.firstOrNull { it.min == target }
+            ?: trends.lastOrNull { it.min <= target }
+            ?: trends.firstOrNull()
+    } else {
+        trends.lastOrNull()
+    }
+    val p = point ?: return
+
+    val price = p.price
+    val chg = if (preClose > 0) price - preClose else 0.0
+    val pct = if (preClose > 0) chg / preClose * 100.0 else 0.0
+    val color = when {
+        chg > 0 -> RED_UP
+        chg < 0 -> GREEN_TEXT
+        else -> GRAY_FLAT
+    }
+    // 时间：min=0 → 09:30；min<=120 → 上午；min>120 跳过午休 → 13:00 + (min-120)
+    val label = minuteToClock(p.min)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 时间
+        Text(
+            text = label,
+            color = TEXT_SUB,
+            fontSize = 11.sp,
+            fontFamily = DSpNumFont
+        )
+        // 均价（颜色与分时价图的均价线一致：0xFFFF8C00）
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "均价:" + fmtNum2(p.avg),
+            color = Color(0xFFFF8C00),
+            fontSize = 11.sp,
+            fontFamily = DSpNumFont
+        )
+        Spacer(Modifier.weight(1f))
+        // 涨跌额（只要数值，无标签，红涨绿跌）
+        Text(
+            text = fmtSigned(chg),
+            color = color,
+            fontSize = 11.sp,
+            fontFamily = DSpNumFont,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.width(10.dp))
+        // 涨跌幅（只要数值 + %，无标签，红涨绿跌）
+        Text(
+            text = fmtPct(pct) + (if (pct > 0) "" else ""),
+            color = color,
+            fontSize = 11.sp,
+            fontFamily = DSpNumFont,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+/** 分钟序号 → 时:分（A股：min=0→09:30；0..120 上午；>120 跳过午休从 13:00 起） */
+private fun minuteToClock(min: Int): String {
+    val m = min.coerceIn(0, 240)
+    val total = if (m <= 120) 9 * 60 + 30 + m else 13 * 60 + (m - 120)
+    val hh = total / 60
+    val mm = total % 60
+    return String.format(java.util.Locale.CHINA, "%02d:%02d", hh, mm)
+}
+
 // ============================================================
 // 分时图 + 右侧盘口栏（对标同花顺）
 //   左：上=价格曲线（含昨收基准线 + 均价线），下=分时量
@@ -823,7 +930,14 @@ private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
 }
 
 @Composable
-private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric: Boolean = true) {
+private fun MinuteChart(
+    d: StockDetail?,
+    showAuction: Boolean = false,
+    symmetric: Boolean = true,
+    // 十字光标分钟（-1 = 无）：由父层持有并传入，便于顶部「分时信息条」与光标联动
+    cursorMin: Float = -1f,
+    onCursorChange: (Float) -> Unit = {}
+) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
     // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
     // X 轴缩放（方案丙，价图/量图/TimeAxis 三者同源）：
@@ -834,8 +948,8 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
     val preClose = d?.base?.preClose ?: 0.0
 
     // ===== 分时量副图：指标切换 + 十字光标 =====
-    // cursorMin: 十字光标锁定的分钟（-1 = 无光标），价图与量图共享同一份状态
-    var cursorMin by remember { mutableStateOf(-1f) }
+    // cursorMin: 十字光标锁定的分钟（-1 = 无光标），由父层持有（见函数参数），
+    // 价图与量图共享同一份状态，并驱动顶部「分时信息条」联动。
     // cursorPriceY: 价图横线归一化 y（0..1；-1 = 无），仅价区横线使用
     var cursorPriceY by remember { mutableStateOf(-1f) }
     // cursorVolY: 量图横线归一化 y（0..1；-1 = 无），仅量区横线使用
@@ -920,7 +1034,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             cursorMin = cursorMin,
                             cursorY = cursorPriceY,
                             hasCursor = cursorMin >= -15f,
-                            onCursor = { cursorMin = it },
+                            onCursor = { onCursorChange(it) },
                             onCursorY = { cursorPriceY = it; cursorZone = 1 },
                             onClearZone = { cursorZone = 0 },
                             modifier = Modifier.fillMaxSize()
@@ -955,7 +1069,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             cursorMin = cursorMin,
                             cursorY = cursorVolY,
                             hasCursor = cursorMin >= -15f,
-                            onCursor = { cursorMin = it },
+                            onCursor = { onCursorChange(it) },
                             onCursorY = { cursorVolY = it; cursorZone = 2 },
                             onClearZone = { cursorZone = 0 },
                             modifier = Modifier.fillMaxSize()
