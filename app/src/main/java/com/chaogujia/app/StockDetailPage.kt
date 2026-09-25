@@ -110,7 +110,7 @@ private val MACD_DEA_COLOR = Color(0xFFE64A3B)   // DEA 慢线：红
 private val MACD_BAR_COLOR = Color(0xFF2E8BE6)   // MACD 原柱改线：蓝
 private val VOL_LABEL_COLOR = Color(0xFF111111)  // 栏顶“量：”文字：黑
 private val CURSOR_LINE_COLOR = Color(0xFF000000) // 十字光标竖线：纯黑
-private val CURSOR_BOX_BG = Color(0xCC1E88E5)     // 十字光标交点数值框：蓝色半透明
+private val CURSOR_BOX_BG = Color(0xF21E88E5)     // 十字光标交点数值框：蓝色半透明（透明度已调高）
 private val CURSOR_BOX_TX = Color(0xFFFFFFFF)     // 十字光标数值框文字：白
 
 /**
@@ -925,6 +925,19 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             onClearZone = { cursorZone = 0 },
                             modifier = Modifier.fillMaxSize()
                         )
+                        // 数值框置顶层：覆盖在曲线/网格之上，保证不被遮挡
+                        CursorValueOverlay(
+                            trends = trends,
+                            preClose = preClose,
+                            maxP = range.first,
+                            minP = range.second,
+                            showAuction = showAuction,
+                            cursorMin = cursorMin,
+                            cursorY = cursorPriceY,
+                            cursorZone = cursorZone,
+                            volMode = volMode,
+                            mode = 1
+                        )
                     }
                     // 中间：时间轴（价图与量图之间）——刻度含集合竞价
                     TimeAxis(showAuction, Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT))
@@ -965,6 +978,19 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                                     .padding(start = 1.dp, top = 18.dp)
                             )
                         }
+                        // 数值框置顶层：覆盖在曲线/工具栏/菜单之上，保证数值框始终最上层
+                        CursorValueOverlay(
+                            trends = trends,
+                            preClose = preClose,
+                            maxP = range.first,
+                            minP = range.second,
+                            showAuction = showAuction,
+                            cursorMin = cursorMin,
+                            cursorY = cursorVolY,
+                            cursorZone = cursorZone,
+                            volMode = volMode,
+                            mode = 2
+                        )
                     }
                 }
             }
@@ -1054,6 +1080,101 @@ private fun MinuteCursorGesture(
                     })
                 }
         )
+    }
+}
+
+/**
+ * 十字光标数值框置顶层：在所有图层/工具栏之上重绘数值框，保证不被遮挡。
+ * mode: 1=价区, 2=量区
+ */
+@Composable
+private fun CursorValueOverlay(
+    trends: List<DetailTrend>,
+    preClose: Double,
+    maxP: Double,
+    minP: Double,
+    showAuction: Boolean,
+    cursorMin: Float,
+    cursorY: Float,
+    cursorZone: Int,
+    volMode: Int,
+    mode: Int
+) {
+    if (cursorY !in 0f..1f || cursorZone != mode) return
+    val tm = rememberTextMeasurer()
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val cy = (cursorY * h).coerceIn(0f, h)
+        if (mode == 1) {
+            val span = maxP - minP
+            val priceAtCy = minP + (1.0 - cursorY.toDouble()) * span
+            val txt = fmtNum2(priceAtCy)
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 7.5.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 4f
+            val boxH = lay.size.height + 0.5f
+            val cyOnline = (cursorMin < -15f) || (xMinuteAt(cursorMin, w, showAuction) >= w * 0.5f)
+            if (cyOnline) {
+                drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
+                drawText(lay, topLeft = Offset(3f, cy - lay.size.height / 2f))
+            } else {
+                drawRect(color = CURSOR_BOX_BG, topLeft = Offset(w - boxW, cy - boxH / 2f), size = Size(boxW, boxH))
+                drawText(lay, topLeft = Offset(w - boxW + 3f, cy - lay.size.height / 2f))
+            }
+        } else {
+            // 量区：复算 maxV 同 MinuteVolumeCanvas
+            val perMin = ArrayList<Float>(trends.size)
+            val perAmt = ArrayList<Float>(trends.size)
+            var prevCum = 0.0
+            var prevAmt = 0.0
+            for (t in trends) {
+                val d = if (t.min <= 0) t.vol else (t.vol - prevCum)
+                perMin.add(d.coerceAtLeast(0.0).toFloat())
+                prevCum = t.vol
+                val a = if (t.min <= 0) t.amount else (t.amount - prevAmt)
+                perAmt.add((a.coerceAtLeast(0.0) / 10000.0).toFloat())
+                prevAmt = t.amount
+            }
+            val vals = if (volMode == 1) perAmt else perMin
+            val maxV = (vals.maxOrNull() ?: 1f).coerceAtLeast(1e-6f)
+            val txt = if (volMode >= 2) {
+                val price = DoubleArray(trends.size) { trends[it].price }
+                when (volMode) {
+                    2 -> {
+                        val (dif, dea, hist) = macdSeries(price)
+                        var mx = 1e-6
+                        for (i in price.indices) mx = maxOf(mx, kotlin.math.abs(dif[i]), kotlin.math.abs(dea[i]), kotlin.math.abs(hist[i]))
+                        fmtNum2(mx - cursorY.toDouble() * (2.0 * mx))
+                    }
+                    3 -> {
+                        val (k, d, j) = kdjSeries(price, 9)
+                        val idx = trends.indexOfFirst { kotlin.math.abs(it.min.toFloat() - cursorMin) < 0.5f }
+                        val ii = if (idx >= 0) idx else trends.size - 1
+                        "K:" + fmtNum2(k[ii]) + " D:" + fmtNum2(d[ii]) + " J:" + fmtNum2(j[ii])
+                    }
+                    4 -> {
+                        val ii = trends.indexOfFirst { kotlin.math.abs(it.min.toFloat() - cursorMin) < 0.5f }.let { if (it >= 0) it else trends.size - 1 }
+                        "RSI:" + fmtNum2(100.0 - cursorY.toDouble() * 100.0)
+                    }
+                    else -> {
+                        val pv = perMinuteVol(trends)
+                        val ma = maSeries(pv, 5)
+                        val mx = (ma.maxOrNull() ?: 1.0).coerceAtLeast(1e-6)
+                        fmtVol(mx - cursorY.toDouble() * mx)
+                    }
+                }
+            } else {
+                val vAt = (1.0 - cursorY.toDouble()) * maxV
+                if (volMode == 1) fmtAmt(vAt) else fmtVol(vAt)
+            }
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 7.5.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 4f
+            val boxH = lay.size.height + 0.5f
+            drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
+            drawText(lay, topLeft = Offset(3f, cy - lay.size.height / 2f))
+            drawRect(color = CURSOR_BOX_BG, topLeft = Offset(w - boxW, cy - boxH / 2f), size = Size(boxW, boxH))
+            drawText(lay, topLeft = Offset(w - boxW + 3f, cy - lay.size.height / 2f))
+        }
     }
 }
 
@@ -1546,6 +1667,19 @@ private fun fmtVol(v: Double): String {
     return if (v >= 10000) String.format("%.2f万", v / 10000.0) else v.toLong().toString()
 }
 
+/** 分钟 -> 画布 X 坐标（与 MinutePriceCanvas / MinuteVolumeCanvas 内 xMinute 同源，供顶层 overlay 复用） */
+private fun xMinuteAt(min: Float, w: Float, showAuction: Boolean): Float {
+    return if (showAuction) {
+        when {
+            min < 0f -> ((min + 15f) / 10f) * 0.20f * w                     // 早盘竞价 09:15(-15)-09:25(-5) → [0,0.20w]
+            min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w          // 09:30-14:57 正常分时(73.33%)
+            else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w        // 14:57-15:00 尾盘竞价(6.67%)
+        }
+    } else {
+        (min.coerceIn(0f, 240f) / 240f) * w
+    }
+}
+
 /**
  * 分时价格区间（方案 A / 准确性优先）：
  * 优先用后端权威的当日最高/最低价（base.high / base.low）定上下边界，
@@ -1739,27 +1873,27 @@ private fun MinutePriceCanvas(
         // 十字光标（价图段）：竖线穿过整个价区；横线归一化 y，交点单端显示价格（蓝色半透明框）
         if (cursorMin >= -15f) {
             val cx = xMinute(cursorMin).coerceIn(0f, w)
-            drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
+            drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 2.0f)
         }
         // 横线与数值框仅在「价区为激活区」时绘制，保证与量区互斥（只有一根横线）
         if (cursorY in 0f..1f && cursorZone == 1) {
             val cy = (cursorY * h).coerceIn(0f, h)
             val priceAtCy = minP + (1.0 - cursorY.toDouble()) * span
             val txt = fmtNum2(priceAtCy)
-            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
-            val boxW = lay.size.width + 6f
-            val boxH = lay.size.height + 1f
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 7.5.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 4f
+            val boxH = lay.size.height + 0.5f
             val cyOnline = (cursorMin < -15f) || (xMinute(cursorMin) >= w * 0.5f)
             if (cyOnline) {
                 // 竖线在右侧（或无竖线）：数值框放左端，横线左端截断
-                drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w, cy), strokeWidth = 1.2f)
+                drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w, cy), strokeWidth = 2.0f)
                 drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
-                drawText(lay, topLeft = Offset(4f, cy - lay.size.height / 2f))
+                drawText(lay, topLeft = Offset(3f, cy - lay.size.height / 2f))
             } else {
                 // 竖线在左侧：数值框放右端，横线右端截断
-                drawLine(CURSOR_LINE_COLOR, Offset(0f, cy), Offset(w - boxW, cy), strokeWidth = 1.2f)
+                drawLine(CURSOR_LINE_COLOR, Offset(0f, cy), Offset(w - boxW, cy), strokeWidth = 2.0f)
                 drawRect(color = CURSOR_BOX_BG, topLeft = Offset(w - boxW, cy - boxH / 2f), size = Size(boxW, boxH))
-                drawText(lay, topLeft = Offset(w - boxW + 4f, cy - lay.size.height / 2f))
+                drawText(lay, topLeft = Offset(w - boxW + 3f, cy - lay.size.height / 2f))
             }
         }
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
@@ -2022,7 +2156,7 @@ private fun MinuteVolumeCanvas(
         // 十字光标竖线（量图段）：纯黑，仅在量图区域内画，时间轴不画
         if (cursorMin >= -15f) {
             val cx = xMinute(cursorMin).coerceIn(0f, w)
-            drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
+            drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 2.0f)
         }
         // 十字光标横线（量图段）：两端各显示横线高度对应的量值，蓝底白字
         // 横线与数值框仅在「量区为激活区」时绘制，保证与价区互斥（只有一根横线）
@@ -2059,15 +2193,15 @@ private fun MinuteVolumeCanvas(
                 val vAt = (1.0 - cursorY.toDouble()) * maxV
                 if (volMode == 1) fmtAmt(vAt) else fmtVol(vAt)
             }
-            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
-            val boxW = lay.size.width + 6f
-            val boxH = lay.size.height + 1f
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 7.5.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 4f
+            val boxH = lay.size.height + 0.5f
             // 两端各截断 boxW，中间画横线；左右端各放一个蓝框写同数值
-            drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w - boxW, cy), strokeWidth = 1.2f)
+            drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w - boxW, cy), strokeWidth = 2.0f)
             drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
-            drawText(lay, topLeft = Offset(4f, cy - lay.size.height / 2f))
+            drawText(lay, topLeft = Offset(3f, cy - lay.size.height / 2f))
             drawRect(color = CURSOR_BOX_BG, topLeft = Offset(w - boxW, cy - boxH / 2f), size = Size(boxW, boxH))
-            drawText(lay, topLeft = Offset(w - boxW + 4f, cy - lay.size.height / 2f))
+            drawText(lay, topLeft = Offset(w - boxW + 3f, cy - lay.size.height / 2f))
         }
         // 淡灰边框
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
