@@ -557,7 +557,7 @@ private fun DetailHeadLatest(b: StockBase?) {
         // 右：三竖列
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End)
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
