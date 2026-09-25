@@ -5,6 +5,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -40,6 +43,9 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextMeasurer
@@ -1222,51 +1228,51 @@ private fun MinuteCursorGesture(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // 单手势层：长按拖动激活 + 轻点清除，避免两个 pointerInput 叠加导致
-                // 轻点被长按检测器抢占、点击无法关闭光标的问题。
-                .pointerInput(trends, showAuction, hasCursor) {
-                    detectTapGestures(
-                        onTap = {
-                            // 轻点：有关光标则关闭；无光标则不做处理
-                            // 关闭必须写入 CURSOR_NONE(-99f)，而不是 -1f：
-                            // 各层用 `cursorMin >= CURSOR_ACTIVE_MIN` 判断是否激活，-1f 仍在有效区间内会被误判为「有光标」，
-                            // 进而回落到 trends[0]（09:30）。详见 CURSOR_NONE 常量定义。
+                // 单手势层（同一 pointerInput 内自定义手势）：
+                //   长按 → 激活光标 + 拖动跟随；
+                //   轻点（未达长按就抬起）→ 关闭光标。
+                // 之前在「同一个 pointerInput 里串 detectTapGestures + detectDragGesturesAfterLongPress」
+                // 或「分成两个 pointerInput」都不行：
+                //   - 两个 pointerInput：detectTapGestures 会抢占长按，detectDragGesturesAfterLongPress
+                //     永远等不到长按 → 光标拖不动；
+                //   - 同一 pointerInput 内串两个 detect*：它们是挂起函数会顺序阻塞，后面的永远不执行。
+                // 因此用一个 awaitEachGesture 自己分流：长按走拖动循环，轻点走关闭。
+                .pointerInput(trends, showAuction, hasCursor, hgt) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        // 等待长按超时：返回非 null = 长按成立；为 null = 在超时前抬起（轻点）
+                        val longPress = awaitLongPressOrCancellation(down.id)
+                        if (longPress == null) {
+                            // —— 轻点：关闭光标（必须写入 CURSOR_NONE(-99f)，不能用 -1f，
+                            //    因为各层用 `cursorMin >= CURSOR_ACTIVE_MIN` 判定，-1f 仍在有效区间内会被误判为有光标）
                             if (cursorMin >= CURSOR_ACTIVE_MIN) {
                                 onCursor(CURSOR_NONE)
                                 onCursorY(CURSOR_NONE)
                                 onClearZone()
                             }
-                        },
-                        onLongPress = { off ->
-                            val m = minAtX(off.x)
-                            if (m >= 0f) {
-                                onCursor(m)
-                                if (hgt > 0f) onCursorY((off.y / hgt).coerceIn(0f, 1f))
+                        } else {
+                            // —— 长按成立：先按落点激活光标
+                            val m0 = minAtX(longPress.position.x)
+                            if (m0 >= 0f) {
+                                onCursor(m0)
+                                if (hgt > 0f) onCursorY((longPress.position.y / hgt).coerceIn(0f, 1f))
+                            }
+                            // 进入拖动循环：跟随手指实时吸附分钟，松手停在最后位置
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                if (ch.changedToUpIgnoreConsumed()) break
+                                if (ch.positionChanged()) {
+                                    val m = minAtX(ch.position.x)
+                                    if (m >= 0f) {
+                                        onCursor(m)
+                                        if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
+                                    }
+                                    ch.consume()
+                                }
                             }
                         }
-                    )
-                }
-                // 长按后的拖动：单独一层，仅在已激活光标时生效，实时吸附分钟
-                .pointerInput(trends, showAuction, hasCursor) {
-                    detectDragGesturesAfterLongPress(
-                        onDragStart = { off ->
-                            val m = minAtX(off.x)
-                            if (m >= 0f) {
-                                onCursor(m)
-                                if (hgt > 0f) onCursorY((off.y / hgt).coerceIn(0f, 1f))
-                            }
-                        },
-                        onDrag = { change, _ ->
-                            change.consume()
-                            val m = minAtX(change.position.x)
-                            if (m >= 0f) {
-                                onCursor(m)
-                                if (hgt > 0f) onCursorY((change.position.y / hgt).coerceIn(0f, 1f))
-                            }
-                        },
-                        onDragEnd = { /* 松手保留光标，停留在最后位置 */ },
-                        onDragCancel = { /* 取消不动 */ }
-                    )
+                    }
                 }
         )
     }
