@@ -862,13 +862,6 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 
     // 外层分栏：可选[早盘竞价] + 分时主轴 + 可选[收盘竞价] + 盘口栏
     Column(modifier = Modifier.fillMaxSize().padding(top = 2.dp, start = 4.dp, end = 4.dp)) {
-        // ===== 顶部工具栏：【分时量▼】+ 数值（量/现手/额）=====
-        MinuteVolToolbar(
-            trends = trends,
-            cursorMin = cursorMin,
-            volMode = volMode,
-            onOpenPicker = { showVolPicker = true }
-        )
         Row(
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
@@ -934,6 +927,14 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             cursorMin = cursorMin,
                             onCursor = { cursorMin = it },
                             modifier = Modifier.fillMaxSize()
+                        )
+                        // ===== 量图区内浮动工具栏（方案C）：【分时量▼】+ 数值，浮在量图左上角，不占高度 =====
+                        MinuteVolToolbar(
+                            trends = trends,
+                            cursorMin = cursorMin,
+                            volMode = volMode,
+                            onOpenPicker = { showVolPicker = true },
+                            modifier = Modifier.align(Alignment.TopStart)
                         )
                     }
                 }
@@ -1037,7 +1038,8 @@ private fun MinuteVolToolbar(
     trends: List<DetailTrend>,
     cursorMin: Float,
     volMode: Int,
-    onOpenPicker: () -> Unit
+    onOpenPicker: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     // \u5b9a\u4f4d\u5f53\u524d\u5206\u949f\uff1a\u6709\u5149\u6807\u53d6\u8be5\u5206\u949f\uff0c\u5426\u5219\u53d6\u6700\u540e\u4e00\u6839
     val cur: DetailTrend? = remember(trends, cursorMin) {
@@ -1058,11 +1060,12 @@ private fun MinuteVolToolbar(
             a / 10000.0
         }
     }
+    // 方案C：紧凑浮动胶囊，浮在量图左上角，不占高度、不挤压柱子
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(22.dp)
-            .padding(start = 2.dp),
+        modifier = modifier
+            .padding(start = 1.dp, top = 1.dp)
+            .background(Color(0xE6FFFFFF), shape = RoundedCornerShape(3.dp))
+            .padding(horizontal = 3.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // \u3010\u5206\u65f6\u91cf\u25bc\u3011\u70b9\u51fb\u5f39\u5c42
