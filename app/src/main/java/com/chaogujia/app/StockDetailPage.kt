@@ -982,8 +982,6 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                         CursorValueOverlay(
                             trends = trends,
                             preClose = preClose,
-                            maxP = range.first,
-                            minP = range.second,
                             showAuction = showAuction,
                             cursorMin = cursorMin,
                             cursorY = cursorVolY,
@@ -1091,8 +1089,8 @@ private fun MinuteCursorGesture(
 private fun CursorValueOverlay(
     trends: List<DetailTrend>,
     preClose: Double,
-    maxP: Double,
-    minP: Double,
+    maxP: Double = 0.0,
+    minP: Double = 0.0,
     showAuction: Boolean,
     cursorMin: Float,
     cursorY: Float,
