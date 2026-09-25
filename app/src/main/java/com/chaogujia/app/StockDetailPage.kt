@@ -989,6 +989,18 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             volMode = volMode,
                             mode = 2
                         )
+                        // 全屏定位按钮（量区网格右下角）：样式复制日K右下角全屏按钮，暂未接功能
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(end = 2.dp, bottom = 2.dp)
+                        ) {
+                            KLineButton(
+                                text = "",
+                                onClick = {},
+                                content = { ChevronIcon(tipLeft = false, boxSize = 30.dp, double = true, rotate45 = true, scaleMult = 0.55f, gapMult = 3.4f) }
+                            )
+                        }
                     }
                 }
             }
