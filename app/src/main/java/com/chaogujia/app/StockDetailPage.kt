@@ -190,6 +190,11 @@ fun StockDetailPage(
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("minute_symmetric", true))
     }
+    // 盘口五档「手数 / 委托金额」显示切换：true=显示委托金额(元→万/亿)，false=显示手数
+    var showOrderAmount by remember {
+        mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+            .getBoolean("orderbook_show_amount", false))
+    }
     // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
     var showChip by remember { mutableStateOf(false) }
     // 所属概念（含实时涨跌幅）
@@ -289,6 +294,12 @@ fun StockDetailPage(
                     symmetricAxis = v
                     ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
                         .edit().putBoolean("minute_symmetric", v).apply()
+                },
+                showOrderAmount = showOrderAmount,
+                onShowOrderAmountChange = { v ->
+                    showOrderAmount = v
+                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+                        .edit().putBoolean("orderbook_show_amount", v).apply()
                 }
             )
         }
@@ -1168,6 +1179,7 @@ private fun MinuteChart(
         OrderBookPanel(
             ob = ob,
             preClose = preClose,
+            showAmount = showOrderAmount,
             modifier = Modifier
                 .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
@@ -1547,7 +1559,7 @@ private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参
 // 右侧盘口栏：上=五档（卖5→卖1，买1→买5），下=逐笔成交明细
 // ============================================================
 @Composable
-private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier = Modifier) {
+private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean = false, modifier: Modifier = Modifier) {
     // 明细是否展开：展开时上面五档收缩为「卖1 + 买1」两行，把空间让给明细
     var dealsExpanded by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
@@ -1584,7 +1596,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     lv = asks.getOrNull(0),
                     preClose = pc,
                     isAsk = true,
-                    rowHeight = obRowHeight
+                    showAmount = showAmount,
                 )
                 // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
                 Box(
@@ -1601,14 +1613,14 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     lv = bids.getOrNull(0),
                     preClose = pc,
                     isAsk = false,
-                    rowHeight = obRowHeight
+                    showAmount = showAmount,
                 )
                 if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
             } else {
                 // 卖五上方：卖侧大单
                 if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
                 for (i in 4 downTo 0) {
-                    OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, rowHeight = obRowHeight)
+                    OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight)
                 }
                 // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
                 Box(
@@ -1621,7 +1633,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                         }
                 )
                 for (i in 0 until 5) {
-                    OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, rowHeight = obRowHeight)
+                    OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight)
                 }
                 // 买五下方：买侧大单
                 if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
@@ -1778,7 +1790,7 @@ private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
 
 /** 五档单行：左标签 + 中价格 + 右手数 */
 @Composable
-private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean, rowHeight: Dp = ORDERBOOK_TOP_HEIGHT / 10) {
+private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean, showAmount: Boolean = false, rowHeight: Dp = ORDERBOOK_TOP_HEIGHT / 10) {
     val price = lv?.price ?: 0.0
     val vol = lv?.vol ?: 0.0
     val priceColor = when {
@@ -1809,7 +1821,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
-            if (vol > 0) fmtVol(vol) else "--",
+            if (vol > 0) { if (showAmount) fmtAmount(price * vol * 100.0) else fmtVol(vol) } else "--",
             color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false,
@@ -1863,6 +1875,15 @@ private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
 private fun fmtVol(v: Double): String {
     if (v.isNaN()) return "--"
     return if (v >= 10000) String.format("%.2f万", v / 10000.0) else v.toLong().toString()
+}
+/** 委托金额格式化（万/亿）：>=1亿 -> 保留两位小数用「亿」；>=1万 -> 取整用「万」；否则原值 */
+private fun fmtAmount(v: Double): String {
+    if (v.isNaN() || v <= 0) return "--"
+    return when {
+        v >= 100000000.0 -> String.format("%.2f亿", v / 100000000.0)
+        v >= 10000.0 -> String.format("%.0f万", v / 10000.0)
+        else -> v.toLong().toString()
+    }
 }
 
 /** 分钟 -> 画布 X 坐标（与 MinutePriceCanvas / MinuteVolumeCanvas 内 xMinute 同源，供顶层 overlay 复用） */
@@ -3598,6 +3619,8 @@ private fun MaSettingDialog(
     onAuctionChange: (Boolean) -> Unit = {},
     symmetric: Boolean = true,
     onSymmetricChange: (Boolean) -> Unit = {},
+    showOrderAmount: Boolean = false,
+    onShowOrderAmountChange: (Boolean) -> Unit = {},
     onConfirm: (List<Int>) -> Unit
 ) {
     // 每行一个输入框：默认 4 个（沿用初始参数），可点“＋增加一条”追加
@@ -3682,6 +3705,21 @@ private fun MaSettingDialog(
                     androidx.compose.material3.Switch(
                         checked = symmetric,
                         onCheckedChange = { onSymmetricChange(it) }
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        androidx.compose.material3.Text("买卖盘委托单显示金额", fontSize = 14.sp, color = TEXT_MAIN)
+                        androidx.compose.material3.Text("开启后盘口最后一栏改显示委托金额(万/亿)，关闭显示手数", fontSize = 10.sp, color = TEXT_SUB)
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = showOrderAmount,
+                        onCheckedChange = { onShowOrderAmountChange(it) }
                     )
                 }
             }
