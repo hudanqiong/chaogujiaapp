@@ -561,16 +561,16 @@ private fun DetailHeadLatest(b: StockBase?) {
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
-                Modifier,
+                Modifier.weight(1f),
                 listOf(
                     Triple("高", fmtNum(b?.high), baseColor(b?.high ?: 0.0)),
                     Triple("低", fmtNum(b?.low), baseColor(b?.low ?: 0.0)),
                     Triple("开", fmtNum(b?.open), baseColor(b?.open ?: 0.0))
                 )
             )
-            // 列2：统一黑色
+            // 列2：统一黑色（内容长，多给权重）
             DetailColC(
-                Modifier,
+                Modifier.weight(1.5f),
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
@@ -579,7 +579,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
             DetailColC(
-                Modifier,
+                Modifier.weight(1f),
                 listOf(
                     Triple("量比", fmtNum2(b?.volRatio), vrColor),
                     Triple("换", fmtPct(b?.turnover), TEXT_MAIN),
@@ -748,7 +748,7 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
                 Spacer(Modifier.width(4.dp))
                 Text(
                     value,
-                    modifier = Modifier.widthIn(min = 32.dp),
+                    modifier = Modifier.weight(1f),
                     color = valueColor,
                     fontSize = 13.sp,
                     fontFamily = DSpNumFont,
@@ -776,7 +776,7 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
                 Spacer(Modifier.width(4.dp))
                 Text(
                     value,
-                    modifier = Modifier.widthIn(min = 32.dp),
+                    modifier = Modifier.weight(1f),
                     color = vc,
                     fontSize = 13.sp,
                     fontFamily = DSpNumFont,
