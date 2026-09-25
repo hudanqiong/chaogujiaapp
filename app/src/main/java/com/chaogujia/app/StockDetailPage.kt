@@ -570,7 +570,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列2：统一黑色（内容长，多给权重）
             DetailColC(
-                Modifier.width(66.dp),
+                Modifier.width(82.dp),
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
