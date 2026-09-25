@@ -1676,6 +1676,7 @@ private val OB_LIMIT_BLUE = Color(0xFF3A7BD5)   // 涨跌停数据面板「点�
 private val OB_LIMIT_LABEL = Color(0xFF555555)  // 涨跌停数据面板标签黑偏灰
 private val OB_LIMIT_NUM = Color(0xFF000000)    // 涨跌停数据面板百分比数值纯黑
 private val OB_LIMIT_TITLE = Color(0xFF555555)  // 涨跌停数据面板标题黑偏灰
+private val OB_LIMIT_TITLE_BG = Color(0xFFF0F0F0)   // 涨跌停面板标题行浅灰背景
 private val ORDERBOOK_ROW_MIN = 13.dp          // 五档行高下限（防挤压）
 private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参考截图≈23dp行距，避免铺满后过疏）
 
@@ -1701,7 +1702,15 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             val allDeals = ob?.deals ?: emptyList()
             val bigAsk = pickBigOrder(allDeals, true)
             val bigBid = pickBigOrder(allDeals, false)
-            val bigRows = (if (bigAsk != null) 1 else 0) + (if (bigBid != null) 1 else 0)
+            // 涨停 / 跌停判定：用后端 limitUp/limitDown 容差比较（0.001 防浮点误差）
+            val isLimitUp0 = ob != null && ob.limitUp > 0 && ob.price >= ob.limitUp - 0.001
+            val isLimitDown0 = ob != null && ob.limitDown > 0 && ob.price <= ob.limitDown + 0.001
+            // 涨跌停数据面板展开/收起（收起时面板消失，五档+大单恢复正常显示）
+            var limitPanelExpanded by remember(ob?.symbol) { mutableStateOf(true) }
+            // 涨停展开时卖五大单被面板一并盖住（不再单独占行）；跌停展开时买五大单同理
+            val bigAskShown = bigAsk != null && !(isLimitUp0 && limitPanelExpanded && !dealsExpanded)
+            val bigBidShown = bigBid != null && !(isLimitDown0 && limitPanelExpanded && !dealsExpanded)
+            val bigRows = (if (bigAskShown) 1 else 0) + (if (bigBidShown) 1 else 0)
             // 自适应行高：可用高度 / (行数 + 1个间隙 + 大单行)，再用上下限收敛
             val obRowHeight = (maxHeight / ((if (dealsExpanded) 3 else 11) + bigRows)).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
             Column(
@@ -1712,14 +1721,14 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             val asks = ob?.asks ?: emptyList()
             val bids = ob?.bids ?: emptyList()
             val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
-            // 涨停 / 跌停判定：用后端 limitUp/limitDown 容差比较（0.001 防浮点误差）
-            val isLimitUp = ob != null && ob.limitUp > 0 && ob.price >= ob.limitUp - 0.001
-            val isLimitDown = ob != null && ob.limitDown > 0 && ob.price <= ob.limitDown + 0.001
+            val isLimitUp = isLimitUp0
+            val isLimitDown = isLimitDown0
             // 面板占据的整块高度 = 5 行（涨停占卖盘位、跌停占买盘位），内容在该高度内上下居中
-            val panelBlockH = obRowHeight * 5
+            // 面板高度：涨停/跌停侧 5 行；若对侧大单行被一并盖住则再加 1 行
+            val panelBlockH = obRowHeight * (5 + (if ((isLimitUp && bigAsk != null && !bigAskShown) || (isLimitDown && bigBid != null && !bigBidShown)) 1 else 0))
             if (dealsExpanded) {
                 // 仅显示卖1 + 间隙 + 买1
-                if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
+                if (bigAskShown) BigOrderRow(bigAsk, obRowHeight)
                 OrderLevelRow(
                     label = "卖1",
                     lv = asks.getOrNull(0),
@@ -1744,13 +1753,14 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                     isAsk = false,
                     showAmount = showAmount,
                 )
-                if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
+                if (bigBidShown) BigOrderRow(bigBid, obRowHeight)
             } else {
-                // 卖五上方：卖侧大单
-                if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
-                if (isLimitUp) {
-                    // 涨停：卖盘 5 行被「涨停数据」面板整体顶替（顶到底 = 占满卖盘整块）
-                    LimitDataPanel(isUp = true, ob = ob, blockHeight = panelBlockH)
+                // 卖五上方：卖侧大单（涨停展开时被面板一并盖住，故此处不再渲染）
+                if (bigAskShown) BigOrderRow(bigAsk, obRowHeight)
+                if (isLimitUp && limitPanelExpanded) {
+                    // 涨停：面板顶替「卖盘 5 行（+卖五大单行，若存在）」
+                    LimitDataPanel(isUp = true, ob = ob, blockHeight = panelBlockH,
+                        expanded = limitPanelExpanded, onToggle = { limitPanelExpanded = !limitPanelExpanded })
                 } else {
                     for (i in 4 downTo 0) {
                         OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight)
@@ -1766,16 +1776,17 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                             drawRect(color = Color(0xFFEEEEEE), topLeft = Offset(0f, y), size = Size(size.width, 0.6.dp.toPx()))
                         }
                 )
-                if (isLimitDown) {
-                    // 跌停：买盘 5 行被「跌停数据」面板整体顶替
-                    LimitDataPanel(isUp = false, ob = ob, blockHeight = panelBlockH)
+                if (isLimitDown && limitPanelExpanded) {
+                    // 跌停：面板顶替「买盘 5 行（+买五大单行，若存在）」
+                    LimitDataPanel(isUp = false, ob = ob, blockHeight = panelBlockH,
+                        expanded = limitPanelExpanded, onToggle = { limitPanelExpanded = !limitPanelExpanded })
                 } else {
                     for (i in 0 until 5) {
                         OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight)
                     }
                 }
-                // 买五下方：买侧大单
-                if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
+                // 买五下方：买侧大单（跌停展开时被面板一并盖住，故此处不再渲染）
+                if (bigBidShown) BigOrderRow(bigBid, obRowHeight)
             }
             }
         }
@@ -1976,8 +1987,8 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
  * 颜色：标题/标签黑偏灰；百分比数值纯黑；金额数值涨停红/跌停绿；「点击查看」蓝色。
  */
 @Composable
-private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
-    var expanded by remember { mutableStateOf(true) }   // 默认展开
+private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp,
+                           expanded: Boolean, onToggle: () -> Unit) {
     val title = if (isUp) "涨停数据" else "跌停数据"
     val amountColor = if (isUp) RED_UP else GREEN_TEXT
     // 封单占成交 = 封单额 / 成交额 * 100（能算则算，否则 --）
@@ -1998,7 +2009,9 @@ private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded },
+                .background(OB_LIMIT_TITLE_BG)
+                .clickable { onToggle() }
+                .padding(vertical = 1.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -2032,13 +2045,13 @@ private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
                     if (isUp) {
                         LimitRowCenter("--")                         // 几天几板（整行居中）
                         LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
-                        LimitRow("最高封单额", "--", amountColor)
+                        LimitRow("最高封单额", if ((ob?.maxSealAmount ?: 0.0) > 0) fmtOrderAmount(ob!!.maxSealAmount) else "--", amountColor)
                         LimitRow("涨停成交额", dealAmtStr, amountColor)
                         LimitRowBlue("明日涨停率", "点击查看")
                     } else {
                         // 跌停：无「几天几板」与「明日涨停率」，仅 3 行横向排
                         LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
-                        LimitRow("最高封单额", "--", amountColor)
+                        LimitRow("最高封单额", if ((ob?.maxSealAmount ?: 0.0) > 0) fmtOrderAmount(ob!!.maxSealAmount) else "--", amountColor)
                         LimitRow("跌停成交额", dealAmtStr, amountColor)
                     }
                 }
