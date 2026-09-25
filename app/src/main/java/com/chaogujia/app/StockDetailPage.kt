@@ -1503,19 +1503,30 @@ private fun MinuteVolToolbar(
         }
         // 数值区：按指标类型切换
         if (volMode == VOLOR_MODE_MINUTE_AMT) {
+            // 额：优先用逐笔聚合的真实成交额（与量区同源），无数据回退差分值；保持黑色
+            val _amtTxt = minuteDeal?.amt?.let { fmtAmt(it / 10000.0) } ?: fmtAmt(minuteAmt)
             Text(
-                "  额:" + fmtAmt(minuteAmt),
+                "  额:" + _amtTxt,
                 color = VOL_LABEL_COLOR,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
         } else if (volMode == VOLOR_MODE_MINUTE_VOL) {
-            Text(
-                "  量:" + fmtVol(minuteVol) + "  现手:" + fmtVol(minuteVol),
-                color = VOL_LABEL_COLOR,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold
-            )
+            // 量：优先用逐笔聚合的真实总量（按主买/主卖着色），无数据回退差分值（黑）
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "  量:" + fmtVol(minuteDeal?.hand ?: minuteVol),
+                    color = if (minuteDeal != null) volTextColor else VOL_LABEL_COLOR,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "  现手:" + fmtVol(minuteDeal?.lastHand ?: minuteVol),
+                    color = if (minuteDeal != null) lastDealColor else VOL_LABEL_COLOR,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         } else {
             Text(
                 "  " + indicatorText,
