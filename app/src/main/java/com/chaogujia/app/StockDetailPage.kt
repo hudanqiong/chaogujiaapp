@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextMeasurer
@@ -1028,25 +1029,25 @@ private fun MinuteCursorGesture(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(trends, showAuction, w, hgt, cursorMin, cursorY) {
+                .pointerInput(trends, showAuction) {
                     awaitEachGesture {
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        // 按下立即消费：阻止父级 verticalScroll 抢走拖动事件（修复“只能点击不能滑动”）
+                        // 在 Initial 通道抢先拿到按下事件（父级 verticalScroll 尚未介入）
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                         down.consume()
                         onCursor(minAtX(down.position.x))
                         if (hgt > 0f) onCursorY((down.position.y / hgt).coerceIn(0f, 1f))
                         var moved = false
                         var lastPos = down.position
                         while (true) {
-                            val ev = awaitPointerEvent()
+                            // Initial 通道消费：先于父级 scrollable，彻底阻止其抢走拖动
+                            val ev = awaitPointerEvent(PointerEventPass.Initial)
                             val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                             lastPos = ch.position
                             if ((ch.position - down.position).getDistance() > 6f) moved = true
-                            if (!ch.pressed) { ch.consume(); break }
-                            // 拖动中：实时更新十字光标（横纵均可），并消费事件阻止父级滚动
+                            ch.consume()
+                            if (!ch.pressed) break
                             onCursor(minAtX(ch.position.x))
                             if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
-                            ch.consume()
                         }
                         // 轻点（几乎无移动）且已有光标 → 清除；拖动结束 → 保留
                         if (!moved && (lastPos - down.position).getDistance() <= 6f) {
