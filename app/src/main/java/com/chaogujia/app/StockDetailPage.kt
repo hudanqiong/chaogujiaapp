@@ -1236,7 +1236,10 @@ private fun MinuteCursorGesture(
                 //     永远等不到长按 → 光标拖不动；
                 //   - 同一 pointerInput 内串两个 detect*：它们是挂起函数会顺序阻塞，后面的永远不执行。
                 // 因此用一个 awaitEachGesture 自己分流：长按走拖动循环，轻点走关闭。
-                .pointerInput(trends, showAuction, hasCursor, hgt) {
+                // 注意：key 里绝对不能放 hasCursor！长按激活会把 hasCursor 由 false 翻成 true，
+                // 导致 pointerInput 协程被取消重启，拖动 while 循环刚进就被杀掉 → 光标拖不动。
+                // cursorMin 只在轻点分支里读一次快照，不作为 key。
+                .pointerInput(trends, showAuction, hgt) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         // 等待长按超时：返回非 null = 长按成立；为 null = 在超时前抬起（轻点）
@@ -1244,11 +1247,11 @@ private fun MinuteCursorGesture(
                         if (longPress == null) {
                             // —— 轻点：关闭光标（必须写入 CURSOR_NONE(-99f)，不能用 -1f，
                             //    因为各层用 `cursorMin >= CURSOR_ACTIVE_MIN` 判定，-1f 仍在有效区间内会被误判为有光标）
-                            if (cursorMin >= CURSOR_ACTIVE_MIN) {
-                                onCursor(CURSOR_NONE)
-                                onCursorY(CURSOR_NONE)
-                                onClearZone()
-                            }
+                            // 这里不去读 cursorMin（否则在 pointerInput 协程里会捕获旧值），
+                            // 关闭动作本身是幂等的：已关闭时再关一次无副作用。
+                            onCursor(CURSOR_NONE)
+                            onCursorY(CURSOR_NONE)
+                            onClearZone()
                         } else {
                             // —— 长按成立：先按落点激活光标
                             val m0 = minAtX(longPress.position.x)
