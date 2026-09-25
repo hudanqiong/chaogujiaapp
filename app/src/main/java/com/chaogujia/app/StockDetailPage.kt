@@ -327,6 +327,7 @@ fun StockDetailPage(
                             showAuction = showAuction,
                             symmetric = symmetricAxis,
                             cursorMin = cursorMin,
+                            showAmount = showOrderAmount,
                             onCursorChange = { cursorMin = it }
                         )
                         "fiveday" -> FiveDayChart(detail)
@@ -990,6 +991,8 @@ private fun MinuteChart(
     d: StockDetail?,
     showAuction: Boolean = false,
     symmetric: Boolean = true,
+    // 盘口五档末列是否显示委托金额（万/亿）而非手数（父层开关透传）
+    showAmount: Boolean = false,
     // 十字光标分钟（-1 = 无）：由父层持有并传入，便于顶部「分时信息条」与光标联动
     cursorMin: Float = CURSOR_NONE,
     onCursorChange: (Float) -> Unit = {}
@@ -1821,7 +1824,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
-            if (vol > 0) { if (showAmount) fmtAmount(price * vol * 100.0) else fmtVol(vol) } else "--",
+            if (vol > 0) { if (showAmount) fmtOrderAmount(price * vol * 100.0) else fmtVol(vol) } else "--",
             color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false,
@@ -1877,7 +1880,7 @@ private fun fmtVol(v: Double): String {
     return if (v >= 10000) String.format("%.2f万", v / 10000.0) else v.toLong().toString()
 }
 /** 委托金额格式化（万/亿）：>=1亿 -> 保留两位小数用「亿」；>=1万 -> 取整用「万」；否则原值 */
-private fun fmtAmount(v: Double): String {
+private fun fmtOrderAmount(v: Double): String {
     if (v.isNaN() || v <= 0) return "--"
     return when {
         v >= 100000000.0 -> String.format("%.2f亿", v / 100000000.0)
