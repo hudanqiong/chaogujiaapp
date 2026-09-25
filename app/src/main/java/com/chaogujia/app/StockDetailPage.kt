@@ -533,7 +533,7 @@ private fun DetailHeadLatest(b: StockBase?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(start = 10.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 左：当前价（大字） + 涨跌额/幅
@@ -556,12 +556,12 @@ private fun DetailHeadLatest(b: StockBase?) {
 
         // 右：三竖列
         Row(
-            modifier = Modifier.weight(1f).padding(end = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
-                Modifier.weight(1f),
+                Modifier,
                 listOf(
                     Triple("高", fmtNum(b?.high), baseColor(b?.high ?: 0.0)),
                     Triple("低", fmtNum(b?.low), baseColor(b?.low ?: 0.0)),
@@ -570,7 +570,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列2：统一黑色
             DetailColC(
-                Modifier.weight(1f),
+                Modifier,
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
@@ -579,7 +579,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
             DetailColC(
-                Modifier.weight(1f),
+                Modifier,
                 listOf(
                     Triple("量比", fmtNum2(b?.volRatio), vrColor),
                     Triple("换", fmtPct(b?.turnover), TEXT_MAIN),
@@ -728,7 +728,7 @@ private fun colLabel(raw: String): androidx.compose.ui.text.AnnotatedString {
         withStyle(
             SpanStyle(
                 fontSize = 9.sp,
-                baselineShift = BaselineShift.Superscript
+                baselineShift = BaselineShift(0.30f)
             )
         ) { append(sup) }
     }
@@ -742,13 +742,13 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
                 Text(
                     text = colLabel(label),
                     color = TEXT_COL_LABEL,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     maxLines = 1
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(4.dp))
                 Text(
                     value,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.widthIn(min = 32.dp),
                     color = valueColor,
                     fontSize = 13.sp,
                     fontFamily = DSpNumFont,
@@ -770,13 +770,13 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
                 Text(
                     text = colLabel(label),
                     color = TEXT_COL_LABEL,
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     maxLines = 1
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(4.dp))
                 Text(
                     value,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.widthIn(min = 32.dp),
                     color = vc,
                     fontSize = 13.sp,
                     fontFamily = DSpNumFont,
