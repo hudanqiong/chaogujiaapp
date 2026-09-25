@@ -1485,7 +1485,15 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
         val w = size.width
         val h = size.height
         if (trends.isEmpty()) return@Canvas
-        val maxV = trends.maxOf { it.vol }.coerceAtLeast(1e-6)
+        // 后端 trends.vol 是【累计量】，需差分还原每分钟成交量（首根=min0 自身累计）
+        val perMin = ArrayList<Float>(trends.size)
+        var prevCum = 0.0
+        for (t in trends) {
+            val d = if (t.min <= 0) t.vol else (t.vol - prevCum)
+            perMin.add(d.coerceAtLeast(0.0).toFloat())
+            prevCum = t.vol
+        }
+        val maxV = (perMin.maxOrNull() ?: 1f).coerceAtLeast(1e-6f)
         // 每分钟柱宽与定位：与价图/时间轴同款映射（方案丙：竞价段放大）
         fun xMinute(min: Float): Float {
             return if (showAuction) {
@@ -1531,8 +1539,8 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
         }
-        trends.forEach { t ->
-            val vh = (t.vol / maxV * h).toFloat()
+        trends.forEachIndexed { idx, t ->
+            val vh = (perMin[idx] / maxV * h).toFloat()
             val x = xMinute(t.min.coerceIn(0, 237).toFloat())
             // 量柱红绿：该分钟价格 ≥ 昨收 → 红（涨），< 昨收 → 绿（跌），无昨收则中性灰
             val barColor = when {
