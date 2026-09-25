@@ -831,9 +831,14 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
  *   - chg（涨跌额）：计算值 = price - preClose。
  *   - pct（涨跌幅）：计算值 = chg / preClose * 100%。
  *
+ * 内容规则（同一排，紧挨显示，仅用小间距分隔，不做左右两端分开）：
+ *   - 光标未激活（显示最新）：均价、最新价、涨跌额、涨跌幅；涨跌额/涨跌幅不带标签。
+ *   - 光标激活（显示该分钟时点值）：时间、均价、最新价、涨跌额、涨跌幅；时间前加 "时间:" 标签，涨跌额/涨跌幅不带标签。
+ *
  * 颜色规则：
- *   - 光标未激活（最新值）：均价用均价线同色(0xFFFF8C00)，时间黑色，涨跌额/涨跌幅红涨绿跌。
- *   - 光标激活（时点值）：所有数值统一黑色(TEXT_MAIN)。
+ *   - 均价：始终与分时价图均价线同色(0xFFFF8C00)。
+ *   - 最新价：始终黑色(TEXT_MAIN)。
+ *   - 涨跌额/涨跌幅：始终红涨绿跌(RED_UP / GREEN_TEXT / GRAY_FLAT)。
  */
 @Composable
 private fun MinuteInfoBar(
@@ -857,15 +862,14 @@ private fun MinuteInfoBar(
     val price = p.price
     val chg = if (preClose > 0) price - preClose else 0.0
     val pct = if (preClose > 0) chg / preClose * 100.0 else 0.0
-    // 光标未激活（显示最新值）：涨跌额/涨跌幅用红涨绿跌；均价用均价线同色。
-    // 光标激活（显示该分钟时点值）：所有数值统一黑色。
+    // 均价：始终与分时价图均价线同色；最新价：始终黑色；涨跌额/涨跌幅：始终红涨绿跌。
     val upDownColor = when {
         chg > 0 -> RED_UP
         chg < 0 -> GREEN_TEXT
         else -> GRAY_FLAT
     }
-    val numColor = if (hasCursor) TEXT_MAIN else upDownColor
-    val avgColor = if (hasCursor) TEXT_MAIN else Color(0xFFFF8C00)  // 与分时价图均价线一致
+    val avgColor = Color(0xFFFF8C00)  // 与分时价图均价线一致
+    val priceColor = TEXT_MAIN        // 最新价/时点价：始终黑色
     // 时间：min=0 → 09:30；min<=120 → 上午；min>120 跳过午休 → 13:00 + (min-120)
     val label = minuteToClock(p.min)
     Row(
@@ -874,35 +878,45 @@ private fun MinuteInfoBar(
             .padding(horizontal = 8.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 时间（始终黑色）
-        Text(
-            text = label,
-            color = TEXT_MAIN,
-            fontSize = 11.sp,
-            fontFamily = DSpNumFont
-        )
-        // 均价：光标激活→黑；未激活→均价线同色
-        Spacer(Modifier.width(12.dp))
+        // 时间标签：仅光标激活时显示（"时间:13:36"，始终黑色）
+        if (hasCursor) {
+            Text(
+                text = "时间:" + label,
+                color = TEXT_MAIN,
+                fontSize = 11.sp,
+                fontFamily = DSpNumFont
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+        // 均价：始终与均价线同色
         Text(
             text = "均价:" + fmtNum2(p.avg),
             color = avgColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont
         )
-        Spacer(Modifier.weight(1f))
-        // 涨跌额（无标签）：光标激活→黑；未激活→红涨绿跌
+        Spacer(Modifier.width(8.dp))
+        // 最新价（时点价）：始终黑色
+        Text(
+            text = fmtNum2(price),
+            color = priceColor,
+            fontSize = 11.sp,
+            fontFamily = DSpNumFont
+        )
+        Spacer(Modifier.width(8.dp))
+        // 涨跌额（无标签）：始终红涨绿跌
         Text(
             text = fmtSigned(chg),
-            color = numColor,
+            color = upDownColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont,
             fontWeight = FontWeight.SemiBold
         )
-        Spacer(Modifier.width(10.dp))
-        // 涨跌幅（无标签）：光标激活→黑；未激活→红涨绿跌
+        Spacer(Modifier.width(8.dp))
+        // 涨跌幅（无标签）：始终红涨绿跌
         Text(
             text = fmtPct(pct),
-            color = numColor,
+            color = upDownColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont,
             fontWeight = FontWeight.SemiBold
