@@ -1195,9 +1195,11 @@ private fun MinuteCursorGesture(
             }
         }
         // 横坐标 -> 最近的数据分钟
+        // 注意：找不到任何有效点时返回 -1f（无效哨兵），绝不返回 0，
+        // 否则松手会被误判为 09:30（0 分钟 = 集合竞价点，trends[0]）。
         fun minAtX(px: Float): Float {
             val c = px.coerceIn(0f, w)
-            var best = trends[0].min.toFloat()
+            var best = -1f
             var bestD = Float.MAX_VALUE
             for (t in trends) {
                 if (t.min < 0 || t.min > 240) continue
@@ -1210,27 +1212,48 @@ private fun MinuteCursorGesture(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // 长按拖动：按住超 longPressTimeout 后激活，任意方向拖动均可
-                .pointerInput(trends, showAuction) {
+                // 单手势层：长按拖动激活 + 轻点清除，避免两个 pointerInput 叠加导致
+                // 轻点被长按检测器抢占、点击无法关闭光标的问题。
+                .pointerInput(trends, showAuction, hasCursor) {
+                    detectTapGestures(
+                        onTap = {
+                            // 轻点：有关光标则关闭；无光标则不做处理
+                            if (hasCursor || cursorMin >= -15f) {
+                                onCursor(-1f)
+                                onCursorY(-1f)
+                                onClearZone()
+                            }
+                        },
+                        onLongPress = { off ->
+                            val m = minAtX(off.x)
+                            if (m >= 0f) {
+                                onCursor(m)
+                                if (hgt > 0f) onCursorY((off.y / hgt).coerceIn(0f, 1f))
+                            }
+                        }
+                    )
+                }
+                // 长按后的拖动：单独一层，仅在已激活光标时生效，实时吸附分钟
+                .pointerInput(trends, showAuction, hasCursor) {
                     detectDragGesturesAfterLongPress(
                         onDragStart = { off ->
-                            onCursor(minAtX(off.x))
-                            if (hgt > 0f) onCursorY((off.y / hgt).coerceIn(0f, 1f))
+                            val m = minAtX(off.x)
+                            if (m >= 0f) {
+                                onCursor(m)
+                                if (hgt > 0f) onCursorY((off.y / hgt).coerceIn(0f, 1f))
+                            }
                         },
                         onDrag = { change, _ ->
                             change.consume()
-                            onCursor(minAtX(change.position.x))
-                            if (hgt > 0f) onCursorY((change.position.y / hgt).coerceIn(0f, 1f))
+                            val m = minAtX(change.position.x)
+                            if (m >= 0f) {
+                                onCursor(m)
+                                if (hgt > 0f) onCursorY((change.position.y / hgt).coerceIn(0f, 1f))
+                            }
                         },
-                        onDragEnd = { /* 松手保留光标 */ },
+                        onDragEnd = { /* 松手保留光标，停留在最后位置 */ },
                         onDragCancel = { /* 取消不动 */ }
                     )
-                }
-                // 轻点：若已有光标则关闭（独立 pointerInput，避免被上面的死循环阻塞）
-                .pointerInput(hasCursor) {
-                    detectTapGestures(onTap = {
-                        if (hasCursor) { onCursor(-1f); onCursorY(-1f); onClearZone() }
-                    })
                 }
         )
     }
