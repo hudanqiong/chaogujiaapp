@@ -929,8 +929,9 @@ private val PRICE_CANVAS_HEIGHT = 259.dp       // 259dp
 private val VOLUME_CANVAS_HEIGHT = 101.dp      // 101dp
 // ===== 盘口栏（右侧）实测尺寸复刻 =====
 private val ORDERBOOK_TOP_HEIGHT = 294.dp      // 294dp
-private val ORDERBOOK_FONT = 14.sp             // 五档字号（加大调细）
-private val ORDERBOOK_FONT_DEAL = 13.sp        // 明细数字字号（加大加粗）
+private val ORDERBOOK_FONT = 14.sp             // 五档标签字号（保持）
+private val ORDERBOOK_FONT_VAL = 11.sp        // 五档价格/手数字号（缩小）
+private val ORDERBOOK_FONT_DEAL = 11.sp        // 明细数字字号（缩小加粗）
 private val OB_TEXT_GRAY = Color(0xFF555555)   // 五档字体黑灰色
 private val ORDERBOOK_ROW_MIN = 13.dp          // 五档行高下限（防挤压）
 private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参考截图≈23dp行距，避免铺满后过疏）
@@ -1080,14 +1081,14 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         )
         Text(
             if (price > 0) fmtNum2(price) else "--",
-            color = priceColor, fontSize = ORDERBOOK_FONT,
+            color = priceColor, fontSize = ORDERBOOK_FONT_VAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
-            color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT,
+            color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
