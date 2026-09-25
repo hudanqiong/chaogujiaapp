@@ -741,11 +741,12 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = colLabel(label),
+                    modifier = Modifier.padding(start = 2.dp),
                     color = TEXT_COL_LABEL,
                     fontSize = 14.sp,
                     maxLines = 1
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(2.dp))
                 Text(
                     value,
                     modifier = Modifier.weight(1f),
@@ -769,11 +770,12 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = colLabel(label),
+                    modifier = Modifier.padding(start = 2.dp),
                     color = TEXT_COL_LABEL,
                     fontSize = 14.sp,
                     maxLines = 1
                 )
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(2.dp))
                 Text(
                     value,
                     modifier = Modifier.weight(1f),
