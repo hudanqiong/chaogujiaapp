@@ -533,7 +533,7 @@ private fun DetailHeadLatest(b: StockBase?) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 10.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 10.dp, end = 2.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 左：当前价（大字） + 涨跌额/幅
@@ -557,7 +557,7 @@ private fun DetailHeadLatest(b: StockBase?) {
         // 右：三竖列
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
