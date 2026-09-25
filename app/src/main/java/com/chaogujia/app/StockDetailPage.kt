@@ -1993,11 +1993,12 @@ private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
             .height(blockHeight)
             .padding(horizontal = 1.dp)
     ) {
-        // ===== 标题行：贴顶第一行，不参与居中 =====
+        // ===== 标题行：贴顶第一行，不参与上下居中（仅标题行自身水平居中） =====
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { expanded = !expanded },
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
