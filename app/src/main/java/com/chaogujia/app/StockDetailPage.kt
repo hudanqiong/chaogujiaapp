@@ -92,6 +92,7 @@ private const val CURSOR_NONE = -99f
 private const val CURSOR_ACTIVE_MIN = -15f
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
+private val TEXT_COL_LABEL = Color(0xFF555555)  // 顶栏三列标签专用（比 TEXT_SUB 更黑）
 private val LINE_GRID = Color(0xFFEEEEEE)
 private val LINE_AXIS = Color(0xFFF0F0F0)
 // 时间轴「尺子」线条/刻度颜色（比普通网格略深，保证看得清）
@@ -713,15 +714,16 @@ private fun fmtVolWan(volHand: Double): String {
 private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valueColor: Color) {
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, color = TEXT_SUB, fontSize = 13.sp)
-                Spacer(Modifier.width(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(label, color = TEXT_COL_LABEL, fontSize = 15.sp, maxLines = 1)
+                Spacer(Modifier.weight(1f))
                 Text(
                     value,
                     color = valueColor,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontFamily = DSpNumFont,
-                    maxLines = 1
+                    maxLines = 1,
+                    textAlign = TextAlign.End
                 )
             }
             if (i != rows.size - 1) Spacer(Modifier.height(6.dp))
@@ -734,22 +736,22 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
 private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Color>>) {
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value, vc) ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, color = TEXT_SUB, fontSize = 13.sp)
-                Spacer(Modifier.width(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(label, color = TEXT_COL_LABEL, fontSize = 15.sp, maxLines = 1)
+                Spacer(Modifier.weight(1f))
                 Text(
                     value,
                     color = vc,
-                    fontSize = 12.sp,
+                    fontSize = 13.sp,
                     fontFamily = DSpNumFont,
-                    maxLines = 1
+                    maxLines = 1,
+                    textAlign = TextAlign.End
                 )
             }
             if (i != rows.size - 1) Spacer(Modifier.height(6.dp))
         }
     }
 }
-
 // ============================================================
 // 标签栏：分时 | 日K | 周K | 月K
 // ============================================================
