@@ -4758,7 +4758,7 @@ private fun fmtPct(v: Double?): String {
 /** 市值/流通（亿）：109.93 */
 private fun fmtCap(v: Double?): String {
     if (v == null) return "--"
-    return String.format(java.util.Locale.CHINA, "%.2f", v)
+    return String.format(java.util.Locale.CHINA, "%.2f亿", v)
 }
 
 /** 市盈：-79.11，正数不显示 + 号 */
