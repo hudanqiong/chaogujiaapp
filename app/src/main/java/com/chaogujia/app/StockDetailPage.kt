@@ -1825,7 +1825,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         )
         Text(
             if (vol > 0) { if (showAmount) fmtOrderAmount(price * vol * 100.0) else fmtVol(vol) } else "--",
-            color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL,
+            color = OB_TEXT_GRAY, fontSize = if (showAmount) 9.sp else ORDERBOOK_FONT_VAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
