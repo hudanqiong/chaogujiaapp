@@ -821,7 +821,9 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
  * 分时信息条：横向一排，位于分时标签栏（分时|日K|周K|月K）下方、分时价图上方。
  * 内容：时间(时:分) · 均价 · 涨跌额 · 涨跌幅。
  * 与十字光标联动：cursorMin >= -15f 时显示光标所在分钟的时点值；否则显示最新值。
- * 涨跌额/涨跌幅不显示标签，字体颜色跟随红涨绿跌。
+ * 颜色规则：
+ *   - 光标未激活（最新值）：均价用均价线同色(0xFFFF8C00)，时间黑色，涨跌额/涨跌幅红涨绿跌。
+ *   - 光标激活（时点值）：所有数值统一黑色(TEXT_MAIN)。
  */
 @Composable
 private fun MinuteInfoBar(
@@ -842,48 +844,55 @@ private fun MinuteInfoBar(
         trends.lastOrNull()
     }
     val p = point ?: return
-
     val price = p.price
     val chg = if (preClose > 0) price - preClose else 0.0
     val pct = if (preClose > 0) chg / preClose * 100.0 else 0.0
+    // 光标未激活（显示最新值）：涨跌额/涨跌幅用红涨绿跌；均价用均价线同色。
+    // 光标激活（显示该分钟时点值）：所有数值统一黑色。
+    val upDownColor = when {
+        chg > 0 -> RED_UP
+        chg < 0 -> GREEN_TEXT
+        else -> GRAY_FLAT
+    }
+    val numColor = if (hasCursor) TEXT_MAIN else upDownColor
+    val avgColor = if (hasCursor) TEXT_MAIN else Color(0xFFFF8C00)  // 与分时价图均价线一致
     // 时间：min=0 → 09:30；min<=120 → 上午；min>120 跳过午休 → 13:00 + (min-120)
     val label = minuteToClock(p.min)
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 时间
+        // 时间（始终黑色）
         Text(
             text = label,
             color = TEXT_MAIN,
             fontSize = 11.sp,
             fontFamily = DSpNumFont
         )
-        // 均价
+        // 均价：光标激活→黑；未激活→均价线同色
         Spacer(Modifier.width(12.dp))
         Text(
             text = "均价:" + fmtNum2(p.avg),
-            color = TEXT_MAIN,
+            color = avgColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont
         )
         Spacer(Modifier.weight(1f))
-        // 涨跌额（只要数值，无标签）
+        // 涨跌额（无标签）：光标激活→黑；未激活→红涨绿跌
         Text(
             text = fmtSigned(chg),
-            color = TEXT_MAIN,
+            color = numColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.width(10.dp))
-        // 涨跌幅（只要数值 + %，无标签）
+        // 涨跌幅（无标签）：光标激活→黑；未激活→红涨绿跌
         Text(
             text = fmtPct(pct),
-            color = TEXT_MAIN,
+            color = numColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont,
             fontWeight = FontWeight.SemiBold
