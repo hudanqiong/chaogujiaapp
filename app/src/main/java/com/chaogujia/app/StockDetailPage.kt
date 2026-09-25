@@ -832,8 +832,9 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
  *   - pct（涨跌幅）：计算值 = chg / preClose * 100%。
  *
  * 内容规则（同一排，紧挨显示，仅用小间距分隔，不做左右两端分开）：
- *   - 光标未激活（显示最新）：均价、最新价、涨跌额、涨跌幅；涨跌额/涨跌幅不带标签。
- *   - 光标激活（显示该分钟时点值）：时间、均价、最新价、涨跌额、涨跌幅；时间前加 "时间:" 标签，涨跌额/涨跌幅不带标签。
+ *   - 光标未激活（显示最新）：均价、数值、涨跌额、涨跌幅；涨跌额/涨跌幅不带标签。
+ *   - 光标激活（显示该分钟时点值）：时间、均价、数值、涨跌额、涨跌幅；时间前加 "时间:" 标签、数值前加 "数值:" 标签，涨跌额/涨跌幅不带标签。
+ *     示例："时间13:07 均价:4.96 数值:4.93 -0.17 -3.33%"
  *
  * 颜色规则：
  *   - 均价：始终与分时价图均价线同色(0xFFFF8C00)。
@@ -896,9 +897,9 @@ private fun MinuteInfoBar(
             fontFamily = DSpNumFont
         )
         Spacer(Modifier.width(8.dp))
-        // 最新价（时点价）：始终黑色
+        // 数值（最新价/时点价）：始终黑色
         Text(
-            text = fmtNum2(price),
+            text = "数值:" + fmtNum2(price),
             color = priceColor,
             fontSize = 11.sp,
             fontFamily = DSpNumFont
