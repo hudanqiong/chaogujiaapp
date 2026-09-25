@@ -846,11 +846,6 @@ private fun MinuteInfoBar(
     val price = p.price
     val chg = if (preClose > 0) price - preClose else 0.0
     val pct = if (preClose > 0) chg / preClose * 100.0 else 0.0
-    val color = when {
-        chg > 0 -> RED_UP
-        chg < 0 -> GREEN_TEXT
-        else -> GRAY_FLAT
-    }
     // 时间：min=0 → 09:30；min<=120 → 上午；min>120 跳过午休 → 13:00 + (min-120)
     val label = minuteToClock(p.min)
 
@@ -863,32 +858,32 @@ private fun MinuteInfoBar(
         // 时间
         Text(
             text = label,
-            color = TEXT_SUB,
+            color = TEXT_MAIN,
             fontSize = 11.sp,
             fontFamily = DSpNumFont
         )
-        // 均价（颜色与分时价图的均价线一致：0xFFFF8C00）
+        // 均价
         Spacer(Modifier.width(12.dp))
         Text(
             text = "均价:" + fmtNum2(p.avg),
-            color = Color(0xFFFF8C00),
+            color = TEXT_MAIN,
             fontSize = 11.sp,
             fontFamily = DSpNumFont
         )
         Spacer(Modifier.weight(1f))
-        // 涨跌额（只要数值，无标签，红涨绿跌）
+        // 涨跌额（只要数值，无标签）
         Text(
             text = fmtSigned(chg),
-            color = color,
+            color = TEXT_MAIN,
             fontSize = 11.sp,
             fontFamily = DSpNumFont,
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.width(10.dp))
-        // 涨跌幅（只要数值 + %，无标签，红涨绿跌）
+        // 涨跌幅（只要数值 + %，无标签）
         Text(
-            text = fmtPct(pct) + (if (pct > 0) "" else ""),
-            color = color,
+            text = fmtPct(pct),
+            color = TEXT_MAIN,
             fontSize = 11.sp,
             fontFamily = DSpNumFont,
             fontWeight = FontWeight.SemiBold
