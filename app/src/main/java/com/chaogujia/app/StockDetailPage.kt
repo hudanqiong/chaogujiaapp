@@ -56,6 +56,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.BaselineShift
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -551,7 +555,10 @@ private fun DetailHeadLatest(b: StockBase?) {
         }
 
         // 右：三竖列
-        Row(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
                 Modifier.weight(1f),
@@ -567,7 +574,7 @@ private fun DetailHeadLatest(b: StockBase?) {
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
-                    Triple("市盈TTM", fmtPeLabel(b?.pe), TEXT_MAIN)
+                    Triple("市盈@TTM", fmtPeLabel(b?.pe), TEXT_MAIN)
                 )
             )
             // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
@@ -709,13 +716,35 @@ private fun fmtVolWan(volHand: Double): String {
     }
 }
 
+/** 列标签：支持 "主@上标" 语法，@ 后面的字做成小号上标（如 市盈@TTM） */
+@Composable
+private fun colLabel(raw: String): androidx.compose.ui.text.AnnotatedString {
+    val i = raw.indexOf('@')
+    if (i < 0) return androidx.compose.ui.text.AnnotatedString(raw)
+    val main = raw.substring(0, i)
+    val sup = raw.substring(i + 1)
+    return buildAnnotatedString {
+        append(main)
+        withStyle(
+            SpanStyle(
+                fontSize = 9.sp,
+                baselineShift = BaselineShift.Superscript
+            )
+        ) { append(sup) }
+    }
+}
 /** 一竖列：3 行「标签 值」，标签灰、值随涨跌色 */
 @Composable
 private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valueColor: Color) {
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value) ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(label, color = TEXT_COL_LABEL, fontSize = 15.sp, maxLines = 1)
+                Text(
+                    text = colLabel(label),
+                    color = TEXT_COL_LABEL,
+                    fontSize = 15.sp,
+                    maxLines = 1
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     value,
@@ -738,7 +767,12 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value, vc) ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(label, color = TEXT_COL_LABEL, fontSize = 15.sp, maxLines = 1)
+                Text(
+                    text = colLabel(label),
+                    color = TEXT_COL_LABEL,
+                    fontSize = 15.sp,
+                    maxLines = 1
+                )
                 Spacer(Modifier.width(8.dp))
                 Text(
                     value,
