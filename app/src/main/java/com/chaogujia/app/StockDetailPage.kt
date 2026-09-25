@@ -1182,7 +1182,7 @@ private fun MinuteChart(
         OrderBookPanel(
             ob = ob,
             preClose = preClose,
-            showAmount = showOrderAmount,
+            showAmount = showAmount,
             modifier = Modifier
                 .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
