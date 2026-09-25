@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -32,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -59,7 +61,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -1038,19 +1039,10 @@ private fun MinuteCursorGesture(
                         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                         val hadCursor = hasCursor
                         // 长按判定：长按 ~500ms 后激活光标；长按前移动则视为滚动
-                        var movedEarly = false
-                        var releasedEarly = false
-                        val lasted = withTimeoutOrNull(500L) {
-                            while (true) {
-                                val ev = awaitPointerEvent(PointerEventPass.Initial)
-                                val ch = ev.changes.firstOrNull { it.id == down.id }
-                                if (ch == null) { releasedEarly = true; break }
-                                if (!ch.pressed) { releasedEarly = true; break }
-                                if ((ch.position - down.position).getDistance() > 8f) { movedEarly = true; break }
-                                delay(16L)
-                            }
-                        }
-                        if (lasted == null && !movedEarly && !releasedEarly) {
+                        // 长按判定（官方语义：按住超 longPressTimeout 且未移动/未抬起）
+                        // 返回非 null -> 长按成立；返回 null -> 被取消（移动=滚动 / 抬起=轻点）
+                        val lp = awaitLongPressOrCancellation(down.id)
+                        if (lp != null) {
                             // 长按成立：激活光标并进入拖动（不松手可上下左右拖）
                             down.consume()
                             onCursor(minAtX(down.position.x))
@@ -1065,8 +1057,11 @@ private fun MinuteCursorGesture(
                             }
                             // 松手后保留光标
                         } else {
-                            // 未激活：轻点（未移动、已松手）且已有光标 → 关闭光标
-                            if (releasedEarly && !movedEarly && hadCursor) {
+                            // 未激活：区分「轻点」与「滚动」
+                            //   - 所有指针已抬起 -> 轻点：若已有光标则关闭
+                            //   - 仍有指针按下  -> 滚动：交给父级 verticalScroll，不动光标
+                            val allUp = currentEvent.changes.none { it.pressed }
+                            if (allUp && hadCursor) {
                                 onCursor(-1f); onCursorY(-1f); onClearZone()
                             }
                         }
