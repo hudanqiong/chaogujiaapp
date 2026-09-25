@@ -954,7 +954,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                 .then(if (dealsExpanded) Modifier.wrapContentHeight() else Modifier.weight(294f))
         ) {
             // 卖出/买入分界间隙：与一行同高，让买1与卖1之间有明显豁口
-            val gapH = ORDERBOOK_ROW_MAX
+            val gapH = 12.dp
             // 自适应行高：可用高度 / (行数 + 1个间隙)，再用上下限收敛
             val obRowHeight = (maxHeight / (if (dealsExpanded) 3 else 11)).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
             Column(
@@ -974,7 +974,16 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     isAsk = true,
                     rowHeight = obRowHeight
                 )
-                Spacer(Modifier.height(gapH))
+                // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(gapH)
+                        .drawBehind {
+                            val y = size.height / 2f
+                            drawRect(color = Color(0xFFEEEEEE), topLeft = Offset(0f, y), size = Size(size.width, 0.6.dp.toPx()))
+                        }
+                )
                 OrderLevelRow(
                     label = "买1",
                     lv = bids.getOrNull(0),
@@ -986,7 +995,16 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                 for (i in 4 downTo 0) {
                     OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, rowHeight = obRowHeight)
                 }
-                Spacer(Modifier.height(gapH))
+                // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(gapH)
+                        .drawBehind {
+                            val y = size.height / 2f
+                            drawRect(color = Color(0xFFEEEEEE), topLeft = Offset(0f, y), size = Size(size.width, 0.6.dp.toPx()))
+                        }
+                )
                 for (i in 0 until 5) {
                     OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, rowHeight = obRowHeight)
                 }
@@ -1064,12 +1082,10 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         else -> TEXT_MAIN
     }
     val labelColor = OB_TEXT_GRAY
-    val isBuy1 = !isAsk && label == "买1"
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(rowHeight)
-            .then(if (isBuy1) Modifier.drawBehind { drawRect(color = Color(0xFFEEEEEE), topLeft = Offset(0f, 0f), size = Size(size.width, 0.6.dp.toPx())) } else Modifier)
             .padding(horizontal = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1082,14 +1098,14 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         Text(
             if (price > 0) fmtNum2(price) else "--",
             color = priceColor, fontSize = ORDERBOOK_FONT_VAL,
-            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
             color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL,
-            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
