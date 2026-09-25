@@ -557,11 +557,11 @@ private fun DetailHeadLatest(b: StockBase?) {
         // 右：三竖列
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(20.dp, Alignment.End)
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
-                Modifier.weight(1f),
+                Modifier.width(58.dp),
                 listOf(
                     Triple("高", fmtNum(b?.high), baseColor(b?.high ?: 0.0)),
                     Triple("低", fmtNum(b?.low), baseColor(b?.low ?: 0.0)),
@@ -570,7 +570,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列2：统一黑色（内容长，多给权重）
             DetailColC(
-                Modifier.weight(1.5f),
+                Modifier.width(96.dp),
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
@@ -579,7 +579,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
             DetailColC(
-                Modifier.weight(1f),
+                Modifier.width(56.dp),
                 listOf(
                     Triple("量比", fmtNum2(b?.volRatio), vrColor),
                     Triple("换", fmtPct(b?.turnover), TEXT_MAIN),
@@ -738,7 +738,7 @@ private fun colLabel(raw: String): androidx.compose.ui.text.AnnotatedString {
 private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valueColor: Color) {
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value) ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.wrapContentWidth()) {
                 Text(
                     text = colLabel(label),
                     color = TEXT_COL_LABEL,
@@ -766,7 +766,7 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
 private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Color>>) {
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value, vc) ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.wrapContentWidth()) {
                 Text(
                     text = colLabel(label),
                     color = TEXT_COL_LABEL,
@@ -4758,7 +4758,9 @@ private fun fmtPct(v: Double?): String {
 /** 市值/流通（亿）：109.93 */
 private fun fmtCap(v: Double?): String {
     if (v == null) return "--"
-    return String.format(java.util.Locale.CHINA, "%.2f亿", v)
+    // 单位：亿；>=10000 亿（即 >=1 万亿）时改用“万亿”
+    return if (v >= 10000.0) String.format(java.util.Locale.CHINA, "%.2f万亿", v / 10000.0)
+    else String.format(java.util.Locale.CHINA, "%.2f亿", v)
 }
 
 /** 市盈：-79.11，正数不显示 + 号 */
