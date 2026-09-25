@@ -1629,11 +1629,16 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
         ticks.forEach { tk ->
             val x = xOf(tk.min)
             // 标签在时间轴上按刻度【线】对齐：左端标签左对齐贴线、右端标签右对齐贴线、中间标签水平居中压线
+            // 标签贴线方式：
+            //   09:15(早盘竞价最左) / 09:30(压缩区左端) → 标签左缘贴刻度线
+            //   15:00(网格右端) → 标签右缘贴刻度线
+            //   其余(11:30 等) → 绕刻度线水平居中
+            // 关键：09:30 用 xOf()(=0.20w 开竞价 / 0 关竞价)、15:00 用 xOf()(=w)，
+            //       开启集合竞价后两端标签必须跟随收缩后的网格，不能钉死在 x=0 / x=w。
             val leftPx = when {
-                tk.min < 0f -> 0f                                   // 09:15 贴最左
-                tk.min == 0f -> 0f                                  // 09:30 贴压缩区左端线（不超出左侧）
-                tk.last -> (w - labelPx).coerceAtLeast(0f)          // 15:00 贴压缩区右端线（不超出右侧）
-                else -> (x - labelPx / 2f).coerceIn(0f, (w - labelPx).coerceAtLeast(0f))  // 11:30 以正中线居中
+                tk.first -> x.coerceAtLeast(0f)                     // 09:15 / 09:30(关竞价) 左缘贴线
+                tk.last -> (x - labelPx).coerceAtLeast(0f)          // 15:00 右缘贴线
+                else -> (x - labelPx / 2f).coerceIn(0f, (w - labelPx).coerceAtLeast(0f))  // 中间居中
             }
             Text(
                 tk.label,
@@ -1645,7 +1650,7 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
                 modifier = Modifier
                     .offset(x = with(density) { leftPx.toDp() })
                     .width(with(density) { labelPx.toDp() })
-                    .wrapContentWidth(if (tk.min == 0f) Alignment.Start else if (tk.last) Alignment.End else Alignment.CenterHorizontally)
+                    .wrapContentWidth(if (tk.first) Alignment.Start else if (tk.last) Alignment.End else Alignment.CenterHorizontally)
             )
         }
     }
