@@ -109,6 +109,8 @@ private val MACD_DEA_COLOR = Color(0xFFE64A3B)   // DEA 慢线：红
 private val MACD_BAR_COLOR = Color(0xFF2E8BE6)   // MACD 原柱改线：蓝
 private val VOL_LABEL_COLOR = Color(0xFF111111)  // 栏顶“量：”文字：黑
 private val CURSOR_LINE_COLOR = Color(0xFF000000) // 十字光标竖线：纯黑
+private val CURSOR_BOX_BG = Color(0xCC1E88E5)     // 十字光标交点数值框：蓝色半透明
+private val CURSOR_BOX_TX = Color(0xFFFFFFFF)     // 十字光标数值框文字：白
 
 /**
  * 个股详情页
@@ -833,6 +835,10 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
     // ===== 分时量副图：指标切换 + 十字光标 =====
     // cursorMin: 十字光标锁定的分钟（-1 = 无光标），价图与量图共享同一份状态
     var cursorMin by remember { mutableStateOf(-1f) }
+    // cursorPriceY: 价图横线归一化 y（0..1；-1 = 无），仅价区横线使用
+    var cursorPriceY by remember { mutableStateOf(-1f) }
+    // cursorVolY: 量图横线归一化 y（0..1；-1 = 无），仅量区横线使用
+    var cursorVolY by remember { mutableStateOf(-1f) }
     // 指标：0=成交量（手） 1=成交额（万元）
     var volMode by remember { mutableStateOf(0) }
     var showVolPicker by remember { mutableStateOf(false) }
@@ -900,14 +906,18 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             minP = range.second,
                             showAuction = showAuction,
                             cursorMin = cursorMin,
+                            cursorY = cursorPriceY,
                             modifier = Modifier.fillMaxSize()
                         )
-                        // 十字光标手势层（价图）：拖动吸附分钟、松手保留、轻点清除
+                        // 十字光标手势层（价图）：拖动吸附分钟 + 横线自由上下、松手保留、轻点清除
                         MinuteCursorGesture(
                             trends = trends,
                             showAuction = showAuction,
                             cursorMin = cursorMin,
+                            cursorY = cursorPriceY,
+                            hasCursor = cursorMin >= -15f,
                             onCursor = { cursorMin = it },
+                            onCursorY = { cursorPriceY = it },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -919,13 +929,16 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             .fillMaxWidth()
                             .weight(101f)
                     ) {
-                        MinuteVolumeCanvas(trends, showAuction, preClose, cursorMin, volMode)
+                        MinuteVolumeCanvas(trends, showAuction, preClose, cursorMin, cursorVolY, volMode)
                         // 十字光标手势层（量图）：与价图共享同一 cursorMin
                         MinuteCursorGesture(
                             trends = trends,
                             showAuction = showAuction,
                             cursorMin = cursorMin,
+                            cursorY = cursorVolY,
+                            hasCursor = cursorMin >= -15f,
                             onCursor = { cursorMin = it },
+                            onCursorY = { cursorVolY = it },
                             modifier = Modifier.fillMaxSize()
                         )
                         // ===== 量图区内浮动工具栏（方案C）：【分时量▼】+ 数值，浮在量图左上角，不占高度 =====
@@ -971,12 +984,16 @@ private fun MinuteCursorGesture(
     trends: List<DetailTrend>,
     showAuction: Boolean,
     cursorMin: Float,
+    cursorY: Float,
+    hasCursor: Boolean,
     onCursor: (Float) -> Unit,
+    onCursorY: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (trends.isEmpty()) return
     BoxWithConstraints(modifier = modifier) {
         val w = constraints.maxWidth.toFloat()
+        val hgt = constraints.maxHeight.toFloat()
         // \u4e0e\u753b\u5e03\u540c\u6b3e x \u6620\u5c04\uff08\u4ec5\u7528\u4e8e\u53cd\u63a8\u5206\u949f\uff09
         fun xMinute(min: Float): Float {
             return if (showAuction) {
@@ -1005,10 +1022,11 @@ private fun MinuteCursorGesture(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(trends, showAuction, w, cursorMin) {
+                .pointerInput(trends, showAuction, w, hgt, cursorMin, cursorY) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         onCursor(minAtX(down.position.x))
+                        if (hgt > 0f) onCursorY((down.position.y / hgt).coerceIn(0f, 1f))
                         var moved = false
                         var lastPos = down.position
                         while (true) {
@@ -1019,12 +1037,13 @@ private fun MinuteCursorGesture(
                             if ((ch.position - down.position).getDistance() > 4f) moved = true
                             if (moved) {
                                 onCursor(minAtX(ch.position.x))
+                                if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
                                 ch.consume()
                             }
                         }
-                        // 轻点（几乎无移动）且已有光标 → 清除；拖动结束 → 保留
+                        // 轻点（几乎无移动）且已有光标 → 清除（十字竖线+横线）；拖动结束 → 保留
                         if (!moved && (lastPos - down.position).getDistance() <= 4f) {
-                            if (cursorMin >= -15f) onCursor(-1f)
+                            if (hasCursor) { onCursor(-1f); onCursorY(-1f) }
                         }
                     }
                 }
@@ -1545,6 +1564,7 @@ private fun MinutePriceCanvas(
     minP: Double,
     showAuction: Boolean = false,
     cursorMin: Float = -1f,
+    cursorY: Float = -1f,
     modifier: Modifier = Modifier
 ) {
     val tm = rememberTextMeasurer()
@@ -1680,10 +1700,30 @@ private fun MinutePriceCanvas(
             drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 2.6f))
         }
         // 淡灰边框
-        // 十字光标竖线（价图段）：纯黑，仅在价图区域内画，时间轴不画
+        // 十字光标（价图段）：竖线穿过整个价区；横线归一化 y，交点单端显示价格（蓝色半透明框）
         if (cursorMin >= -15f) {
             val cx = xMinute(cursorMin).coerceIn(0f, w)
             drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
+        }
+        if (cursorY in 0f..1f) {
+            val cy = (cursorY * h).coerceIn(0f, h)
+            val priceAtCy = minP + (1.0 - cursorY.toDouble()) * span
+            val txt = fmtNum2(priceAtCy)
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 8f
+            val boxH = lay.size.height + 2f
+            val cyOnline = (cursorMin < -15f) || (xMinute(cursorMin) >= w * 0.5f)
+            if (cyOnline) {
+                // 竖线在右侧（或无竖线）：数值框放左端，横线左端截断
+                drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w, cy), strokeWidth = 1.2f)
+                drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
+                drawText(lay, topLeft = Offset(4f, cy - lay.size.height / 2f))
+            } else {
+                // 竖线在左侧：数值框放右端，横线右端截断
+                drawLine(CURSOR_LINE_COLOR, Offset(0f, cy), Offset(w - boxW, cy), strokeWidth = 1.2f)
+                drawRect(color = CURSOR_BOX_BG, topLeft = Offset(w - boxW, cy - boxH / 2f), size = Size(boxW, boxH))
+                drawText(lay, topLeft = Offset(w - boxW + 4f, cy - lay.size.height / 2f))
+            }
         }
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
 
@@ -1725,8 +1765,10 @@ private fun MinuteVolumeCanvas(
     showAuction: Boolean = false,
     preClose: Double = 0.0,
     cursorMin: Float = -1f,
+    cursorY: Float = -1f,
     volMode: Int = 0
 ) {
+    val tm = rememberTextMeasurer()
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
@@ -1817,6 +1859,21 @@ private fun MinuteVolumeCanvas(
         if (cursorMin >= -15f) {
             val cx = xMinute(cursorMin).coerceIn(0f, w)
             drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
+        }
+        // 十字光标横线（量图段）：两端各显示横线高度对应的量值，蓝底白字
+        if (cursorY in 0f..1f) {
+            val cy = (cursorY * h).coerceIn(0f, h)
+            val vAt = (1.0 - cursorY.toDouble()) * maxV
+            val txt = if (volMode == 1) fmtAmt(vAt) else fmtVol(vAt)
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 8f
+            val boxH = lay.size.height + 2f
+            // 两端各截断 boxW，中间画横线；左右端各放一个蓝框写同数值
+            drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w - boxW, cy), strokeWidth = 1.2f)
+            drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
+            drawText(lay, topLeft = Offset(4f, cy - lay.size.height / 2f))
+            drawRect(color = CURSOR_BOX_BG, topLeft = Offset(w - boxW, cy - boxH / 2f), size = Size(boxW, boxH))
+            drawText(lay, topLeft = Offset(w - boxW + 4f, cy - lay.size.height / 2f))
         }
         // 淡灰边框
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
