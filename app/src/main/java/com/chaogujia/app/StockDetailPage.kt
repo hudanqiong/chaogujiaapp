@@ -955,10 +955,9 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
         ) {
             // 卖出/买入分界间隙：与一行同高，让买1与卖1之间有明显豁口
             val gapH = 12.dp
-            val rowAsks = ob?.asks ?: emptyList()
-            val rowBids = ob?.bids ?: emptyList()
-            val bigAsk = pickBigOrder(rowAsks, true)
-            val bigBid = pickBigOrder(rowBids, false)
+            val allDeals = ob?.deals ?: emptyList()
+            val bigAsk = pickBigOrder(allDeals, true)
+            val bigBid = pickBigOrder(allDeals, false)
             val bigRows = (if (bigAsk != null) 1 else 0) + (if (bigBid != null) 1 else 0)
             // 自适应行高：可用高度 / (行数 + 1个间隙 + 大单行)，再用上下限收敛
             val obRowHeight = (maxHeight / ((if (dealsExpanded) 3 else 11) + bigRows)).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
@@ -1082,30 +1081,59 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
 }
 
 // ============================================================
-// 大单判定：取五档全部挂单量的中位数，某档 >= 中位数*3 且 >=300 手
-// 视为大单；卖侧取满足条件的最大一档 -> 卖五上方；买侧 -> 买五下方
+// 大单判定：从“逐笔成交明细 deals”里挑大单
+// 1) 只看最新一页成交，按【分钟】聚合同一方向的成交量
+// 2) 取最大的一组，超过阈值即视为大单
+// 3) 卖侧(主动卖 S) -> 卖五上方；买侧(主动买 B) -> 买五下方
 // ============================================================
-private data class BigOrder(val label: String, val vol: Double, val isAsk: Boolean)
+private data class BigOrder(val price: Double, val vol: Double, val isAsk: Boolean)
 
-private fun pickBigOrder(levels: List<OrderLevel>, isAsk: Boolean): BigOrder? {
-    val vols = levels.map { it.vol }.filter { it > 0 }
-    if (vols.size < 3) return null
-    val sorted = vols.sorted()
-    val med = if (sorted.size % 2 == 1) sorted[sorted.size / 2]
-              else (sorted[sorted.size / 2 - 1] + sorted[sorted.size / 2]) / 2.0
-    if (med <= 0) return null
-    val thr = maxOf(med * 3.0, 300.0)
-    var best: BigOrder? = null
-    levels.forEachIndexed { i, lv ->
-        if (lv.vol >= thr) {
-            val b = BigOrder((if (isAsk) "卖" else "买") + (i + 1), lv.vol, isAsk)
-            if (best == null || b.vol > best!!.vol) best = b
-        }
+/** 手数打星：两位数原样；三位数只留最后 1 位(前面补*)；三位以上留最后 2 位 */
+private fun fmtBigVol(v: Double): String {
+    if (v.isNaN() || v <= 0) return "--"
+    val n = v.toLong().toString()
+    return when {
+        n.length <= 2 -> n
+        n.length == 3 -> "**" + n.substring(n.length - 1)
+        else -> "**" + n.substring(n.length - 2)
     }
-    return best
 }
 
-/** 大单提示行 */
+/**
+ * 从逐笔成交里挑大单：按分钟聚合同方向的量，返回最大的一组。
+ * @param isAsk true=卖侧(主动卖 S) / false=买侧(主动买 B)
+ */
+private fun pickBigOrder(deals: List<DealItem>, isAsk: Boolean): BigOrder? {
+    if (deals.isEmpty()) return null
+    val wantDir = if (isAsk) "S" else "B"
+    // 按分钟分组：key=HH:mm，value=(累加手数, 最后一笔价格)
+    val agg = LinkedHashMap<String, DoubleArray>() // [vol, price]
+    for (d in deals) {
+        val dir = d.dir
+        // 卖侧统计主动卖(S)，买侧统计主动买(B)；中性单不参与(跟同花顺口径近似)
+        if (dir != wantDir) continue
+        val mm = d.time.substringBeforeLast(':') // HH:mm
+        val e = agg[mm]
+        if (e == null) {
+            agg[mm] = doubleArrayOf(d.vol, d.price)
+        } else {
+            e[0] += d.vol
+            e[1] = d.price // 记最后一笔价作为该分钟代表价
+        }
+    }
+    if (agg.isEmpty()) return null
+    // 取该分钟聚合量最大的一组
+    var bestVol = 0.0
+    var bestPrice = 0.0
+    for ((_, e) in agg) {
+        if (e[0] > bestVol) { bestVol = e[0]; bestPrice = e[1] }
+    }
+    // 阀值：绝对门槛 300 手（后续可调）
+    if (bestVol < 300.0) return null
+    return BigOrder(bestPrice, bestVol, isAsk)
+}
+
+/** 大单提示行：大单  价格  打星手数 */
 @Composable
 private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
     val c = if (b.isAsk) GREEN_TEXT else RED_UP
@@ -1117,18 +1145,26 @@ private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "大单 " + b.label,
+            "大单",
             color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
             fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.Start
+            modifier = Modifier.width(26.dp), textAlign = TextAlign.Start
         )
         Text(
-            fmtVol(b.vol), color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            fmtNum2(b.price),
+            color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
+        )
+        Text(
+            fmtBigVol(b.vol),
+            color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
             fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
     }
 }
+
 
 /** 五档单行：左标签 + 中价格 + 右手数 */
 @Composable
