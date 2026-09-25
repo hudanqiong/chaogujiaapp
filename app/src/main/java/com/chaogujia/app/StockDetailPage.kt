@@ -59,6 +59,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -1031,27 +1032,41 @@ private fun MinuteCursorGesture(
                 .fillMaxSize()
                 .pointerInput(trends, showAuction) {
                     awaitEachGesture {
-                        // 在 Initial 通道抢先拿到按下事件（父级 verticalScroll 尚未介入）
+                        // Initial 通道抢先拿到按下（父级 verticalScroll 尚未介入）
                         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                        down.consume()
-                        onCursor(minAtX(down.position.x))
-                        if (hgt > 0f) onCursorY((down.position.y / hgt).coerceIn(0f, 1f))
-                        var moved = false
-                        var lastPos = down.position
-                        while (true) {
-                            // Initial 通道消费：先于父级 scrollable，彻底阻止其抢走拖动
-                            val ev = awaitPointerEvent(PointerEventPass.Initial)
-                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                            lastPos = ch.position
-                            if ((ch.position - down.position).getDistance() > 6f) moved = true
-                            ch.consume()
-                            if (!ch.pressed) break
-                            onCursor(minAtX(ch.position.x))
-                            if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
+                        val hadCursor = hasCursor
+                        // 长按判定：长按 ~500ms 后激活光标；长按前移动则视为滚动
+                        var movedEarly = false
+                        var releasedEarly = false
+                        val lasted = withTimeoutOrNull(500L) {
+                            while (true) {
+                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                val ch = ev.changes.firstOrNull { it.id == down.id }
+                                if (ch == null) { releasedEarly = true; break }
+                                if (!ch.pressed) { releasedEarly = true; break }
+                                if ((ch.position - down.position).getDistance() > 8f) { movedEarly = true; break }
+                                delay(16L)
+                            }
                         }
-                        // 轻点（几乎无移动）且已有光标 → 清除；拖动结束 → 保留
-                        if (!moved && (lastPos - down.position).getDistance() <= 6f) {
-                            if (hasCursor) { onCursor(-1f); onCursorY(-1f); onClearZone() }
+                        if (lasted == null && !movedEarly && !releasedEarly) {
+                            // 长按成立：激活光标并进入拖动（不松手可上下左右拖）
+                            down.consume()
+                            onCursor(minAtX(down.position.x))
+                            if (hgt > 0f) onCursorY((down.position.y / hgt).coerceIn(0f, 1f))
+                            while (true) {
+                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                ch.consume()
+                                if (!ch.pressed) break
+                                onCursor(minAtX(ch.position.x))
+                                if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
+                            }
+                            // 松手后保留光标
+                        } else {
+                            // 未激活：轻点（未移动、已松手）且已有光标 → 关闭光标
+                            if (releasedEarly && !movedEarly && hadCursor) {
+                                onCursor(-1f); onCursorY(-1f); onClearZone()
+                            }
                         }
                     }
                 }
