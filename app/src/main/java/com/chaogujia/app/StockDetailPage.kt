@@ -1506,8 +1506,9 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
                 (min.coerceIn(0f, 240f) / 240f) * w
             }
         }
-        // 柱宽：以正常分时（237 分钟 → 73.33% 宽）的单分钟宽为基准，保证柱与网格一致
-        val bw = if (showAuction) (0.7333f * w / 237f) else (w / 240f)
+        // 柱宽：相邻两根柱 X 坐标之差 × 0.7（留 30% 空隙，柱子不贴合）
+        // 正常分时区 237 分钟对应 0.7333w（开竞价）/ 240 分钟对应 w（关竞价）
+        val bw = if (showAuction) (0.7333f * w / 237f) * 0.7f else (w / 240f) * 0.7f
         // 竖网格：与价图同款——中间"正常分时"区域始终 4 格，开启竞价时两端各一个竞价栏
         // 注意：量图区域的竞价栏是 2 列 × 2 行（量区竖向比价区短，行数少一半）
         if (showAuction) {
@@ -1539,19 +1540,23 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
         }
+        // 量柱颜色：本分钟收盘价 vs 上一分钟收盘价
+        //   > 上分钟 → 红；< 上分钟 → 绿；相等/涨停/跌停/无前值 → 白(灰)
+        // 持平柱用浅灰（纯白在白色背景看不见，与同花顺“白柱”观感一致）
+        val FLAT_BAR = Color(0xFFBDBDBD)
         trends.forEachIndexed { idx, t ->
             val vh = (perMin[idx] / maxV * h).toFloat()
             val x = xMinute(t.min.coerceIn(0, 237).toFloat())
-            // 量柱红绿：该分钟价格 ≥ 昨收 → 红（涨），< 昨收 → 绿（跌），无昨收则中性灰
+            val prevPrice = if (idx > 0) trends[idx - 1].price else t.price
             val barColor = when {
-                preClose <= 0.0 -> Color(0xFF9AA0A6)
-                t.price >= preClose -> RED_UP
-                else -> GREEN_DOWN
+                t.price > prevPrice -> RED_UP
+                t.price < prevPrice -> GREEN_DOWN
+                else -> FLAT_BAR   // 持平：浅灰柱（涨停/跌停横盘也走这里）
             }
             drawRect(
                 color = barColor,
                 topLeft = Offset(x, h - vh),
-                size = Size(max(bw - 0.6f, 0.6f), vh)
+                size = Size(bw.coerceAtLeast(0.8f), vh)
             )
         }
         // 淡灰边框
