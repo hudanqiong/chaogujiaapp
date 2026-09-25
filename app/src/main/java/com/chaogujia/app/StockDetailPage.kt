@@ -1706,7 +1706,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             val isLimitUp0 = ob != null && ob.limitUp > 0 && ob.price >= ob.limitUp - 0.001
             val isLimitDown0 = ob != null && ob.limitDown > 0 && ob.price <= ob.limitDown + 0.001
             // 涨跌停数据面板展开/收起（收起时面板消失，五档+大单恢复正常显示）
-            var limitPanelExpanded by remember(ob?.symbol) { mutableStateOf(true) }
+            var limitPanelExpanded by remember(ob?.code) { mutableStateOf(true) }
             // 涨停展开时卖五大单被面板一并盖住（不再单独占行）；跌停展开时买五大单同理
             val bigAskShown = bigAsk != null && !(isLimitUp0 && limitPanelExpanded && !dealsExpanded)
             val bigBidShown = bigBid != null && !(isLimitDown0 && limitPanelExpanded && !dealsExpanded)
@@ -1728,7 +1728,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             val panelBlockH = obRowHeight * (5 + (if ((isLimitUp && bigAsk != null && !bigAskShown) || (isLimitDown && bigBid != null && !bigBidShown)) 1 else 0))
             if (dealsExpanded) {
                 // 仅显示卖1 + 间隙 + 买1
-                if (bigAskShown) BigOrderRow(bigAsk, obRowHeight)
+                bigAsk?.takeIf { bigAskShown }?.let { BigOrderRow(it, obRowHeight) }
                 OrderLevelRow(
                     label = "卖1",
                     lv = asks.getOrNull(0),
@@ -1753,10 +1753,10 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                     isAsk = false,
                     showAmount = showAmount,
                 )
-                if (bigBidShown) BigOrderRow(bigBid, obRowHeight)
+                bigBid?.takeIf { bigBidShown }?.let { BigOrderRow(it, obRowHeight) }
             } else {
                 // 卖五上方：卖侧大单（涨停展开时被面板一并盖住，故此处不再渲染）
-                if (bigAskShown) BigOrderRow(bigAsk, obRowHeight)
+                bigAsk?.takeIf { bigAskShown }?.let { BigOrderRow(it, obRowHeight) }
                 if (isLimitUp && limitPanelExpanded) {
                     // 涨停：面板顶替「卖盘 5 行（+卖五大单行，若存在）」
                     LimitDataPanel(isUp = true, ob = ob, blockHeight = panelBlockH,
@@ -1786,7 +1786,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                     }
                 }
                 // 买五下方：买侧大单（跌停展开时被面板一并盖住，故此处不再渲染）
-                if (bigBidShown) BigOrderRow(bigBid, obRowHeight)
+                bigBid?.takeIf { bigBidShown }?.let { BigOrderRow(it, obRowHeight) }
             }
             }
         }
