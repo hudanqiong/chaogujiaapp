@@ -1091,6 +1091,8 @@ private data class BigOrder(val price: Double, val vol: Double, val isAsk: Boole
 /** 手数打星：两位数原样；三位数只留最后 1 位(前面补*)；三位以上留最后 2 位 */
 private fun fmtBigVol(v: Double): String {
     if (v.isNaN() || v <= 0) return "--"
+    // 过万：与五档一致用“万”单位
+    if (v >= 10000) return String.format("%.2f万", v / 10000.0)
     val n = v.toLong().toString()
     return when {
         n.length <= 2 -> n
@@ -1136,6 +1138,7 @@ private fun pickBigOrder(deals: List<DealItem>, isAsk: Boolean): BigOrder? {
 /** 大单提示行：大单  价格  打星手数 */
 @Composable
 private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
+    // 只有“大单”标签分方向色；价格/手数统一黑灰
     val c = if (b.isAsk) GREEN_TEXT else RED_UP
     Row(
         modifier = Modifier
@@ -1146,19 +1149,19 @@ private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
     ) {
         Text(
             "大单",
-            color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            color = c, fontSize = ORDERBOOK_FONT, fontWeight = FontWeight.Medium,
             fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
             modifier = Modifier.width(26.dp), textAlign = TextAlign.Start
         )
         Text(
             fmtNum2(b.price),
-            color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
             fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             fmtBigVol(b.vol),
-            color = c, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
+            color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT_VAL, fontWeight = FontWeight.SemiBold,
             fontFamily = DSpNumFont, maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
