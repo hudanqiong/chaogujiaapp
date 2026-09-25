@@ -212,7 +212,6 @@ fun StockDetailPage(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
-            .verticalScroll(rememberScrollState())
             // detail-overlay-swallow：吞掉自身空白区点击，阻止穿透到下层 IndexBar 触发「编辑表头」
             .pointerInput(Unit) { detectTapGestures { /* 空白区：无操作，仅拦截 */ } }
     ) {
@@ -259,41 +258,58 @@ fun StockDetailPage(
             )
         }
 
-        // ================= 图表区（固定高度，下方预留其它功能模块，整体可滚动） =================
+        // ================= 内容区：图表固定高度 + 下方预留模块（可滚动），底部功能栏钉在屏幕底部 =================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CHART_AREA_HEIGHT)
+                .weight(1f)
         ) {
-            when (period) {
-                "minute" -> MinuteChart(detail, showAuction, symmetricAxis)
-                "fiveday" -> FiveDayChart(detail)
-                else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
-            }
-            if (loading && detail == null) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("加载中…", color = TEXT_SUB, fontSize = 14.sp)
-                }
-            }
-        }
-        // ================= 底部功能栏 =================
-        DetailBottomBar(
-            concept = concept,
-            watched = watched,
-            onOrder = { /* TODO 下单 */ },
-            onDiagnose = { /* TODO 诊股 */ },
-            onToggleWatch = {
-                val code = current?.code ?: return@DetailBottomBar
-                scope.launch {
-                    val isW = watched == true
-                    val r = withContext(Dispatchers.IO) {
-                        if (isW) Api.delWatch(token, code, 0) else Api.addWatch(token, code, 0)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // ---- 图表区（固定高度，下方预留其它功能模块）----
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(CHART_AREA_HEIGHT)
+                ) {
+                    when (period) {
+                        "minute" -> MinuteChart(detail, showAuction, symmetricAxis)
+                        "fiveday" -> FiveDayChart(detail)
+                        else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
                     }
-                    if (r.ok) watched = !isW
+                    if (loading && detail == null) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("加载中…", color = TEXT_SUB, fontSize = 14.sp)
+                        }
+                    }
                 }
-            },
-            onMore = { /* TODO 功能菜单 */ }
-        )
+                // ---- 底部栏占位（防止滚动内容被钉底的底部栏遮挡）----
+                Spacer(Modifier.height(DETAIL_BAR_HEIGHT))
+                // TODO: 后续功能模块追加在此处下方
+            }
+            // ---- 底部功能栏：钉在屏幕最底 ----
+            DetailBottomBar(
+                concept = concept,
+                watched = watched,
+                onOrder = { /* TODO 下单 */ },
+                onDiagnose = { /* TODO 诊股 */ },
+                onToggleWatch = {
+                    val code = current?.code ?: return@DetailBottomBar
+                    scope.launch {
+                        val isW = watched == true
+                        val r = withContext(Dispatchers.IO) {
+                            if (isW) Api.delWatch(token, code, 0) else Api.addWatch(token, code, 0)
+                        }
+                        if (r.ok) watched = !isW
+                    }
+                },
+                onMore = { /* TODO 功能菜单 */ },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
@@ -903,6 +919,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 // 布局比例常量（便于微调）
 // ============================================================
 private val CHART_AREA_HEIGHT = 380.dp          // 图表区固定总高（价图905+时间轴60+量352≈1317px÷3.5≈376dp，右侧1030+318=1348px≈385dp，取中380dp两边齐平）
+private val DETAIL_BAR_HEIGHT = 100.dp         // 底部功能栏占位高度（内容66dp + 底部导航区预留，防止滚动内容被钉底栏遮挡）
 private const val ORDERBOOK_RATIO = 0.30f      // 右侧盘口栏宽度占比（分时图自动占剩余）
 private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
 private val TIME_BAR_HEIGHT = 17.dp            // 分时时间栏高度（实测 60px÷3.5≈17dp）
@@ -3516,13 +3533,14 @@ private fun DetailBottomBar(
     onOrder: () -> Unit,
     onDiagnose: () -> Unit,
     onToggleWatch: () -> Unit,
-    onMore: () -> Unit
+    onMore: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     // 外层黑底容器：高度 = 内容高度 + 系统按键区，使黑色铺到屏幕最底部
     // 有虚拟按键 → 底部留出黑底 Spacer（按键区）；无按键 → inset=0，内容自然整块居中
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .background(Color.Black)
     ) {
