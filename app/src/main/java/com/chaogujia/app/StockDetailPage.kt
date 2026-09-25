@@ -1515,12 +1515,6 @@ private fun MinuteVolToolbar(
             // 三项同一行：额（黑）+ 量（主买/主卖着色）+ 现手（末笔方向着色）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "  额:" + (minuteDeal?.amt?.let { fmtAmt(it / 10000.0) } ?: fmtAmt(minuteAmt)),
-                    color = VOL_LABEL_COLOR,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
                     "  量:" + fmtVol(minuteDeal?.hand ?: minuteVol),
                     color = if (minuteDeal != null) volTextColor else VOL_LABEL_COLOR,
                     fontSize = 11.sp,
@@ -1529,6 +1523,12 @@ private fun MinuteVolToolbar(
                 Text(
                     "  现手:" + fmtVol(minuteDeal?.lastHand ?: minuteVol),
                     color = if (minuteDeal != null) lastDealColor else VOL_LABEL_COLOR,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "  额:" + (minuteDeal?.amt?.let { fmtAmt(it / 10000.0) } ?: fmtAmt(minuteAmt)),
+                    color = VOL_LABEL_COLOR,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
