@@ -557,11 +557,11 @@ private fun DetailHeadLatest(b: StockBase?) {
         // 右：三竖列
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.Start)
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
-                Modifier.width(58.dp),
+                Modifier.width(70.dp),
                 listOf(
                     Triple("高", fmtNum(b?.high), baseColor(b?.high ?: 0.0)),
                     Triple("低", fmtNum(b?.low), baseColor(b?.low ?: 0.0)),
@@ -570,7 +570,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列2：统一黑色（内容长，多给权重）
             DetailColC(
-                Modifier.width(82.dp),
+                Modifier.width(66.dp),
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
