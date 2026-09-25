@@ -557,7 +557,7 @@ private fun DetailHeadLatest(b: StockBase?) {
         // 右：三竖列
         Row(
             modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End)
         ) {
             // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
             DetailColC(
@@ -570,7 +570,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列2：统一黑色（内容长，多给权重）
             DetailColC(
-                Modifier.width(96.dp),
+                Modifier.width(82.dp),
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
@@ -579,7 +579,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
             DetailColC(
-                Modifier.width(56.dp),
+                Modifier.width(70.dp),
                 listOf(
                     Triple("量比", fmtNum2(b?.volRatio), vrColor),
                     Triple("换", fmtPct(b?.turnover), TEXT_MAIN),
