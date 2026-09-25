@@ -851,7 +851,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 
     // 外层分栏：可选[早盘竞价] + 分时主轴 + 可选[收盘竞价] + 盘口栏
     Row(
-        modifier = Modifier.fillMaxSize().padding(top = 6.dp)
+        modifier = Modifier.fillMaxSize().padding(top = 6.dp, start = 10.dp, end = 6.dp)
     ) {
         // ===== 分时区（竞价栏 + 主轴）：按时间刻度 10:240:5 分宽，盘口栏不参与 =====
         // 结构：列 = [ 上部（图+量，含竞价栏三栏） + 底部贯穿整行的时间轴 ]
@@ -910,7 +910,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
             modifier = Modifier
                 .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
-                .padding(start = 2.dp, end = 2.dp)
+                .padding(start = 8.dp, end = 10.dp)
         )
     }
 }
@@ -928,7 +928,9 @@ private val PRICE_CANVAS_HEIGHT = 259.dp       // 259dp
 private val VOLUME_CANVAS_HEIGHT = 101.dp      // 101dp
 // ===== 盘口栏（右侧）实测尺寸复刻 =====
 private val ORDERBOOK_TOP_HEIGHT = 294.dp      // 294dp
-private val ORDERBOOK_FONT = 12.sp             // 五档/明细字号（加大加粗）
+private val ORDERBOOK_FONT = 14.sp             // 五档字号（加大调细）
+private val ORDERBOOK_FONT_DEAL = 13.sp        // 明细数字字号（加大加粗）
+private val OB_TEXT_GRAY = Color(0xFF555555)   // 五档字体黑灰色
 private val ORDERBOOK_ROW_MIN = 13.dp          // 五档行高下限（防挤压）
 private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参考截图≈23dp行距，避免铺满后过疏）
 
@@ -1071,31 +1073,36 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         else -> TEXT_MAIN
     }
     // 标签（买/卖）统一黑色；涨跌配色只体现在中间价格列
-    val labelColor = Color(0xFF111111)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(rowHeight)
-            .padding(horizontal = 1.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    val labelColor = OB_TEXT_GRAY
+    // 买一顶部分界线（卖一/买一之间的分界，不明显浅黑灰）
+    val isBuy1 = !isAsk && label == "买1"
+    Column {
+        if (isBuy1) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFDDDDDD)))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(rowHeight)
+                .padding(horizontal = 1.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
         Text(
             label, color = labelColor, fontSize = ORDERBOOK_FONT,
-            fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             modifier = Modifier.width(24.dp), textAlign = TextAlign.Start
         )
         Text(
             if (price > 0) fmtNum2(price) else "--",
             color = priceColor, fontSize = ORDERBOOK_FONT,
-            fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
-            color = Color(0xFF111111), fontSize = ORDERBOOK_FONT,
-            fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+            color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
+        }
     }
 }
 
@@ -1117,18 +1124,18 @@ private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
         Text(
             // 明细只显示到分钟（去掉秒）
             d.time.substringBeforeLast(':'),
-            color = TEXT_SUB, fontSize = 10.sp,
+            color = TEXT_SUB, fontSize = 11.sp,
             fontFamily = DSpNumFont,
             modifier = Modifier.weight(0.9f), textAlign = TextAlign.Start
         )
         Text(
-            fmtNum2(d.price), color = color, fontSize = 10.sp,
-            fontFamily = DSpNumFont,
+            fmtNum2(d.price), color = Color.Black, fontSize = ORDERBOOK_FONT_DEAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
         Text(
-            fmtVol(d.vol), color = color, fontSize = 10.sp,
-            fontFamily = DSpNumFont,
+            fmtVol(d.vol), color = Color.Black, fontSize = ORDERBOOK_FONT_DEAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
     }

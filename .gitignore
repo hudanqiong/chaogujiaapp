@@ -32,3 +32,7 @@ doc_thick.py
 patch_macd_label.py
 patch_macd_thick.py
 patch_swap.py
+
+# 临时补丁/扫描脚本（不入库）
+/*.py
+!/tools/
