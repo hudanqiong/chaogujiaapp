@@ -274,7 +274,9 @@ data class OrderBook(
     val inner: Double = 0.0,     // 内盘（主动卖，手）
     val bids: List<OrderLevel> = emptyList(),  // 买1~买5
     val asks: List<OrderLevel> = emptyList(),  // 卖1~卖5
-    val deals: List<DealItem> = emptyList()
+    val deals: List<DealItem> = emptyList(),
+    val limitUp: Double = 0.0,    // 涨停价（后端 limitUp）
+    val limitDown: Double = 0.0   // 跌停价（后端 limitDown）
 )
 
 object Api {
@@ -1185,7 +1187,9 @@ object Api {
                 inner = d.optDouble("inner", 0.0),
                 bids = bids,
                 asks = asks,
-                deals = deals
+                deals = deals,
+                limitUp = d.optDouble("limitUp", 0.0),
+                limitDown = d.optDouble("limitDown", 0.0)
             )
         } catch (e: Exception) {
             null

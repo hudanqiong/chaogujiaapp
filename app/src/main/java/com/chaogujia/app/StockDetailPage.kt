@@ -1671,6 +1671,10 @@ private val ORDERBOOK_FONT = 14.sp             // 五档标签字号（保持）
 private val ORDERBOOK_FONT_VAL = 11.sp        // 五档价格/手数字号（缩小）
 private val ORDERBOOK_FONT_DEAL = 11.sp        // 明细数字字号（缩小加粗）
 private val OB_TEXT_GRAY = Color(0xFF555555)   // 五档字体黑灰色
+private val OB_LIMIT_BLUE = Color(0xFF3A7BD5)   // 涨跌停数据面板「点击查看」蓝色
+private val OB_LIMIT_LABEL = Color(0xFF555555)  // 涨跌停数据面板标签黑偏灰
+private val OB_LIMIT_NUM = Color(0xFF000000)    // 涨跌停数据面板百分比数值纯黑
+private val OB_LIMIT_TITLE = Color(0xFF555555)  // 涨跌停数据面板标题黑偏灰
 private val ORDERBOOK_ROW_MIN = 13.dp          // 五档行高下限（防挤压）
 private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参考截图≈23dp行距，避免铺满后过疏）
 
@@ -1707,6 +1711,11 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             val asks = ob?.asks ?: emptyList()
             val bids = ob?.bids ?: emptyList()
             val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
+            // 涨停 / 跌停判定：用后端 limitUp/limitDown 容差比较（0.001 防浮点误差）
+            val isLimitUp = ob != null && ob.limitUp > 0 && ob.price >= ob.limitUp - 0.001
+            val isLimitDown = ob != null && ob.limitDown > 0 && ob.price <= ob.limitDown + 0.001
+            // 面板占据的整块高度 = 5 行（涨停占卖盘位、跌停占买盘位），内容在该高度内上下居中
+            val panelBlockH = obRowHeight * 5
             if (dealsExpanded) {
                 // 仅显示卖1 + 间隙 + 买1
                 if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
@@ -1738,8 +1747,13 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             } else {
                 // 卖五上方：卖侧大单
                 if (bigAsk != null) BigOrderRow(bigAsk, obRowHeight)
-                for (i in 4 downTo 0) {
-                    OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight)
+                if (isLimitUp) {
+                    // 涨停：卖盘 5 行被「涨停数据」面板整体顶替（顶到底 = 占满卖盘整块）
+                    LimitDataPanel(isUp = true, ob = ob, blockHeight = panelBlockH)
+                } else {
+                    for (i in 4 downTo 0) {
+                        OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight)
+                    }
                 }
                 // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
                 Box(
@@ -1751,8 +1765,13 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                             drawRect(color = Color(0xFFEEEEEE), topLeft = Offset(0f, y), size = Size(size.width, 0.6.dp.toPx()))
                         }
                 )
-                for (i in 0 until 5) {
-                    OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight)
+                if (isLimitDown) {
+                    // 跌停：买盘 5 行被「跌停数据」面板整体顶替
+                    LimitDataPanel(isUp = false, ob = ob, blockHeight = panelBlockH)
+                } else {
+                    for (i in 0 until 5) {
+                        OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight)
+                    }
                 }
                 // 买五下方：买侧大单
                 if (bigBid != null) BigOrderRow(bigBid, obRowHeight)
@@ -1947,6 +1966,142 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
     }
+}
+
+/**
+ * 涨跌停数据面板：涨停时顶替卖盘 5 行、跌停时顶替买盘 5 行；
+ * blockHeight = 被顶替区域的整块高度，内容在其中上下居中。
+ * 标题行带小三角，默认向下展开，可手动收起。
+ * 颜色：标题/标签黑偏灰；百分比数值纯黑；金额数值涨停红/跌停绿；「点击查看」蓝色。
+ */
+@Composable
+private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
+    var expanded by remember { mutableStateOf(true) }   // 默认展开
+    val title = if (isUp) "涨停数据" else "跌停数据"
+    val amountColor = if (isUp) RED_UP else GREEN_TEXT
+    // 封单占成交 = 封单额 / 成交额 * 100（能算则算，否则 --）
+    val sealRatio: String = run {
+        val sealAmt = sealAmount(ob, isUp)
+        val dealAmt = dealAmount(ob)
+        if (sealAmt > 0 && dealAmt > 0) String.format("%.0f%%", sealAmt / dealAmt * 100.0) else "--"
+    }
+    val sealAmtStr = fmtOrderAmount(sealAmount(ob, isUp))
+    val dealAmtStr = fmtOrderAmount(dealAmount(ob))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(blockHeight)
+            .padding(horizontal = 1.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            // 标题行 + 小三角（默认展开=朝下 ▼；收起=朝上 ▲），可点收起/展开
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    title, color = OB_LIMIT_TITLE, fontSize = ORDERBOOK_FONT_VAL,
+                    fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+                    maxLines = 1, softWrap = false
+                )
+                Canvas(modifier = Modifier.padding(start = 3.dp).size(7.dp)) {
+                    val w = size.width; val h = size.height
+                    val path = Path().apply {
+                        if (expanded) {
+                            moveTo(0f, 0f); lineTo(w, 0f); lineTo(w / 2f, h); close()   // ▼
+                        } else {
+                            moveTo(w / 2f, 0f); lineTo(w, h); lineTo(0f, h); close()    // ▲
+                        }
+                    }
+                    drawPath(path, color = OB_LIMIT_TITLE)
+                }
+            }
+            if (expanded) {
+                if (isUp) {
+                    LimitRow("几天几板", "--", OB_LIMIT_NUM)
+                    LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
+                    LimitRow("最高封单额", "--", amountColor)
+                    LimitRow("涨停成交额", dealAmtStr, amountColor)
+                    LimitRowBlue("明日涨停率", "点击查看")
+                } else {
+                    LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
+                    LimitRow("最高封单额", "--", amountColor)
+                    LimitRow("跌停成交额", dealAmtStr, amountColor)
+                }
+            }
+        }
+    }
+}
+
+/** 面板单行：左标签（黑偏灰）+ 右数值（指定色） */
+@Composable
+private fun LimitRow(label: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label, color = OB_LIMIT_LABEL, fontSize = ORDERBOOK_FONT_VAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.Start
+        )
+        Text(
+            value, color = valueColor, fontSize = ORDERBOOK_FONT_VAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+        )
+    }
+}
+
+/** 面板单行：左标签 + 右侧蓝色「点击查看」（纯展示，不可点） */
+@Composable
+private fun LimitRowBlue(label: String, blueText: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label, color = OB_LIMIT_LABEL, fontSize = ORDERBOOK_FONT_VAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.Start
+        )
+        Text(
+            blueText, color = OB_LIMIT_BLUE, fontSize = ORDERBOOK_FONT_VAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false,
+            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+        )
+    }
+}
+
+/** 封单额（元）：涨停取买一价*买一量*100；跌停取卖一价*卖一量*100。取不到返回 0 */
+private fun sealAmount(ob: OrderBook?, isUp: Boolean): Double {
+    ob ?: return 0.0
+    val lv = (if (isUp) ob.bids else ob.asks).getOrNull(0) ?: return 0.0
+    if (lv.price <= 0 || lv.vol <= 0) return 0.0
+    return lv.price * lv.vol * 100.0
+}
+
+/** 成交额（元）：兜底用「外盘+内盘」手数 * 当前价 * 100 估算；取不到返回 0 */
+private fun dealAmount(ob: OrderBook?): Double {
+    ob ?: return 0.0
+    if (ob.price <= 0) return 0.0
+    val hands = ob.outer + ob.inner
+    if (hands <= 0) return 0.0
+    return ob.price * hands * 100.0
 }
 
 /** 逐笔成交单行：时间 / 价格 / 手数 */
