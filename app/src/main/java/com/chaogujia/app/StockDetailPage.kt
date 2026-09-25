@@ -532,7 +532,7 @@ private fun DetailHeadLatest(b: StockBase?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 左：当前价（大字） + 涨跌额/幅
-        Column(modifier = Modifier.width(110.dp)) {
+        Column(modifier = Modifier.width(96.dp)) {
             Text(
                 text = fmtNum(price),
                 color = color,
@@ -542,7 +542,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "${fmtSigned(chg)}  ${fmtSigned(pct)}%",
+                text = "${fmtSignedPct(chg)}  ${fmtSignedPct(pct)}%",
                 color = color,
                 fontSize = 13.sp,
                 fontFamily = DSpNumFont
@@ -566,7 +566,7 @@ private fun DetailHeadLatest(b: StockBase?) {
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
-                    Triple("市盈TTM", fmtPe(b?.pe), TEXT_MAIN)
+                    Triple("市盈TTM", fmtPeLabel(b?.pe), TEXT_MAIN)
                 )
             )
             // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
@@ -714,7 +714,7 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, color = TEXT_SUB, fontSize = 11.sp)
+                Text(label, color = TEXT_SUB, fontSize = 13.sp)
                 Spacer(Modifier.width(4.dp))
                 Text(
                     value,
@@ -735,7 +735,7 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
     Column(modifier = modifier) {
         rows.forEachIndexed { i, (label, value, vc) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(label, color = TEXT_SUB, fontSize = 11.sp)
+                Text(label, color = TEXT_SUB, fontSize = 13.sp)
                 Spacer(Modifier.width(4.dp))
                 Text(
                     value,
@@ -4696,6 +4696,19 @@ private fun fmtSigned(v: Double?): String {
     if (v == null) return "--"
     val s = String.format(java.util.Locale.CHINA, "%.2f", v)
     return if (v > 0) "+$s" else s
+}
+
+/** 顶栏用：涨不带 +，跌带 -（仅去掉正号） */
+private fun fmtSignedPct(v: Double?): String {
+    if (v == null) return "--"
+    return String.format(java.util.Locale.CHINA, "%.2f", v)
+}
+
+/** 市盈标签值：正数显示数字，负数显示“亏损” */
+private fun fmtPeLabel(v: Double?): String {
+    if (v == null) return "--"
+    if (v < 0) return "亏损"
+    return String.format(java.util.Locale.CHINA, "%.2f", v)
 }
 
 /** 百分比：7.50% */
