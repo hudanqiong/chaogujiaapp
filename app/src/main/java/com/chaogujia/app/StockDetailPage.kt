@@ -1072,37 +1072,36 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         price < preClose -> GREEN_TEXT
         else -> TEXT_MAIN
     }
-    // 标签（买/卖）统一黑色；涨跌配色只体现在中间价格列
     val labelColor = OB_TEXT_GRAY
-    // 买一顶部分界线（卖一/买一之间的分界，不明显浅黑灰）
     val isBuy1 = !isAsk && label == "买1"
-    Column {
-        if (isBuy1) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFFDDDDDD)))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(rowHeight - if (isBuy1) 1.dp else 0.dp)
-                .padding(horizontal = 1.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(rowHeight)
+            .then(if (isBuy1) Modifier.drawBehind { drawRect(color = Color(0xFFDDDDDD), topLeft = Offset(0f, 0f), size = Size(size.width, 1.dp.toPx())) } else Modifier)
+            .padding(horizontal = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
             label, color = labelColor, fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
-            modifier = Modifier.width(24.dp), textAlign = TextAlign.Start
+            maxLines = 1, softWrap = false,
+            modifier = Modifier.width(26.dp), textAlign = TextAlign.Start
         )
         Text(
             if (price > 0) fmtNum2(price) else "--",
             color = priceColor, fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) fmtVol(vol) else "--",
             color = OB_TEXT_GRAY, fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
-        }
     }
 }
 
