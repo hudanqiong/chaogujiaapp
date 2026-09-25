@@ -2035,7 +2035,7 @@ private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
                         LimitRow("涨停成交额", dealAmtStr, amountColor)
                         LimitRowBlue("明日涨停率", "点击查看")
                     } else {
-                        LimitRowCenter("--")                         // 几天几板（跌停时同理保留居中占位）
+                        // 跌停：无「几天几板」与「明日涨停率」，仅 3 行横向排
                         LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
                         LimitRow("最高封单额", "--", amountColor)
                         LimitRow("跌停成交额", dealAmtStr, amountColor)
