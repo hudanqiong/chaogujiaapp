@@ -956,6 +956,16 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             onOpenPicker = { showVolPicker = true },
                             modifier = Modifier.align(Alignment.TopStart)
                         )
+                        // 指标切换：向下展开的内联菜单，贴在「分时指标▼」下方
+                        if (showVolPicker) {
+                            MinuteVolPicker(
+                                current = volMode,
+                                onPick = { volMode = it; showVolPicker = false },
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(start = 1.dp, top = 18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -971,21 +981,13 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
         )
         } // end 内层 Row
     } // end 外层 Column
-    // ===== 指标切换弹层 =====
-    if (showVolPicker) {
-        MinuteVolPicker(
-            current = volMode,
-            onPick = { volMode = it; showVolPicker = false },
-            onDismiss = { showVolPicker = false }
-        )
-    }
 }
 
 // ============================================================
-// \u5206\u65f6\u91cf\u526f\u56fe\uff1a\u9876\u90e8\u5de5\u5177\u680f + \u6307\u6807\u5f39\u5c42 + \u5341\u5b57\u5149\u6807\u624b\u52bf
+// 分时量副图：顶部工具栏 + 指标弹层 + 十字光标手势
 // ============================================================
 
-/** \u5341\u5b57\u5149\u6807\u624b\u52bf\u5c42\uff1a\u6309\u4e0b/\u62d6\u52a8 \u2192 \u5438\u9644\u6700\u8fd1\u5206\u949f\uff1b\u677e\u624b \u2192 \u4fdd\u7559\uff1b\u8f7b\u70b9 \u2192 \u6e05\u9664 */
+/** 十字光标手势层：按下/拖动 → 吸附最近分钟；松手 → 保留；轻点 → 清除 */
 @Composable
 private fun MinuteCursorGesture(
     trends: List<DetailTrend>,
@@ -1002,7 +1004,7 @@ private fun MinuteCursorGesture(
     BoxWithConstraints(modifier = modifier) {
         val w = constraints.maxWidth.toFloat()
         val hgt = constraints.maxHeight.toFloat()
-        // \u4e0e\u753b\u5e03\u540c\u6b3e x \u6620\u5c04\uff08\u4ec5\u7528\u4e8e\u53cd\u63a8\u5206\u949f\uff09
+        // 与画布同款 x 映射（仅用于反推分钟）
         fun xMinute(min: Float): Float {
             return if (showAuction) {
                 when {
@@ -1014,7 +1016,7 @@ private fun MinuteCursorGesture(
                 (min.coerceIn(0f, 240f) / 240f) * w
             }
         }
-        // \u6a2a\u5750\u6807 -> \u6700\u8fd1\u7684\u6570\u636e\u5206\u949f
+        // 横坐标 -> 最近的数据分钟
         fun minAtX(px: Float): Float {
             val c = px.coerceIn(0f, w)
             var best = trends[0].min.toFloat()
@@ -1074,7 +1076,7 @@ private fun MinuteCursorGesture(
     }
 }
 
-/** \u9876\u90e8\u5de5\u5177\u680f\uff1a\u3010\u5206\u65f6\u91cf\u25bc\u3011 + \u91cf/\u73b0\u624b/\u989d\uff08\u5341\u5b57\u5149\u6807\u65f6= \u8be5\u5206\u949f\u503c\uff0c\u5426\u5219=\u6700\u65b0\u503c\uff09 */
+/** 顶部工具栏：【指标名▼】 + 数值（十字光标时=该分钟值，否则=最新值） */
 @Composable
 private fun MinuteVolToolbar(
     trends: List<DetailTrend>,
@@ -1083,23 +1085,53 @@ private fun MinuteVolToolbar(
     onOpenPicker: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // \u5b9a\u4f4d\u5f53\u524d\u5206\u949f\uff1a\u6709\u5149\u6807\u53d6\u8be5\u5206\u949f\uff0c\u5426\u5219\u53d6\u6700\u540e\u4e00\u6839
-    val cur: DetailTrend? = remember(trends, cursorMin) {
-        if (cursorMin < -15f) trends.lastOrNull()
-        else trends.minByOrNull { kotlin.math.abs(it.min.toFloat() - cursorMin) }
-    }
-    // \u5206\u949f\u91cf/\u989d\uff08\u5dee\u5206\uff09
-    val minuteVol: Double = remember(trends, cur) {
-        if (cur == null) 0.0 else {
-            val i = trends.indexOf(cur)
-            if (cur.min <= 0) cur.vol else (cur.vol - trends[i - 1].vol)
+    // 定位当前分钟下标：有光标取该分钟，否则取最后一根
+    val curIdx: Int = remember(trends, cursorMin) {
+        if (trends.isEmpty()) -1
+        else if (cursorMin < -15f) trends.size - 1
+        else {
+            val t = trends.minByOrNull { kotlin.math.abs(it.min.toFloat() - cursorMin) }
+            if (t == null) trends.size - 1 else trends.indexOf(t)
         }
     }
-    val minuteAmt: Double = remember(trends, cur) {
-        if (cur == null) 0.0 else {
-            val i = trends.indexOf(cur)
-            val a = if (cur.min <= 0) cur.amount else (cur.amount - trends[i - 1].amount)
-            a / 10000.0
+    // 每分钟量/额（差分）
+    val minuteVol: Double = remember(trends, curIdx) {
+        if (curIdx < 0) 0.0 else {
+            val t = trends[curIdx]
+            if (t.min <= 0) t.vol else (t.vol - trends[curIdx - 1].vol).coerceAtLeast(0.0)
+        }
+    }
+    val minuteAmt: Double = remember(trends, curIdx) {
+        if (curIdx < 0) 0.0 else {
+            val t = trends[curIdx]
+            val a = if (t.min <= 0) t.amount else (t.amount - trends[curIdx - 1].amount)
+            a.coerceAtLeast(0.0) / 10000.0
+        }
+    }
+    // 指标模式下的当前值串（光标分钟 / 最新分钟）
+    val indicatorText: String = remember(trends, curIdx, volMode) {
+        if (curIdx < 0 || volMode < 2) "" else {
+            val price = DoubleArray(trends.size) { trends[it].price }
+            when (volMode) {
+                VOLOR_MODE_MACD -> {
+                    val (dif, dea, hist) = macdSeries(price)
+                    "DIF:" + fmtNum2(dif[curIdx]) + " DEA:" + fmtNum2(dea[curIdx]) + " MACD:" + fmtNum2(hist[curIdx])
+                }
+                VOLOR_MODE_KDJ -> {
+                    val (k, d, j) = kdjSeries(price, 9)
+                    "K:" + fmtNum2(k[curIdx]) + " D:" + fmtNum2(d[curIdx]) + " J:" + fmtNum2(j[curIdx])
+                }
+                VOLOR_MODE_RSI -> {
+                    val r = rsiSeries(price, 6)
+                    "RSI:" + fmtNum2(r[curIdx])
+                }
+                VOLOR_MODE_VOLMA -> {
+                    val pv = perMinuteVol(trends)
+                    val ma = maSeries(pv, 5)
+                    "MA5:" + fmtVol(ma[curIdx])
+                }
+                else -> ""
+            }
         }
     }
     // 方案C：紧凑浮动胶囊，浮在量图左上角，不占高度、不挤压柱子
@@ -1110,82 +1142,81 @@ private fun MinuteVolToolbar(
             .padding(horizontal = 3.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // \u3010\u5206\u65f6\u91cf\u25bc\u3011\u70b9\u51fb\u5f39\u5c42
+        // 【指标名▼】点击展开菜单
         Row(
             modifier = Modifier.clickable { onOpenPicker() },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "\u5206\u65f6\u91cf",
+                MINUTE_INDICATOR_NAMES.getOrElse(volMode) { "指标" },
                 color = TEXT_MAIN,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                "\u25bc",
+                "▼",
                 color = TEXT_MAIN,
                 fontSize = 8.sp,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 1.dp)
             )
         }
-        // \u6570\u503c\uff1a\u91cf:xxx \u73b0\u624b:xxx / \u989d:xxx
-        Text(
-            "  \u91cf:" + fmtVol(minuteVol) + "  \u73b0\u624b:" + fmtVol(minuteVol),
-            color = if (volMode == 1) TEXT_SUB else VOL_LABEL_COLOR,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            "  \u989d:" + fmtAmt(minuteAmt),
-            color = if (volMode == 1) VOL_LABEL_COLOR else TEXT_SUB,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
-        )
+        // 数值区：按指标类型切换
+        if (volMode == VOLOR_MODE_MINUTE_AMT) {
+            Text(
+                "  额:" + fmtAmt(minuteAmt),
+                color = VOL_LABEL_COLOR,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        } else if (volMode == VOLOR_MODE_MINUTE_VOL) {
+            Text(
+                "  量:" + fmtVol(minuteVol) + "  现手:" + fmtVol(minuteVol),
+                color = VOL_LABEL_COLOR,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        } else {
+            Text(
+                "  " + indicatorText,
+                color = VOL_LABEL_COLOR,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
-
-/** \u6307\u6807\u5207\u6362\u5f39\u5c42\uff1a\u6210\u4ea4\u91cf / \u6210\u4ea4\u989d */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 分时指标切换：向下展开的内联菜单（贴在标签下方，不遮盖全屏） */
 @Composable
 private fun MinuteVolPicker(
     current: Int,
     onPick: (Int) -> Unit,
-    onDismiss: () -> Unit
+    modifier: Modifier = Modifier
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val items = listOf("\u6210\u4ea4\u91cf", "\u6210\u4ea4\u989d")
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = Color.White
+    Column(
+        modifier = modifier
+            .width(96.dp)
+            .background(Color.White, shape = RoundedCornerShape(3.dp))
+            .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(3.dp))
+            .padding(vertical = 2.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
-            Text(
-                "\u5206\u65f6\u6307\u6807",
-                color = TEXT_MAIN,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 18.dp, top = 4.dp, bottom = 10.dp)
-            )
-            items.forEachIndexed { i, name ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPick(i) }
-                        .padding(horizontal = 18.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        name,
-                        color = if (i == current) RED_UP else TEXT_MAIN,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (i == current) {
-                        Text("\u2713", color = RED_UP, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    }
+        MINUTE_INDICATOR_NAMES.forEachIndexed { i, name ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onPick(i) }
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    name,
+                    color = if (i == current) RED_UP else TEXT_MAIN,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                if (i == current) {
+                    Text("\u2713", color = RED_UP, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1786,6 +1817,122 @@ private fun MinutePriceCanvas(
     }
 }
 
+
+// ============================================================
+// 分时指标计算（纯前端自算）
+// 后端 trends 仅提供 price/vol/amount（后两者为累计值），
+// 指标均基于【每分钟收盘价序列】与【每分钟量序列】计算。
+//   MACD(12,26,9)：基于价格序列的指数平均
+//   KDJ(9,3,3)：基于价格滚动窗口的 RSV
+//   RSI(6)：基于价格涨跌
+//   VOL-MA5：基于每分钟量的 5 周期均线（量比参考）
+// ============================================================
+private val VOLOR_MODE_MINUTE_VOL = 0   // 成交量（手）
+private val VOLOR_MODE_MINUTE_AMT = 1   // 成交额（万元）
+private val VOLOR_MODE_MACD = 2         // MACD（12,26,9）
+private val VOLOR_MODE_KDJ = 3          // KDJ（9,3,3）
+private val VOLOR_MODE_RSI = 4          // RSI（6）
+private val VOLOR_MODE_VOLMA = 5        // 量 MA5（量比参考）
+
+/** 分时指标名称表（下拉菜单顺序） */
+private val MINUTE_INDICATOR_NAMES = listOf(
+    "成交量", "成交额", "MACD", "KDJ", "RSI(6)", "量MA5"
+)
+
+/** EMA（指数移动平均） */
+private fun emaSeries(src: DoubleArray, n: Int): DoubleArray {
+    val out = DoubleArray(src.size)
+    if (src.isEmpty()) return out
+    val k = 2.0 / (n + 1.0)
+    var prev = src[0]
+    out[0] = prev
+    for (i in 1 until src.size) {
+        prev = src[i] * k + prev * (1 - k)
+        out[i] = prev
+    }
+    return out
+}
+
+/** MACD（返回 DIF / DEA / HIST）hist = (DIF-DEA)*2 */
+private fun macdSeries(price: DoubleArray): Triple<DoubleArray, DoubleArray, DoubleArray> {
+    if (price.isEmpty()) return Triple(DoubleArray(0), DoubleArray(0), DoubleArray(0))
+    val e12 = emaSeries(price, 12)
+    val e26 = emaSeries(price, 26)
+    val dif = DoubleArray(price.size) { e12[it] - e26[it] }
+    val dea = emaSeries(dif, 9)
+    val hist = DoubleArray(price.size) { (dif[it] - dea[it]) * 2.0 }
+    return Triple(dif, dea, hist)
+}
+
+/** KDJ（n=9, k=3, d=3）返回 K / D / J */
+private fun kdjSeries(price: DoubleArray, n: Int = 9): Triple<DoubleArray, DoubleArray, DoubleArray> {
+    val sz = price.size
+    val K = DoubleArray(sz); val D = DoubleArray(sz); val J = DoubleArray(sz)
+    var kPrev = 50.0; var dPrev = 50.0
+    for (i in 0 until sz) {
+        val lo = maxOf(0, i - n + 1)
+        var hh = price[lo]; var ll = price[lo]
+        for (j in lo..i) { if (price[j] > hh) hh = price[j]; if (price[j] < ll) ll = price[j] }
+        val rsv = if (hh - ll > 1e-9) (price[i] - ll) / (hh - ll) * 100.0 else 50.0
+        val k = (2.0 / 3.0) * kPrev + (1.0 / 3.0) * rsv
+        val d = (2.0 / 3.0) * dPrev + (1.0 / 3.0) * k
+        K[i] = k; D[i] = d; J[i] = 3 * k - 2 * d
+        kPrev = k; dPrev = d
+    }
+    return Triple(K, D, J)
+}
+
+/** RSI（n=6） */
+private fun rsiSeries(price: DoubleArray, n: Int = 6): DoubleArray {
+    val sz = price.size
+    val out = DoubleArray(sz)
+    if (sz == 0) return out
+    var gain = 0.0; var loss = 0.0
+    for (i in 0 until sz) {
+        if (i > 0) {
+            val ch = price[i] - price[i - 1]
+            if (i <= n) { if (ch > 0) gain += ch else loss -= ch }
+        }
+        when {
+            i < n -> out[i] = 50.0
+            i == n -> out[i] = if (gain + loss > 1e-9) gain / (gain + loss) * 100.0 else 50.0
+            else -> {
+                val ch = price[i] - price[i - 1]
+                val up = if (ch > 0) ch else 0.0
+                val dn = if (ch < 0) -ch else 0.0
+                gain = (gain * (n - 1) + up) / n
+                loss = (loss * (n - 1) + dn) / n
+                out[i] = if (gain + loss > 1e-9) gain / (gain + loss) * 100.0 else 50.0
+            }
+        }
+    }
+    return out
+}
+
+/** 每分钟量（差分后） */
+private fun perMinuteVol(trends: List<DetailTrend>): DoubleArray {
+    val out = DoubleArray(trends.size)
+    var prev = 0.0
+    for (i in trends.indices) {
+        val t = trends[i]
+        out[i] = if (t.min <= 0) t.vol else (t.vol - prev).coerceAtLeast(0.0)
+        prev = t.vol
+    }
+    return out
+}
+
+/** MA（简单移动平均） */
+private fun maSeries(src: DoubleArray, n: Int): DoubleArray {
+    val out = DoubleArray(src.size)
+    var sum = 0.0
+    for (i in src.indices) {
+        sum += src[i]
+        if (i >= n) sum -= src[i - n]
+        out[i] = sum / minOf(i + 1, n)
+    }
+    return out
+}
+
 @Composable
 private fun MinuteVolumeCanvas(
     trends: List<DetailTrend>,
@@ -1867,21 +2014,29 @@ private fun MinuteVolumeCanvas(
         // 量柱颜色：本分钟收盘价 vs 上一分钟收盘价
         //   > 上分钟 → 红；< 上分钟 → 绿；相等/涨停/跌停/无前值 → 白(灰)
         // 持平柱用浅灰（纯白在白色背景看不见，与同花顺“白柱”观感一致）
-        val FLAT_BAR = Color(0xFFBDBDBD)
-        trends.forEachIndexed { idx, t ->
-            val vh = (vals[idx] / maxV * h).toFloat()
-            val x = xMinute(t.min.coerceIn(0, 237).toFloat())
-            val prevPrice = if (idx > 0) trends[idx - 1].price else t.price
-            val barColor = when {
-                t.price > prevPrice -> RED_UP
-                t.price < prevPrice -> GREEN_DOWN
-                else -> FLAT_BAR   // 持平：浅灰柱（涨停/跌停横盘也走这里）
+        if (volMode == VOLOR_MODE_MINUTE_VOL || volMode == VOLOR_MODE_MINUTE_AMT) {
+            // ===== 量柱模式（成交量 / 成交额）=====
+            // 量柱颜色：本分钟收盘价 vs 上一分钟收盘价
+            //   > 上分钟 → 红；< 上分钟 → 绿；相等/涨停/跌停/无前值 → 白(灰)
+            val FLAT_BAR = Color(0xFFBDBDBD)
+            trends.forEachIndexed { idx, t ->
+                val vh = (vals[idx] / maxV * h).toFloat()
+                val x = xMinute(t.min.coerceIn(0, 237).toFloat())
+                val prevPrice = if (idx > 0) trends[idx - 1].price else t.price
+                val barColor = when {
+                    t.price > prevPrice -> RED_UP
+                    t.price < prevPrice -> GREEN_DOWN
+                    else -> FLAT_BAR
+                }
+                drawRect(
+                    color = barColor,
+                    topLeft = Offset(x, h - vh),
+                    size = Size(bw.coerceAtLeast(0.8f), vh)
+                )
             }
-            drawRect(
-                color = barColor,
-                topLeft = Offset(x, h - vh),
-                size = Size(bw.coerceAtLeast(0.8f), vh)
-            )
+        } else {
+            // ===== 指标线模式（MACD / KDJ / RSI / 量MA5）=====
+            drawMinuteIndicator(w, h, trends, volMode) { m -> xMinute(m) }
         }
         // 十字光标竖线（量图段）：纯黑，仅在量图区域内画，时间轴不画
         if (cursorMin >= -15f) {
@@ -1892,8 +2047,37 @@ private fun MinuteVolumeCanvas(
         // 横线与数值框仅在「量区为激活区」时绘制，保证与价区互斥（只有一根横线）
         if (cursorY in 0f..1f && cursorZone == 2) {
             val cy = (cursorY * h).coerceIn(0f, h)
-            val vAt = (1.0 - cursorY.toDouble()) * maxV
-            val txt = if (volMode == 1) fmtAmt(vAt) else fmtVol(vAt)
+            val txt = if (volMode >= 2) {
+                // 指标模式：横线高度按该指标的纵轴范围反算数值
+                val price = DoubleArray(trends.size) { trends[it].price }
+                when (volMode) {
+                    2 -> { // MACD: lo=-mx, hi=mx
+                        val (dif, dea, hist) = macdSeries(price)
+                        var mx = 1e-6
+                        for (i in price.indices) mx = maxOf(mx, kotlin.math.abs(dif[i]), kotlin.math.abs(dea[i]), kotlin.math.abs(hist[i]))
+                        fmtNum2(mx - cursorY.toDouble() * (2.0 * mx))
+                    }
+                    3 -> { // KDJ: 0-100
+                        val (k, d, j) = kdjSeries(price, 9)
+                        val idx = trends.indexOfFirst { kotlin.math.abs(it.min.toFloat() - cursorMin) < 0.5f }
+                        val ii = if (idx >= 0) idx else trends.size - 1
+                        "K:" + fmtNum2(k[ii]) + " D:" + fmtNum2(d[ii]) + " J:" + fmtNum2(j[ii])
+                    }
+                    4 -> { // RSI: 0-100
+                        val ii = trends.indexOfFirst { kotlin.math.abs(it.min.toFloat() - cursorMin) < 0.5f }.let { if (it >= 0) it else trends.size - 1 }
+                        "RSI:" + fmtNum2(100.0 - cursorY.toDouble() * 100.0)
+                    }
+                    else -> { // 量MA5: 0-maMax
+                        val pv = perMinuteVol(trends)
+                        val ma = maSeries(pv, 5)
+                        val mx = (ma.maxOrNull() ?: 1.0).coerceAtLeast(1e-6)
+                        fmtVol(mx - cursorY.toDouble() * mx)
+                    }
+                }
+            } else {
+                val vAt = (1.0 - cursorY.toDouble()) * maxV
+                if (volMode == 1) fmtAmt(vAt) else fmtVol(vAt)
+            }
             val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
             val boxW = lay.size.width + 6f
             val boxH = lay.size.height + 1f
@@ -1908,6 +2092,109 @@ private fun MinuteVolumeCanvas(
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
     }
 }
+/**
+ * 分时指标线绘制（量区副图，volMode >= 2 时调用）
+ *   MACD(2)：DIF/DEA 双线 + HIST 红绿柱，0 轴居中
+ *   KDJ(3)：K/D/J 三线，固定 0-100
+ *   RSI(4)：单线，固定 0-100
+ *   量MA5(5)：单线，量纲同量柱
+ * xOf：分钟 -> 画布 X 坐标（与量柱同源映射）
+ */
+private fun DrawScope.drawMinuteIndicator(
+    w: Float,
+    h: Float,
+    trends: List<DetailTrend>,
+    volMode: Int,
+    xOf: (Float) -> Float
+) {
+    if (trends.isEmpty()) return
+    val n = trends.size
+    val price = DoubleArray(n) { trends[it].price }
+    // 每分钟分钟序号（用于 xOf）
+    fun xAt(i: Int): Float = xOf(trends[i].min.coerceIn(0, 240).toFloat())
+
+    // 辅助：把一串值按 [lo, hi] 映射到画布 Y（上=hi，下=lo）
+    fun yOf(v: Double, lo: Double, hi: Double): Float {
+        if (hi - lo < 1e-9) return h * 0.5f
+        val r = ((v - lo) / (hi - lo)).coerceIn(0.0, 1.0)
+        return (h - r * h).toFloat()
+    }
+    // 画一条折线
+    fun polyline(vals: DoubleArray, lo: Double, hi: Double, color: Color, sw: Float) {
+        if (vals.isEmpty()) return
+        val p = Path()
+        var started = false
+        for (i in 0 until minOf(vals.size, n)) {
+            val x = xAt(i)
+            val y = yOf(vals[i], lo, hi)
+            if (!started) { p.moveTo(x, y); started = true } else p.lineTo(x, y)
+        }
+        drawPath(p, color, style = Stroke(width = sw, cap = StrokeCap.Round))
+    }
+    // 水平参考线
+    fun hline(v: Double, lo: Double, hi: Double, color: Color) {
+        val y = yOf(v, lo, hi)
+        drawLine(color, Offset(0f, y), Offset(w, y), strokeWidth = 0.8f)
+    }
+
+    val CLR_DIF = Color(0xFFFF8C00)   // DIF 橙
+    val CLR_DEA = Color(0xFF1565C0)   // DEA 蓝
+    val CLR_K = Color(0xFFFF8C00)     // K 橙
+    val CLR_D = Color(0xFF1565C0)     // D 蓝
+    val CLR_J = Color(0xFF8E24AA)     // J 紫
+    val CLR_RSI = Color(0xFF8E24AA)   // RSI 紫
+    val CLR_MA = Color(0xFFFF8C00)    // 量MA 橙
+
+    when (volMode) {
+        VOLOR_MODE_MACD -> {
+            val (dif, dea, hist) = macdSeries(price)
+            var mx = 1e-6
+            for (i in 0 until n) {
+                mx = maxOf(mx, kotlin.math.abs(dif[i]), kotlin.math.abs(dea[i]), kotlin.math.abs(hist[i]))
+            }
+            val lo = -mx; val hi = mx
+            // 0 轴
+            hline(0.0, lo, hi, LINE_GRID)
+            // HIST 柱：正红负绿
+            val bwid = (w / (n.coerceAtLeast(1)).toFloat()) * 0.55f
+            for (i in 0 until n) {
+                val x = xAt(i)
+                val y0 = yOf(0.0, lo, hi)
+                val y1 = yOf(hist[i], lo, hi)
+                val top = minOf(y0, y1); val bot = maxOf(y0, y1)
+                val c = if (hist[i] >= 0) RED_UP else GREEN_DOWN
+                drawRect(color = c, topLeft = Offset(x - bwid / 2f, top), size = Size(bwid.coerceAtLeast(0.6f), (bot - top).coerceAtLeast(0.6f)))
+            }
+            polyline(dif, lo, hi, CLR_DIF, 1.6f)
+            polyline(dea, lo, hi, CLR_DEA, 1.6f)
+        }
+        VOLOR_MODE_KDJ -> {
+            val (k, d, j) = kdjSeries(price, 9)
+            val lo = 0.0; val hi = 100.0
+            hline(20.0, lo, hi, LINE_GRID)
+            hline(50.0, lo, hi, LINE_GRID)
+            hline(80.0, lo, hi, LINE_GRID)
+            polyline(k, lo, hi, CLR_K, 1.6f)
+            polyline(d, lo, hi, CLR_D, 1.6f)
+            polyline(j, lo, hi, CLR_J, 1.6f)
+        }
+        VOLOR_MODE_RSI -> {
+            val r = rsiSeries(price, 6)
+            val lo = 0.0; val hi = 100.0
+            hline(20.0, lo, hi, LINE_GRID)
+            hline(50.0, lo, hi, LINE_GRID)
+            hline(80.0, lo, hi, LINE_GRID)
+            polyline(r, lo, hi, CLR_RSI, 1.8f)
+        }
+        VOLOR_MODE_VOLMA -> {
+            val pv = perMinuteVol(trends)
+            val ma = maSeries(pv, 5)
+            val mx = (ma.maxOrNull() ?: 1.0).coerceAtLeast(1e-6)
+            polyline(ma, 0.0, mx, CLR_MA, 1.8f)
+        }
+    }
+}
+
 /** 右侧价格轴（3 个刻度） */
 @Composable
 private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifier) {
