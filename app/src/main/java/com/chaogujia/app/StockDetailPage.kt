@@ -945,26 +945,27 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
     Column(modifier = modifier) {
         // ---------- 五档盘口（自适应铺满：行高 = 可用高/10 并封顶，避免行距过疏） ----------
         // 收起态：卖5→卖1 + 买1→买5（10 行）；展开态：仅卖1 + 买1（2 行）
-        val obRowCount = if (dealsExpanded) 2 else 10
-        // 五档区高度 = 整个盘口栏的 70%，与左侧「价图 weight(0.7f)」严格同权等高；
-        // 明细区 = 剩余 30%，与左侧「量图 weight(0.3f)」同权。四组件版式与参考图对齐。
+        // 收起态：卖5→卖1 + 买1→买5（10 行 + 1 个分界间隙）；展开态：仅卖1 + 间隙 + 买1
+        // 五档区高度：收起态占盘口栏的固定权重（与左侧价图等高）；展开态按内容高度（不撑满，避免上方留白）
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (dealsExpanded) Modifier.weight(1f) else Modifier.weight(294f))
+                .then(if (dealsExpanded) Modifier.wrapContentHeight() else Modifier.weight(294f))
         ) {
-            // 自适应行高：拿本区实际可用高度分 10 行，再用上下限收敛（对齐参考图 ≈23dp 行距）
-            val obRowHeight = (maxHeight / obRowCount).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
+            // 卖出/买入分界间隙：与一行同高，让买1与卖1之间有明显豁口
+            val gapH = ORDERBOOK_ROW_MAX
+            // 自适应行高：可用高度 / (行数 + 1个间隙)，再用上下限收敛
+            val obRowHeight = (maxHeight / (if (dealsExpanded) 3 else 11)).coerceIn(ORDERBOOK_ROW_MIN, ORDERBOOK_ROW_MAX)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(obRowHeight * obRowCount)
+                    .wrapContentHeight()
             ) {
             val asks = ob?.asks ?: emptyList()
             val bids = ob?.bids ?: emptyList()
             val pc = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
             if (dealsExpanded) {
-                // 仅显示卖1 + 买1
+                // 仅显示卖1 + 间隙 + 买1
                 OrderLevelRow(
                     label = "卖1",
                     lv = asks.getOrNull(0),
@@ -972,6 +973,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     isAsk = true,
                     rowHeight = obRowHeight
                 )
+                Spacer(Modifier.height(gapH))
                 OrderLevelRow(
                     label = "买1",
                     lv = bids.getOrNull(0),
@@ -980,25 +982,12 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     rowHeight = obRowHeight
                 )
             } else {
-                // 卖5 → 卖1（列表下标 4 → 0，倒序）
                 for (i in 4 downTo 0) {
-                    OrderLevelRow(
-                        label = "卖" + (i + 1),
-                        lv = asks.getOrNull(i),
-                        preClose = pc,
-                        isAsk = true,
-                        rowHeight = obRowHeight
-                    )
+                    OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, rowHeight = obRowHeight)
                 }
-                // 买1 → 买5（正序）
+                Spacer(Modifier.height(gapH))
                 for (i in 0 until 5) {
-                    OrderLevelRow(
-                        label = "买" + (i + 1),
-                        lv = bids.getOrNull(i),
-                        preClose = pc,
-                        isAsk = false,
-                        rowHeight = obRowHeight
-                    )
+                    OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, rowHeight = obRowHeight)
                 }
             }
             }
@@ -1044,7 +1033,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, modifier: Modifier 
                     .weight(1f)
                     .verticalScroll(rememberScrollState())
             ) {
-                deals.forEach { d -> DealRow(d, pc = pcD) }
+                deals.forEach { d -> DealRow(d, pc = pcD, rowHeight = ORDERBOOK_ROW_MAX) }
             }
         } else {
             BoxWithConstraints(
@@ -1079,7 +1068,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         modifier = Modifier
             .fillMaxWidth()
             .height(rowHeight)
-            .then(if (isBuy1) Modifier.drawBehind { drawRect(color = Color(0xFFDDDDDD), topLeft = Offset(0f, 0f), size = Size(size.width, 1.dp.toPx())) } else Modifier)
+            .then(if (isBuy1) Modifier.drawBehind { drawRect(color = Color(0xFFEEEEEE), topLeft = Offset(0f, 0f), size = Size(size.width, 0.6.dp.toPx())) } else Modifier)
             .padding(horizontal = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1130,7 +1119,7 @@ private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
         Text(
             // 明细只显示到分钟（去掉秒）
             d.time.substringBeforeLast(':'),
-            color = TEXT_SUB, fontSize = 11.sp,
+            color = TEXT_SUB, fontSize = ORDERBOOK_FONT_DEAL, fontWeight = FontWeight.SemiBold,
             fontFamily = DSpNumFont,
             modifier = Modifier.weight(0.9f), textAlign = TextAlign.Start
         )
