@@ -509,6 +509,22 @@ private fun DetailHeadLatest(b: StockBase?) {
         else -> GRAY_FLAT
     }
 
+    // 昨收基准线：高/低/开 与它比 —— 线上红、线下绿、相等黑
+    val preClose = b?.preClose ?: 0.0
+    fun baseColor(v: Double): Color = when {
+        preClose <= 0.0 -> TEXT_MAIN
+        v > preClose -> RED_UP
+        v < preClose -> GREEN_TEXT
+        else -> TEXT_MAIN
+    }
+    // 量比：> 1.0 红，< 1.0 绿，= 1.0 黑
+    val volRatio = b?.volRatio ?: 0.0
+    val vrColor = when {
+        volRatio > 1.0 -> RED_UP
+        volRatio < 1.0 -> GREEN_TEXT
+        else -> TEXT_MAIN
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -535,35 +551,32 @@ private fun DetailHeadLatest(b: StockBase?) {
 
         // 右：三竖列
         Row(modifier = Modifier.weight(1f)) {
-            // 列1
-            DetailCol(
+            // 列1：高/低/开 —— 与昨收比（线上红、线下绿、相等黑）
+            DetailColC(
                 Modifier.weight(1f),
                 listOf(
-                    "最高" to fmtNum(b?.high),
-                    "最低" to fmtNum(b?.low),
-                    "开盘" to fmtNum(b?.open)
-                ),
-                color
+                    Triple("高", fmtNum(b?.high), baseColor(b?.high ?: 0.0)),
+                    Triple("低", fmtNum(b?.low), baseColor(b?.low ?: 0.0)),
+                    Triple("开", fmtNum(b?.open), baseColor(b?.open ?: 0.0))
+                )
             )
-            // 列2
-            DetailCol(
+            // 列2：统一黑色
+            DetailColC(
                 Modifier.weight(1f),
                 listOf(
-                    "市值" to fmtCap(b?.mktCap),
-                    "流通" to fmtCap(b?.floatCap),
-                    "市盈TTM" to fmtPe(b?.pe)
-                ),
-                color
+                    Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
+                    Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
+                    Triple("市盈TTM", fmtPe(b?.pe), TEXT_MAIN)
+                )
             )
-            // 列3
-            DetailCol(
+            // 列3：量比单独判断（>1 红 / <1 绿 / =1 黑），其余黑
+            DetailColC(
                 Modifier.weight(1f),
                 listOf(
-                    "量比" to fmtNum2(b?.volRatio),
-                    "换" to fmtPct(b?.turnover),
-                    "额" to fmtAmt(b?.amount)
-                ),
-                color
+                    Triple("量比", fmtNum2(b?.volRatio), vrColor),
+                    Triple("换", fmtPct(b?.turnover), TEXT_MAIN),
+                    Triple("额", fmtAmt(b?.amount), TEXT_MAIN)
+                )
             )
         }
     }
@@ -706,6 +719,27 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
                 Text(
                     value,
                     color = valueColor,
+                    fontSize = 12.sp,
+                    fontFamily = DSpNumFont,
+                    maxLines = 1
+                )
+            }
+            if (i != rows.size - 1) Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+/** 逐行指定值颜色的版本（标签保持灰色，值与颜色一一对应） */
+@Composable
+private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Color>>) {
+    Column(modifier = modifier) {
+        rows.forEachIndexed { i, (label, value, vc) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = TEXT_SUB, fontSize = 11.sp)
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    value,
+                    color = vc,
                     fontSize = 12.sp,
                     fontFamily = DSpNumFont,
                     maxLines = 1
