@@ -5,6 +5,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -106,6 +108,7 @@ private val MACD_DIF_COLOR = Color(0xFF111111)   // DIF 快线：黑
 private val MACD_DEA_COLOR = Color(0xFFE64A3B)   // DEA 慢线：红
 private val MACD_BAR_COLOR = Color(0xFF2E8BE6)   // MACD 原柱改线：蓝
 private val VOL_LABEL_COLOR = Color(0xFF111111)  // 栏顶“量：”文字：黑
+private val CURSOR_LINE_COLOR = Color(0xFF000000) // 十字光标竖线：纯黑
 
 /**
  * 个股详情页
@@ -827,6 +830,13 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
     val trends = cleanMinuteTrends(d?.trends ?: emptyList())
     val preClose = d?.base?.preClose ?: 0.0
 
+    // ===== 分时量副图：指标切换 + 十字光标 =====
+    // cursorMin: 十字光标锁定的分钟（-1 = 无光标），价图与量图共享同一份状态
+    var cursorMin by remember { mutableStateOf(-1f) }
+    // 指标：0=成交量（手） 1=成交额（万元）
+    var volMode by remember { mutableStateOf(0) }
+    var showVolPicker by remember { mutableStateOf(false) }
+
     // ===== 五档盘口 + 成交明细（3 秒轮询）=====
     val code = d?.code ?: ""
     var ob by remember { mutableStateOf<OrderBook?>(null) }
@@ -851,9 +861,17 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
     }
 
     // 外层分栏：可选[早盘竞价] + 分时主轴 + 可选[收盘竞价] + 盘口栏
-    Row(
-        modifier = Modifier.fillMaxSize().padding(top = 6.dp, start = 4.dp, end = 4.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().padding(top = 2.dp, start = 4.dp, end = 4.dp)) {
+        // ===== 顶部工具栏：【分时量▼】+ 数值（量/现手/额）=====
+        MinuteVolToolbar(
+            trends = trends,
+            cursorMin = cursorMin,
+            volMode = volMode,
+            onOpenPicker = { showVolPicker = true }
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth().weight(1f)
+        ) {
         // ===== 分时区（竞价栏 + 主轴）：按时间刻度 10:240:5 分宽，盘口栏不参与 =====
         // 结构：列 = [ 上部（图+量，含竞价栏三栏） + 底部贯穿整行的时间轴 ]
         // 时间轴用与网格同一套 10:240:5 权重贯穿整行，保证「09:30 落左竞价右边界、
@@ -888,6 +906,15 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             maxP = range.first,
                             minP = range.second,
                             showAuction = showAuction,
+                            cursorMin = cursorMin,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // 十字光标手势层（价图）：拖动吸附分钟、松手保留、轻点清除
+                        MinuteCursorGesture(
+                            trends = trends,
+                            showAuction = showAuction,
+                            cursorMin = cursorMin,
+                            onCursor = { cursorMin = it },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -899,11 +926,19 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             .fillMaxWidth()
                             .weight(101f)
                     ) {
-                        MinuteVolumeCanvas(trends, showAuction, preClose)
+                        MinuteVolumeCanvas(trends, showAuction, preClose, cursorMin, volMode)
+                        // 十字光标手势层（量图）：与价图共享同一 cursorMin
+                        MinuteCursorGesture(
+                            trends = trends,
+                            showAuction = showAuction,
+                            cursorMin = cursorMin,
+                            onCursor = { cursorMin = it },
+                            modifier = Modifier.fillMaxSize()
+                        )
                     }
                 }
             }
-        } // end 分时区 Column
+            } // end 分时区 Column
         // ================= 右侧：五档盘口 + 成交明细（宽度固定占比，不被竞价栏挤压）=================
         OrderBookPanel(
             ob = ob,
@@ -913,6 +948,202 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                 .fillMaxHeight()
                 .padding(start = 4.dp, end = 4.dp)
         )
+        } // end 内层 Row
+    } // end 外层 Column
+    // ===== 指标切换弹层 =====
+    if (showVolPicker) {
+        MinuteVolPicker(
+            current = volMode,
+            onPick = { volMode = it; showVolPicker = false },
+            onDismiss = { showVolPicker = false }
+        )
+    }
+}
+
+// ============================================================
+// \u5206\u65f6\u91cf\u526f\u56fe\uff1a\u9876\u90e8\u5de5\u5177\u680f + \u6307\u6807\u5f39\u5c42 + \u5341\u5b57\u5149\u6807\u624b\u52bf
+// ============================================================
+
+/** \u5341\u5b57\u5149\u6807\u624b\u52bf\u5c42\uff1a\u6309\u4e0b/\u62d6\u52a8 \u2192 \u5438\u9644\u6700\u8fd1\u5206\u949f\uff1b\u677e\u624b \u2192 \u4fdd\u7559\uff1b\u8f7b\u70b9 \u2192 \u6e05\u9664 */
+@Composable
+private fun MinuteCursorGesture(
+    trends: List<DetailTrend>,
+    showAuction: Boolean,
+    cursorMin: Float,
+    onCursor: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (trends.isEmpty()) return
+    BoxWithConstraints(modifier = modifier) {
+        val w = constraints.maxWidth.toFloat()
+        // \u4e0e\u753b\u5e03\u540c\u6b3e x \u6620\u5c04\uff08\u4ec5\u7528\u4e8e\u53cd\u63a8\u5206\u949f\uff09
+        fun xMinute(min: Float): Float {
+            return if (showAuction) {
+                when {
+                    min < 0f -> ((min + 15f) / 10f) * 0.20f * w
+                    min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w
+                    else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w
+                }
+            } else {
+                (min.coerceIn(0f, 240f) / 240f) * w
+            }
+        }
+        // \u6a2a\u5750\u6807 -> \u6700\u8fd1\u7684\u6570\u636e\u5206\u949f
+        fun minAtX(px: Float): Float {
+            val c = px.coerceIn(0f, w)
+            var best = trends[0].min.toFloat()
+            var bestD = Float.MAX_VALUE
+            for (t in trends) {
+                if (t.min < 0 || t.min > 240) continue
+                val x = xMinute(t.min.toFloat())
+                val d = kotlin.math.abs(x - c)
+                if (d < bestD) { bestD = d; best = t.min.toFloat() }
+            }
+            return best
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(trends, showAuction, w, cursorMin) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        onCursor(minAtX(down.position.x))
+                        var moved = false
+                        var lastPos = down.position
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            lastPos = ch.position
+                            if (!ch.pressed) break
+                            if ((ch.position - down.position).getDistance() > 4f) moved = true
+                            if (moved) {
+                                onCursor(minAtX(ch.position.x))
+                                ch.consume()
+                            }
+                        }
+                        // 轻点（几乎无移动）且已有光标 → 清除；拖动结束 → 保留
+                        if (!moved && (lastPos - down.position).getDistance() <= 4f) {
+                            if (cursorMin >= -15f) onCursor(-1f)
+                        }
+                    }
+                }
+        )
+    }
+}
+
+/** \u9876\u90e8\u5de5\u5177\u680f\uff1a\u3010\u5206\u65f6\u91cf\u25bc\u3011 + \u91cf/\u73b0\u624b/\u989d\uff08\u5341\u5b57\u5149\u6807\u65f6= \u8be5\u5206\u949f\u503c\uff0c\u5426\u5219=\u6700\u65b0\u503c\uff09 */
+@Composable
+private fun MinuteVolToolbar(
+    trends: List<DetailTrend>,
+    cursorMin: Float,
+    volMode: Int,
+    onOpenPicker: () -> Unit
+) {
+    // \u5b9a\u4f4d\u5f53\u524d\u5206\u949f\uff1a\u6709\u5149\u6807\u53d6\u8be5\u5206\u949f\uff0c\u5426\u5219\u53d6\u6700\u540e\u4e00\u6839
+    val cur: DetailTrend? = remember(trends, cursorMin) {
+        if (cursorMin < -15f) trends.lastOrNull()
+        else trends.minByOrNull { kotlin.math.abs(it.min.toFloat() - cursorMin) }
+    }
+    // \u5206\u949f\u91cf/\u989d\uff08\u5dee\u5206\uff09
+    val minuteVol: Double = remember(trends, cur) {
+        if (cur == null) 0.0 else {
+            val i = trends.indexOf(cur)
+            if (cur.min <= 0) cur.vol else (cur.vol - trends[i - 1].vol)
+        }
+    }
+    val minuteAmt: Double = remember(trends, cur) {
+        if (cur == null) 0.0 else {
+            val i = trends.indexOf(cur)
+            val a = if (cur.min <= 0) cur.amount else (cur.amount - trends[i - 1].amount)
+            a / 10000.0
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(22.dp)
+            .padding(start = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // \u3010\u5206\u65f6\u91cf\u25bc\u3011\u70b9\u51fb\u5f39\u5c42
+        Row(
+            modifier = Modifier.clickable { onOpenPicker() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "\u5206\u65f6\u91cf",
+                color = TEXT_MAIN,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "\u25bc",
+                color = TEXT_MAIN,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 1.dp)
+            )
+        }
+        // \u6570\u503c\uff1a\u91cf:xxx \u73b0\u624b:xxx / \u989d:xxx
+        Text(
+            "  \u91cf:" + fmtVol(minuteVol) + "  \u73b0\u624b:" + fmtVol(minuteVol),
+            color = if (volMode == 1) TEXT_SUB else VOL_LABEL_COLOR,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            "  \u989d:" + fmtAmt(minuteAmt),
+            color = if (volMode == 1) VOL_LABEL_COLOR else TEXT_SUB,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/** \u6307\u6807\u5207\u6362\u5f39\u5c42\uff1a\u6210\u4ea4\u91cf / \u6210\u4ea4\u989d */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MinuteVolPicker(
+    current: Int,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val items = listOf("\u6210\u4ea4\u91cf", "\u6210\u4ea4\u989d")
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+            Text(
+                "\u5206\u65f6\u6307\u6807",
+                color = TEXT_MAIN,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 18.dp, top = 4.dp, bottom = 10.dp)
+            )
+            items.forEachIndexed { i, name ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(i) }
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        name,
+                        color = if (i == current) RED_UP else TEXT_MAIN,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (i == current) {
+                        Text("\u2713", color = RED_UP, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1310,6 +1541,7 @@ private fun MinutePriceCanvas(
     maxP: Double,
     minP: Double,
     showAuction: Boolean = false,
+    cursorMin: Float = -1f,
     modifier: Modifier = Modifier
 ) {
     val tm = rememberTextMeasurer()
@@ -1445,6 +1677,11 @@ private fun MinutePriceCanvas(
             drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 2.6f))
         }
         // 淡灰边框
+        // 十字光标竖线（价图段）：纯黑，仅在价图区域内画，时间轴不画
+        if (cursorMin >= -15f) {
+            val cx = xMinute(cursorMin).coerceIn(0f, w)
+            drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
+        }
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
 
         // ===== 网格内三组角标注 =====
@@ -1480,20 +1717,33 @@ private fun MinutePriceCanvas(
 }
 
 @Composable
-private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean = false, preClose: Double = 0.0) {
+private fun MinuteVolumeCanvas(
+    trends: List<DetailTrend>,
+    showAuction: Boolean = false,
+    preClose: Double = 0.0,
+    cursorMin: Float = -1f,
+    volMode: Int = 0
+) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
         if (trends.isEmpty()) return@Canvas
-        // 后端 trends.vol 是【累计量】，需差分还原每分钟成交量（首根=min0 自身累计）
+        // 后端 trends.vol/amount 是【累计值】，需差分还原每分钟值（首根=min0 自身累计）
         val perMin = ArrayList<Float>(trends.size)
+        val perAmt = ArrayList<Float>(trends.size)
         var prevCum = 0.0
+        var prevAmt = 0.0
         for (t in trends) {
             val d = if (t.min <= 0) t.vol else (t.vol - prevCum)
             perMin.add(d.coerceAtLeast(0.0).toFloat())
             prevCum = t.vol
+            val a = if (t.min <= 0) t.amount else (t.amount - prevAmt)
+            perAmt.add((a.coerceAtLeast(0.0) / 10000.0).toFloat())  // 元 -> 万元
+            prevAmt = t.amount
         }
-        val maxV = (perMin.maxOrNull() ?: 1f).coerceAtLeast(1e-6f)
+        // 指标切换：0=成交量（手） 1=成交额（万元）
+        val vals = if (volMode == 1) perAmt else perMin
+        val maxV = (vals.maxOrNull() ?: 1f).coerceAtLeast(1e-6f)
         // 每分钟柱宽与定位：与价图/时间轴同款映射（方案丙：竞价段放大）
         fun xMinute(min: Float): Float {
             return if (showAuction) {
@@ -1545,7 +1795,7 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
         // 持平柱用浅灰（纯白在白色背景看不见，与同花顺“白柱”观感一致）
         val FLAT_BAR = Color(0xFFBDBDBD)
         trends.forEachIndexed { idx, t ->
-            val vh = (perMin[idx] / maxV * h).toFloat()
+            val vh = (vals[idx] / maxV * h).toFloat()
             val x = xMinute(t.min.coerceIn(0, 237).toFloat())
             val prevPrice = if (idx > 0) trends[idx - 1].price else t.price
             val barColor = when {
@@ -1559,11 +1809,15 @@ private fun MinuteVolumeCanvas(trends: List<DetailTrend>, showAuction: Boolean =
                 size = Size(bw.coerceAtLeast(0.8f), vh)
             )
         }
+        // 十字光标竖线（量图段）：纯黑，仅在量图区域内画，时间轴不画
+        if (cursorMin >= -15f) {
+            val cx = xMinute(cursorMin).coerceIn(0f, w)
+            drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
+        }
         // 淡灰边框
         drawRect(color = MINUTE_BORDER, style = Stroke(width = 1f))
     }
 }
-
 /** 右侧价格轴（3 个刻度） */
 @Composable
 private fun PriceAxis(maxV: Double, minV: Double, midV: Double, modifier: Modifier) {
