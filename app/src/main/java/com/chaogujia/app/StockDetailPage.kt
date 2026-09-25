@@ -212,6 +212,7 @@ fun StockDetailPage(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
+            .verticalScroll(rememberScrollState())
             // detail-overlay-swallow：吞掉自身空白区点击，阻止穿透到下层 IndexBar 触发「编辑表头」
             .pointerInput(Unit) { detectTapGestures { /* 空白区：无操作，仅拦截 */ } }
     ) {
@@ -258,11 +259,11 @@ fun StockDetailPage(
             )
         }
 
-        // ================= 图表区（占满剩余） =================
+        // ================= 图表区（固定高度，下方预留其它功能模块，整体可滚动） =================
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
+                .height(CHART_AREA_HEIGHT)
         ) {
             when (period) {
                 "minute" -> MinuteChart(detail, showAuction, symmetricAxis)
@@ -901,6 +902,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 // ============================================================
 // 布局比例常量（便于微调）
 // ============================================================
+private val CHART_AREA_HEIGHT = 380.dp          // 图表区固定总高（价图905+时间轴60+量352≈1317px÷3.5≈376dp，右侧1030+318=1348px≈385dp，取中380dp两边齐平）
 private const val ORDERBOOK_RATIO = 0.30f      // 右侧盘口栏宽度占比（分时图自动占剩余）
 private val AUCTION_COL_WIDTH = 56.dp          // 集合竞价栏宽度（保留兼容，不再用于布局）
 private val TIME_BAR_HEIGHT = 17.dp            // 分时时间栏高度（实测 60px÷3.5≈17dp）
