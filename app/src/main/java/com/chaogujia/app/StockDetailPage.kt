@@ -851,7 +851,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
 
     // 外层分栏：可选[早盘竞价] + 分时主轴 + 可选[收盘竞价] + 盘口栏
     Row(
-        modifier = Modifier.fillMaxSize().padding(top = 6.dp, start = 10.dp, end = 6.dp)
+        modifier = Modifier.fillMaxSize().padding(top = 6.dp, start = 4.dp, end = 4.dp)
     ) {
         // ===== 分时区（竞价栏 + 主轴）：按时间刻度 10:240:5 分宽，盘口栏不参与 =====
         // 结构：列 = [ 上部（图+量，含竞价栏三栏） + 底部贯穿整行的时间轴 ]
@@ -910,7 +910,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
             modifier = Modifier
                 .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
-                .padding(start = 8.dp, end = 10.dp)
+                .padding(start = 4.dp, end = 4.dp)
         )
     }
 }
