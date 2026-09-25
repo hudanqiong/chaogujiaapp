@@ -1109,6 +1109,12 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
 /** 逐笔成交单行：时间 / 价格 / 手数 */
 @Composable
 private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
+    // 主动买/卖方向色？（B=主动买红 S=主动卖绿 M=中性灰）
+    val dirColor = when (d.dir) {
+        "B" -> RED_UP
+        "S" -> GREEN_TEXT
+        else -> GRAY_FLAT
+    }
     val color = when {
         d.price > pc -> RED_UP
         d.price < pc -> GREEN_TEXT
@@ -1129,12 +1135,12 @@ private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
             modifier = Modifier.weight(0.9f), textAlign = TextAlign.Start
         )
         Text(
-            fmtNum2(d.price), color = Color.Black, fontSize = ORDERBOOK_FONT_DEAL,
+            fmtNum2(d.price), color = color, fontSize = ORDERBOOK_FONT_DEAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
         Text(
-            fmtVol(d.vol), color = Color.Black, fontSize = ORDERBOOK_FONT_DEAL,
+            fmtVol(d.vol), color = dirColor, fontSize = ORDERBOOK_FONT_DEAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
