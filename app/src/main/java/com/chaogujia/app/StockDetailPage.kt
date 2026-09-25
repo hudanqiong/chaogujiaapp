@@ -1668,7 +1668,8 @@ private val VOLUME_CANVAS_HEIGHT = 101.dp      // 101dp
 // ===== 盘口栏（右侧）实测尺寸复刻 =====
 private val ORDERBOOK_TOP_HEIGHT = 294.dp      // 294dp
 private val ORDERBOOK_FONT = 14.sp             // 五档标签字号（保持）
-private val ORDERBOOK_FONT_VAL = 11.sp        // 五档价格/手数字号（缩小）
+private val ORDERBOOK_FONT_VAL = 11.sp
+private val LIMIT_FONT_SMALL = 10.sp        // 五档价格/手数 & 涨跌停面板专用字号（缩小，保证标签完整显示）
 private val ORDERBOOK_FONT_DEAL = 11.sp        // 明细数字字号（缩小加粗）
 private val OB_TEXT_GRAY = Color(0xFF555555)   // 五档字体黑灰色
 private val OB_LIMIT_BLUE = Color(0xFF3A7BD5)   // 涨跌停数据面板「点击查看」蓝色
@@ -2002,7 +2003,7 @@ private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                title, color = OB_LIMIT_TITLE, fontSize = ORDERBOOK_FONT_VAL,
+                title, color = OB_LIMIT_TITLE, fontSize = LIMIT_FONT_SMALL,
                 fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
                 maxLines = 1, softWrap = false
             )
@@ -2057,7 +2058,7 @@ private fun LimitRowCenter(text: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text, color = OB_LIMIT_NUM, fontSize = ORDERBOOK_FONT_VAL,
+            text, color = OB_LIMIT_NUM, fontSize = LIMIT_FONT_SMALL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false, textAlign = TextAlign.Center
         )
@@ -2074,16 +2075,16 @@ private fun LimitRow(label: String, value: String, valueColor: Color) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            label, color = OB_LIMIT_LABEL, fontSize = ORDERBOOK_FONT_VAL,
+            label, color = OB_LIMIT_LABEL, fontSize = LIMIT_FONT_SMALL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.Start
+            modifier = Modifier.wrapContentWidth(), textAlign = TextAlign.Start
         )
         Text(
-            value, color = valueColor, fontSize = ORDERBOOK_FONT_VAL,
+            value, color = valueColor, fontSize = LIMIT_FONT_SMALL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
             maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+            modifier = Modifier.weight(1f).padding(start = 4.dp), textAlign = TextAlign.End
         )
     }
 }
@@ -2098,16 +2099,16 @@ private fun LimitRowBlue(label: String, blueText: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            label, color = OB_LIMIT_LABEL, fontSize = ORDERBOOK_FONT_VAL,
+            label, color = OB_LIMIT_LABEL, fontSize = LIMIT_FONT_SMALL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.Start
+            modifier = Modifier.wrapContentWidth(), textAlign = TextAlign.Start
         )
         Text(
-            blueText, color = OB_LIMIT_BLUE, fontSize = ORDERBOOK_FONT_VAL,
+            blueText, color = OB_LIMIT_BLUE, fontSize = LIMIT_FONT_SMALL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+            modifier = Modifier.weight(1f).padding(start = 4.dp), textAlign = TextAlign.End
         )
     }
 }
