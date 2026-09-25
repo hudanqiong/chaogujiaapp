@@ -186,6 +186,8 @@ data class StockBase(
 /** 分时点：[分钟序号, 价格, 累计量(手), 累计额(元)] */
 data class DetailTrend(
     val min: Int = 0,
+    /** 该分钟瞬时成交价（行情原生推送，非计算值）：即分时白线上一个点的高度。
+     *  光标定位到某分钟时，信息条显示的就是此 price（如 5.17）。 */
     val price: Double = 0.0,
     val vol: Double = 0.0,
     val amount: Double = 0.0
