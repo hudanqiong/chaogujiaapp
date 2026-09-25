@@ -1969,9 +1969,9 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
 }
 
 /**
- * 涨跌停数据面板：涨停时顶替卖盘 5 行、跌停时顶替买盘 5 行；
- * blockHeight = 被顶替区域的整块高度，内容在其中上下居中。
- * 标题行带小三角，默认向下展开，可手动收起。
+ * 涨跌停数据面板：涨停时顶替卖盘 5 行、跌停时顶替买盘 5 行。
+ * 结构：标题行（贴顶第一行，不参与居中，带小三角可收起）+ 数据块（在标题行以下剩余空间里整体上下居中）。
+ * 数据块首行「几天几板」整行水平居中；其余行左标签/右数值横向排。
  * 颜色：标题/标签黑偏灰；百分比数值纯黑；金额数值涨停红/跌停绿；「点击查看」蓝色。
  */
 @Composable
@@ -1983,59 +1983,83 @@ private fun LimitDataPanel(isUp: Boolean, ob: OrderBook?, blockHeight: Dp) {
     val sealRatio: String = run {
         val sealAmt = sealAmount(ob, isUp)
         val dealAmt = dealAmount(ob)
-        if (sealAmt > 0 && dealAmt > 0) String.format("%.0f%%", sealAmt / dealAmt * 100.0) else "--"
+        if (sealAmt > 0 && dealAmt > 0) String.format("%.1f%%", sealAmt / dealAmt * 100.0) else "--"
     }
     val sealAmtStr = fmtOrderAmount(sealAmount(ob, isUp))
     val dealAmtStr = fmtOrderAmount(dealAmount(ob))
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(blockHeight)
-            .padding(horizontal = 1.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 1.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.Start
+        // ===== 标题行：贴顶第一行，不参与居中 =====
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 标题行 + 小三角（默认展开=朝下 ▼；收起=朝上 ▲），可点收起/展开
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    title, color = OB_LIMIT_TITLE, fontSize = ORDERBOOK_FONT_VAL,
-                    fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
-                    maxLines = 1, softWrap = false
-                )
-                Canvas(modifier = Modifier.padding(start = 3.dp).size(7.dp)) {
-                    val w = size.width; val h = size.height
-                    val path = Path().apply {
-                        if (expanded) {
-                            moveTo(0f, 0f); lineTo(w, 0f); lineTo(w / 2f, h); close()   // ▼
-                        } else {
-                            moveTo(w / 2f, 0f); lineTo(w, h); lineTo(0f, h); close()    // ▲
-                        }
+            Text(
+                title, color = OB_LIMIT_TITLE, fontSize = ORDERBOOK_FONT_VAL,
+                fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
+                maxLines = 1, softWrap = false
+            )
+            Canvas(modifier = Modifier.padding(start = 3.dp).size(7.dp)) {
+                val w = size.width; val h = size.height
+                val path = Path().apply {
+                    if (expanded) {
+                        moveTo(0f, 0f); lineTo(w, 0f); lineTo(w / 2f, h); close()   // ▼
+                    } else {
+                        moveTo(w / 2f, 0f); lineTo(w, h); lineTo(0f, h); close()    // ▲
                     }
-                    drawPath(path, color = OB_LIMIT_TITLE)
                 }
+                drawPath(path, color = OB_LIMIT_TITLE)
             }
-            if (expanded) {
-                if (isUp) {
-                    LimitRow("几天几板", "--", OB_LIMIT_NUM)
-                    LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
-                    LimitRow("最高封单额", "--", amountColor)
-                    LimitRow("涨停成交额", dealAmtStr, amountColor)
-                    LimitRowBlue("明日涨停率", "点击查看")
-                } else {
-                    LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
-                    LimitRow("最高封单额", "--", amountColor)
-                    LimitRow("跌停成交额", dealAmtStr, amountColor)
+        }
+        // ===== 数据块：在标题行以下的剩余空间里整体上下居中 =====
+        if (expanded) {
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    if (isUp) {
+                        LimitRowCenter("--")                         // 几天几板（整行居中）
+                        LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
+                        LimitRow("最高封单额", "--", amountColor)
+                        LimitRow("涨停成交额", dealAmtStr, amountColor)
+                        LimitRowBlue("明日涨停率", "点击查看")
+                    } else {
+                        LimitRowCenter("--")                         // 几天几板（跌停时同理保留居中占位）
+                        LimitRow("封单占成交", sealRatio, OB_LIMIT_NUM)
+                        LimitRow("最高封单额", "--", amountColor)
+                        LimitRow("跌停成交额", dealAmtStr, amountColor)
+                    }
                 }
             }
         }
+    }
+}
+
+/** 面板居中单行（如「7天6板」）：整行水平居中 */
+@Composable
+private fun LimitRowCenter(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 1.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text, color = OB_LIMIT_NUM, fontSize = ORDERBOOK_FONT_VAL,
+            fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, softWrap = false, textAlign = TextAlign.Center
+        )
     }
 }
 
