@@ -839,6 +839,8 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
     var cursorPriceY by remember { mutableStateOf(-1f) }
     // cursorVolY: 量图横线归一化 y（0..1；-1 = 无），仅量区横线使用
     var cursorVolY by remember { mutableStateOf(-1f) }
+    // cursorZone: 十字光标当前激活区（0=无/1=价区/2=量区），保证横线与数值框仅在手指所在区出现
+    var cursorZone by remember { mutableStateOf(0) }
     // 指标：0=成交量（手） 1=成交额（万元）
     var volMode by remember { mutableStateOf(0) }
     var showVolPicker by remember { mutableStateOf(false) }
@@ -907,6 +909,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             showAuction = showAuction,
                             cursorMin = cursorMin,
                             cursorY = cursorPriceY,
+                            cursorZone = cursorZone,
                             modifier = Modifier.fillMaxSize()
                         )
                         // 十字光标手势层（价图）：拖动吸附分钟 + 横线自由上下、松手保留、轻点清除
@@ -917,7 +920,8 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             cursorY = cursorPriceY,
                             hasCursor = cursorMin >= -15f,
                             onCursor = { cursorMin = it },
-                            onCursorY = { cursorPriceY = it },
+                            onCursorY = { cursorPriceY = it; cursorZone = 1 },
+                            onClearZone = { cursorZone = 0 },
                             modifier = Modifier.fillMaxSize()
                         )
                     }
@@ -929,7 +933,7 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             .fillMaxWidth()
                             .weight(101f)
                     ) {
-                        MinuteVolumeCanvas(trends, showAuction, preClose, cursorMin, cursorVolY, volMode)
+                        MinuteVolumeCanvas(trends, showAuction, preClose, cursorMin, cursorVolY, volMode, cursorZone)
                         // 十字光标手势层（量图）：与价图共享同一 cursorMin
                         MinuteCursorGesture(
                             trends = trends,
@@ -938,7 +942,8 @@ private fun MinuteChart(d: StockDetail?, showAuction: Boolean = false, symmetric
                             cursorY = cursorVolY,
                             hasCursor = cursorMin >= -15f,
                             onCursor = { cursorMin = it },
-                            onCursorY = { cursorVolY = it },
+                            onCursorY = { cursorVolY = it; cursorZone = 2 },
+                            onClearZone = { cursorZone = 0 },
                             modifier = Modifier.fillMaxSize()
                         )
                         // ===== 量图区内浮动工具栏（方案C）：【分时量▼】+ 数值，浮在量图左上角，不占高度 =====
@@ -988,6 +993,7 @@ private fun MinuteCursorGesture(
     hasCursor: Boolean,
     onCursor: (Float) -> Unit,
     onCursorY: (Float) -> Unit,
+    onClearZone: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (trends.isEmpty()) return
@@ -1044,7 +1050,7 @@ private fun MinuteCursorGesture(
                         }
                         // 轻点（几乎无移动）且已有光标 → 清除；拖动结束 → 保留
                         if (!moved && (lastPos - down.position).getDistance() <= 6f) {
-                            if (hasCursor) { onCursor(-1f); onCursorY(-1f) }
+                            if (hasCursor) { onCursor(-1f); onCursorY(-1f); onClearZone() }
                         }
                     }
                 }
@@ -1566,6 +1572,7 @@ private fun MinutePriceCanvas(
     showAuction: Boolean = false,
     cursorMin: Float = -1f,
     cursorY: Float = -1f,
+    cursorZone: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val tm = rememberTextMeasurer()
@@ -1706,13 +1713,14 @@ private fun MinutePriceCanvas(
             val cx = xMinute(cursorMin).coerceIn(0f, w)
             drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
         }
-        if (cursorY in 0f..1f) {
+        // 横线与数值框仅在「价区为激活区」时绘制，保证与量区互斥（只有一根横线）
+        if (cursorY in 0f..1f && cursorZone == 1) {
             val cy = (cursorY * h).coerceIn(0f, h)
             val priceAtCy = minP + (1.0 - cursorY.toDouble()) * span
             val txt = fmtNum2(priceAtCy)
-            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
-            val boxW = lay.size.width + 8f
-            val boxH = lay.size.height + 2f
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 6f
+            val boxH = lay.size.height + 1f
             val cyOnline = (cursorMin < -15f) || (xMinute(cursorMin) >= w * 0.5f)
             if (cyOnline) {
                 // 竖线在右侧（或无竖线）：数值框放左端，横线左端截断
@@ -1769,7 +1777,8 @@ private fun MinuteVolumeCanvas(
     preClose: Double = 0.0,
     cursorMin: Float = -1f,
     cursorY: Float = -1f,
-    volMode: Int = 0
+    volMode: Int = 0,
+    cursorZone: Int = 0
 ) {
     val tm = rememberTextMeasurer()
     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -1864,13 +1873,14 @@ private fun MinuteVolumeCanvas(
             drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 1.2f)
         }
         // 十字光标横线（量图段）：两端各显示横线高度对应的量值，蓝底白字
-        if (cursorY in 0f..1f) {
+        // 横线与数值框仅在「量区为激活区」时绘制，保证与价区互斥（只有一根横线）
+        if (cursorY in 0f..1f && cursorZone == 2) {
             val cy = (cursorY * h).coerceIn(0f, h)
             val vAt = (1.0 - cursorY.toDouble()) * maxV
             val txt = if (volMode == 1) fmtAmt(vAt) else fmtVol(vAt)
-            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
-            val boxW = lay.size.width + 8f
-            val boxH = lay.size.height + 2f
+            val lay = tm.measure(txt, TextStyle(color = CURSOR_BOX_TX, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold))
+            val boxW = lay.size.width + 6f
+            val boxH = lay.size.height + 1f
             // 两端各截断 boxW，中间画横线；左右端各放一个蓝框写同数值
             drawLine(CURSOR_LINE_COLOR, Offset(boxW, cy), Offset(w - boxW, cy), strokeWidth = 1.2f)
             drawRect(color = CURSOR_BOX_BG, topLeft = Offset(0f, cy - boxH / 2f), size = Size(boxW, boxH))
