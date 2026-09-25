@@ -1598,11 +1598,11 @@ private fun MinutePriceCanvas(
         // 开启竞价：中间分时区域（09:30→11:30→13:00→15:00）在这段被压窄的区域内仍分 4 格，
         //          两端各画一个集合竞价栏（2 列 × 4 行）。
         if (showAuction) {
-            // 中间正常分时区域在这段被压窄的区域内严格 4 格等分（含两端边框共 5 根竖线）：
-            // 竖线落在 0.20w / 0.40w / 0.60w / 0.80w / 1.00w，与 TimeAxis 标签同源。
-            // 09:30 → 0.20w、11:30·13:00 → 0.60w（正中心线）、15:00 → 1.00w。
-            for (i in 1..3) {
-                val x = (0.20f + i * 0.20f) * w
+            // 中间正常分时区域 09:30-14:57 被压缩到 [0.20w, 0.9333w]（73.33%），
+            // 竖网格必须与价格曲线 xMinute() 完全同源，否则右端会"没收缩"。
+            // 竖线落在真实分钟刻度 60(10:30) / 120(11:30) / 180(14:00)。
+            for (m in floatArrayOf(60f, 120f, 180f)) {
+                val x = xMinute(m)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
             // ===== 两端集合竞价栏（价区部分）：2 列 × 4 行 =====
@@ -1762,9 +1762,10 @@ private fun MinuteVolumeCanvas(
         // 竖网格：与价图同款——中间"正常分时"区域始终 4 格，开启竞价时两端各一个竞价栏
         // 注意：量图区域的竞价栏是 2 列 × 2 行（量区竖向比价区短，行数少一半）
         if (showAuction) {
-            // 中间正常分时区域 4 格等分竖线：0.40w / 0.60w / 0.80w（两端 0.20w / 1.00w 由竞价栏边框）
-            for (i in 1..3) {
-                val x = (0.20f + i * 0.20f) * w
+            // 中间正常分时区域竖网格：与量柱 xMinute() / 价格曲线同源，
+            // 落在真实分钟刻度 60(10:30) / 120(11:30) / 180(14:00)。
+            for (m in floatArrayOf(60f, 120f, 180f)) {
+                val x = xMinute(m)
                 drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
             // ===== 两端集合竞价栏（量区部分）：2 列 × 2 行 =====
@@ -1872,7 +1873,8 @@ private fun TimeAxis(showAuction: Boolean = false, modifier: Modifier = Modifier
             return if (showAuction) {
                 when {
                     min < 0f -> 0f                                               // 09:15 → 早盘竞价栏左端
-                    else -> 0.20f * w + (min / 240f) * 0.80f * w                 // 跟随中间压缩区网格（09:30=0.20w / 15:00=1.00w）
+                    min <= 237f -> 0.20f * w + (min / 237f) * 0.7333f * w        // 09:30-14:57 压缩区(73.33%)，与价格曲线同源
+                    else -> 0.9333f * w + ((min - 237f) / 3f) * 0.0667f * w      // 14:57-15:00 尾盘竞价(6.67%)
                 }
             } else {
                 (min.coerceIn(0f, 240f) / 240f) * w
