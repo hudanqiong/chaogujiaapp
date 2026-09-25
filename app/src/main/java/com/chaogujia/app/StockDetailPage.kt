@@ -716,9 +716,10 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
         rows.forEachIndexed { i, (label, value) ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(label, color = TEXT_COL_LABEL, fontSize = 15.sp, maxLines = 1)
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     value,
+                    modifier = Modifier.weight(1f),
                     color = valueColor,
                     fontSize = 13.sp,
                     fontFamily = DSpNumFont,
@@ -738,9 +739,10 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
         rows.forEachIndexed { i, (label, value, vc) ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(label, color = TEXT_COL_LABEL, fontSize = 15.sp, maxLines = 1)
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     value,
+                    modifier = Modifier.weight(1f),
                     color = vc,
                     fontSize = 13.sp,
                     fontFamily = DSpNumFont,
