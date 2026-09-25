@@ -5,9 +5,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -1033,39 +1031,27 @@ private fun MinuteCursorGesture(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // 长按拖动：按住超 longPressTimeout 后激活，任意方向拖动均可
                 .pointerInput(trends, showAuction) {
-                    awaitEachGesture {
-                        // Initial 通道抢先拿到按下（父级 verticalScroll 尚未介入）
-                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                        val hadCursor = hasCursor
-                        // 长按判定：长按 ~500ms 后激活光标；长按前移动则视为滚动
-                        // 长按判定（官方语义：按住超 longPressTimeout 且未移动/未抬起）
-                        // 返回非 null -> 长按成立；返回 null -> 被取消（移动=滚动 / 抬起=轻点）
-                        val lp = awaitLongPressOrCancellation(down.id)
-                        if (lp != null) {
-                            // 长按成立：激活光标并进入拖动（不松手可上下左右拖）
-                            down.consume()
-                            onCursor(minAtX(down.position.x))
-                            if (hgt > 0f) onCursorY((down.position.y / hgt).coerceIn(0f, 1f))
-                            while (true) {
-                                val ev = awaitPointerEvent(PointerEventPass.Initial)
-                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                                ch.consume()
-                                if (!ch.pressed) break
-                                onCursor(minAtX(ch.position.x))
-                                if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
-                            }
-                            // 松手后保留光标
-                        } else {
-                            // 未激活：区分「轻点」与「滚动」
-                            //   - 所有指针已抬起 -> 轻点：若已有光标则关闭
-                            //   - 仍有指针按下  -> 滚动：交给父级 verticalScroll，不动光标
-                            val allUp = currentEvent.changes.none { it.pressed }
-                            if (allUp && hadCursor) {
-                                onCursor(-1f); onCursorY(-1f); onClearZone()
-                            }
-                        }
-                    }
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { off ->
+                            onCursor(minAtX(off.x))
+                            if (hgt > 0f) onCursorY((off.y / hgt).coerceIn(0f, 1f))
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            onCursor(minAtX(change.position.x))
+                            if (hgt > 0f) onCursorY((change.position.y / hgt).coerceIn(0f, 1f))
+                        },
+                        onDragEnd = { /* 松手保留光标 */ },
+                        onDragCancel = { /* 取消不动 */ }
+                    )
+                }
+                // 轻点：若已有光标则关闭（独立 pointerInput，避免被上面的死循环阻塞）
+                .pointerInput(hasCursor) {
+                    detectTapGestures(onTap = {
+                        if (hasCursor) { onCursor(-1f); onCursorY(-1f); onClearZone() }
+                    })
                 }
         )
     }
