@@ -1081,7 +1081,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(rowHeight)
+                .height(rowHeight - if (isBuy1) 1.dp else 0.dp)
                 .padding(horizontal = 1.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
