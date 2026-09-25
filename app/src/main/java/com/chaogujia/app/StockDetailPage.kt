@@ -570,7 +570,7 @@ private fun DetailHeadLatest(b: StockBase?) {
             )
             // 列2：统一黑色（内容长，多给权重）
             DetailColC(
-                Modifier.width(82.dp),
+                Modifier.width(88.dp),
                 listOf(
                     Triple("市值", fmtCap(b?.mktCap), TEXT_MAIN),
                     Triple("流通", fmtCap(b?.floatCap), TEXT_MAIN),
@@ -778,9 +778,11 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
                     value,
                     modifier = Modifier.weight(1f),
                     color = vc,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontFamily = DSpNumFont,
                     maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Visible,
                     textAlign = TextAlign.End
                 )
             }
