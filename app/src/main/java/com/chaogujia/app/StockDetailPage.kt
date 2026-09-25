@@ -1135,6 +1135,7 @@ private fun MinuteChart(
                         )
                         // ===== 量图区内浮动工具栏（方案C）：【分时量▼】+ 数值，浮在量图左上角，不占高度 =====
                         MinuteVolToolbar(
+                            detail = d,
                             trends = trends,
                             cursorMin = cursorMin,
                             volMode = volMode,
@@ -1394,6 +1395,7 @@ private fun CursorValueOverlay(
 /** 顶部工具栏：【指标名▼】 + 数值（十字光标时=该分钟值，否则=最新值） */
 @Composable
 private fun MinuteVolToolbar(
+    detail: StockDetail?,
     trends: List<DetailTrend>,
     cursorMin: Float,
     volMode: Int,
@@ -1421,6 +1423,29 @@ private fun MinuteVolToolbar(
             val t = trends[curIdx]
             val a = if (t.min <= 0) t.amount else (t.amount - trends[curIdx - 1].amount)
             a.coerceAtLeast(0.0) / 10000.0
+        }
+    }
+    // 当前分钟的逐笔聚合（detail.php 的 deals；无数据时为 null）
+    val minuteDeal: MinuteDeal? = remember(detail, trends, curIdx) {
+        if (curIdx < 0) null
+        else detail?.minuteDeals?.get(trends.getOrNull(curIdx)?.min ?: -1)
+    }
+    // 「量」颜色：主买量 > 主卖量 → 红；< → 绿；其余 → 黑
+    val volTextColor: Color = remember(minuteDeal) {
+        val md = minuteDeal
+        when {
+            md == null -> VOL_LABEL_COLOR
+            md.buy > md.sell -> RED_UP
+            md.buy < md.sell -> GREEN_TEXT
+            else -> VOL_LABEL_COLOR
+        }
+    }
+    // 「现手」颜色：B 主买 → 红；S 主卖 → 绿；M 中性 → 黑
+    val lastDealColor: Color = remember(minuteDeal) {
+        when (minuteDeal?.lastDir) {
+            "B" -> RED_UP
+            "S" -> GREEN_TEXT
+            else -> VOL_LABEL_COLOR
         }
     }
     // 指标模式下的当前值串（光标分钟 / 最新分钟）

@@ -223,7 +223,9 @@ data class StockDetail(
     val base: StockBase = StockBase(),
     val trends: List<DetailTrend> = emptyList(),
     val trends5: List<DetailDay> = emptyList(),
-    val line: List<KLinePoint> = emptyList()
+    val line: List<KLinePoint> = emptyList(),
+    /** 分时逐笔聚合，key = 分钟序号（0 起，午休已跳过）；来自 detail.php 的 deals 对象 */
+    val minuteDeals: Map<Int, MinuteDeal> = emptyMap()
 )
 
 /** 五档中的一档：[价格, 数量(手)] */
@@ -242,6 +244,23 @@ data class DealItem(
     val amount: Double = 0.0,    // 元
     val dir: String = "M"        // B=买 S=卖 M=中性
 )
+
+/** 分时量区：某分钟的逐笔聚合（detail.php 的 deals 对象，key=分钟序号）
+ *  量   = hand     该分钟总成交量(手)
+ *  额   = amt      该分钟成交金额(元)
+ *  现手 = lastHand 该分钟最后一笔成交手数，lastDir = B主买/S主卖/M中性 */
+data class MinuteDeal(
+    val m: Int = 0,
+    val hand: Double = 0.0,
+    val amt: Double = 0.0,
+    val buy: Double = 0.0,
+    val sell: Double = 0.0,
+    val lastHand: Double = 0.0,
+    val lastDir: String = "M"
+) {
+    /** 主买-主卖净额，用于着色：>0 偏多，<0 偏空 */
+    val net: Double get() = buy - sell
+}
 
 /** 五档盘口 + 成交明细（orderbook.php） */
 data class OrderBook(
@@ -847,6 +866,28 @@ object Api {
                     days5.add(DetailDay(date = dj.optString("date", ""), points = dpts))
                 }
             }
+            // 分时逐笔聚合 deals -> minuteDeals（key=分钟序号）
+            val minuteDeals = HashMap<Int, MinuteDeal>()
+            run {
+                val dj = o.optJSONObject("deals")
+                if (dj != null) {
+                    val it = dj.keys()
+                    while (it.hasNext()) {
+                        val kk = it.next()
+                        val mm = kk.toIntOrNull() ?: continue
+                        val v = dj.optJSONObject(kk) ?: continue
+                        minuteDeals[mm] = MinuteDeal(
+                            m = v.optInt("m", mm),
+                            hand = v.optDouble("hand", 0.0),
+                            amt = v.optDouble("amt", 0.0),
+                            buy = v.optDouble("buy", 0.0),
+                            sell = v.optDouble("sell", 0.0),
+                            lastHand = v.optDouble("lastHand", 0.0),
+                            lastDir = v.optString("lastDir", "M")
+                        )
+                    }
+                }
+            }
             // K线
             var line = ArrayList<KLinePoint>()
             val ln = o.optJSONObject("line")?.optJSONArray("points")
@@ -896,7 +937,8 @@ object Api {
                 base = bas,
                 trends = trends,
                 trends5 = days5,
-                line = line
+                line = line,
+                minuteDeals = minuteDeals
             )
         } catch (e: Exception) {
             null
