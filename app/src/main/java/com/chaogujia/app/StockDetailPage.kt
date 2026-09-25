@@ -75,6 +75,16 @@ private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一黑色（全历史黑波浪）
 // 缩放到最小（一屏约1400+根）时：蜡烛/量柱/均线全部转黑，整体成一条黑波浪线
 private const val K_NARROW_VISIBLE = 1500
+
+/**
+ * 十字光标「无光标」哨兵值。
+ *
+ * 关键：所有图层判断是否激活统一用 `cursorMin >= CURSOR_ACTIVE_MIN`（即 -15f），
+ * 因此「关闭」必须写入一个 < -15f 的值，否则会被误判为「有光标」并回落到 trends[0]（09:30）。
+ * 历史 Bug：曾用 -1f 作关闭值，-1f >= -15f 恒为 true，导致点击关闭后光标"跳"到 09:30。
+ */
+private const val CURSOR_NONE = -99f
+private const val CURSOR_ACTIVE_MIN = -15f
 private val TEXT_MAIN = Color(0xFF222222)
 private val TEXT_SUB = Color(0xFF888888)
 private val LINE_GRID = Color(0xFFEEEEEE)
@@ -208,7 +218,7 @@ fun StockDetailPage(
         val d = withContext(Dispatchers.IO) { Api.detail(code, k, 320) }
         if (d != null) detail = d
         selK = null   // 换股票/换周期 → 取消 K 线选中
-        cursorMin = -1f   // 换股票/换周期 → 复位十字光标（信息条恢复显示最新值）
+        cursorMin = CURSOR_NONE   // 换股票/换周期 → 复位十字光标（信息条恢复显示最新值）
         loading = false
     }
 
@@ -245,7 +255,7 @@ fun StockDetailPage(
         DetailHeadData(detail, selK)
 
         // ================= 标签栏 =================
-        PeriodTabs(period, onPick = { period = it; selK = null; cursorMin = -1f }, onGear = { showMaSetting = true })
+        PeriodTabs(period, onPick = { period = it; selK = null; cursorMin = CURSOR_NONE }, onGear = { showMaSetting = true })
         // 分时信息条：仅在分时/五日视图显示，位于标签栏下方、分时价图上方；
         // 与十字光标联动：光标在图上时显示该分钟时点值，抬手恢复最新值。
         if (period == "minute" || period == "fiveday") {
@@ -820,7 +830,7 @@ private fun PeriodTabs(current: String, onPick: (String) -> Unit, onGear: (() ->
 /**
  * 分时信息条：横向一排，位于分时标签栏（分时|日K|周K|月K）下方、分时价图上方。
  * 内容：时间(时:分) · 均价 · 涨跌额 · 涨跌幅。
- * 与十字光标联动：cursorMin >= -15f 时显示光标所在分钟的时点值；否则显示最新值。
+ * 与十字光标联动：cursorMin >= CURSOR_ACTIVE_MIN 时显示光标所在分钟的时点值；否则显示最新值。
  *
  * 【数值来源说明 —— 重要，勿误当"计算值"】
  *   - price（白线点位，如 5.17）：交易所行情原生推送的该分钟瞬时成交价，直接取自
@@ -848,7 +858,7 @@ private fun MinuteInfoBar(
     cursorMin: Float
 ) {
     if (trends.isEmpty()) return
-    val hasCursor = cursorMin >= -15f
+    val hasCursor = cursorMin >= CURSOR_ACTIVE_MIN
     // 光标所在分钟（吸附到最近的已有分时点），否则取最新点
     val point: DetailTrend? = if (hasCursor) {
         val target = cursorMin.toInt()
@@ -964,7 +974,7 @@ private fun MinuteChart(
     showAuction: Boolean = false,
     symmetric: Boolean = true,
     // 十字光标分钟（-1 = 无）：由父层持有并传入，便于顶部「分时信息条」与光标联动
-    cursorMin: Float = -1f,
+    cursorMin: Float = CURSOR_NONE,
     onCursorChange: (Float) -> Unit = {}
 ) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
@@ -1062,7 +1072,7 @@ private fun MinuteChart(
                             showAuction = showAuction,
                             cursorMin = cursorMin,
                             cursorY = cursorPriceY,
-                            hasCursor = cursorMin >= -15f,
+                            hasCursor = cursorMin >= CURSOR_ACTIVE_MIN,
                             onCursor = { onCursorChange(it) },
                             onCursorY = { cursorPriceY = it; cursorZone = 1 },
                             onClearZone = { cursorZone = 0 },
@@ -1097,7 +1107,7 @@ private fun MinuteChart(
                             showAuction = showAuction,
                             cursorMin = cursorMin,
                             cursorY = cursorVolY,
-                            hasCursor = cursorMin >= -15f,
+                            hasCursor = cursorMin >= CURSOR_ACTIVE_MIN,
                             onCursor = { onCursorChange(it) },
                             onCursorY = { cursorVolY = it; cursorZone = 2 },
                             onClearZone = { cursorZone = 0 },
@@ -1218,9 +1228,12 @@ private fun MinuteCursorGesture(
                     detectTapGestures(
                         onTap = {
                             // 轻点：有关光标则关闭；无光标则不做处理
-                            if (hasCursor || cursorMin >= -15f) {
-                                onCursor(-1f)
-                                onCursorY(-1f)
+                            // 关闭必须写入 CURSOR_NONE(-99f)，而不是 -1f：
+                            // 各层用 `cursorMin >= CURSOR_ACTIVE_MIN` 判断是否激活，-1f 仍在有效区间内会被误判为「有光标」，
+                            // 进而回落到 trends[0]（09:30）。详见 CURSOR_NONE 常量定义。
+                            if (cursorMin >= CURSOR_ACTIVE_MIN) {
+                                onCursor(CURSOR_NONE)
+                                onCursorY(CURSOR_NONE)
                                 onClearZone()
                             }
                         },
@@ -1908,7 +1921,7 @@ private fun MinutePriceCanvas(
     maxP: Double,
     minP: Double,
     showAuction: Boolean = false,
-    cursorMin: Float = -1f,
+    cursorMin: Float = CURSOR_NONE,
     cursorY: Float = -1f,
     cursorZone: Int = 0,
     modifier: Modifier = Modifier
@@ -2047,7 +2060,7 @@ private fun MinutePriceCanvas(
         }
         // 淡灰边框
         // 十字光标（价图段）：竖线穿过整个价区；横线归一化 y，交点单端显示价格（蓝色半透明框）
-        if (cursorMin >= -15f) {
+        if (cursorMin >= CURSOR_ACTIVE_MIN) {
             val cx = xMinute(cursorMin).coerceIn(0f, w)
             drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 2.0f)
         }
@@ -2229,7 +2242,7 @@ private fun MinuteVolumeCanvas(
     trends: List<DetailTrend>,
     showAuction: Boolean = false,
     preClose: Double = 0.0,
-    cursorMin: Float = -1f,
+    cursorMin: Float = CURSOR_NONE,
     cursorY: Float = -1f,
     volMode: Int = 0,
     cursorZone: Int = 0
@@ -2330,7 +2343,7 @@ private fun MinuteVolumeCanvas(
             drawMinuteIndicator(w, h, trends, volMode) { m -> xMinute(m) }
         }
         // 十字光标竖线（量图段）：纯黑，仅在量图区域内画，时间轴不画
-        if (cursorMin >= -15f) {
+        if (cursorMin >= CURSOR_ACTIVE_MIN) {
             val cx = xMinute(cursorMin).coerceIn(0f, w)
             drawLine(CURSOR_LINE_COLOR, Offset(cx, 0f), Offset(cx, h), strokeWidth = 2.0f)
         }
