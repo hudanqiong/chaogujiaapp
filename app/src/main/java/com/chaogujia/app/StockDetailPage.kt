@@ -1025,6 +1025,8 @@ private fun MinuteCursorGesture(
                 .pointerInput(trends, showAuction, w, hgt, cursorMin, cursorY) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
+                        // 按下立即消费：阻止父级 verticalScroll 抢走拖动事件（修复“只能点击不能滑动”）
+                        down.consume()
                         onCursor(minAtX(down.position.x))
                         if (hgt > 0f) onCursorY((down.position.y / hgt).coerceIn(0f, 1f))
                         var moved = false
@@ -1033,16 +1035,15 @@ private fun MinuteCursorGesture(
                             val ev = awaitPointerEvent()
                             val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                             lastPos = ch.position
-                            if (!ch.pressed) break
-                            if ((ch.position - down.position).getDistance() > 4f) moved = true
-                            if (moved) {
-                                onCursor(minAtX(ch.position.x))
-                                if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
-                                ch.consume()
-                            }
+                            if ((ch.position - down.position).getDistance() > 6f) moved = true
+                            if (!ch.pressed) { ch.consume(); break }
+                            // 拖动中：实时更新十字光标（横纵均可），并消费事件阻止父级滚动
+                            onCursor(minAtX(ch.position.x))
+                            if (hgt > 0f) onCursorY((ch.position.y / hgt).coerceIn(0f, 1f))
+                            ch.consume()
                         }
-                        // 轻点（几乎无移动）且已有光标 → 清除（十字竖线+横线）；拖动结束 → 保留
-                        if (!moved && (lastPos - down.position).getDistance() <= 4f) {
+                        // 轻点（几乎无移动）且已有光标 → 清除；拖动结束 → 保留
+                        if (!moved && (lastPos - down.position).getDistance() <= 6f) {
                             if (hasCursor) { onCursor(-1f); onCursorY(-1f) }
                         }
                     }
