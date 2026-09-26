@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.platform.LocalContext
@@ -260,6 +261,7 @@ private fun PlaceholderPage(name: String) {
 
 
 /** ② 证券账户栏：左图标 +（上）券商名（下）资金账号 + 右 ∨；点击弹底部半屏列表 */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountBar(
     brokers: List<MyBroker>,
