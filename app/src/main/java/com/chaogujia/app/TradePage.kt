@@ -1,305 +1,296 @@
 package com.chaogujia.app
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
  * 交易页（持仓）—— 第二十一轮
  * 入口：底部「交易」Tab（无 token 时由底部导航统一拦截并弹登录）。
- * 数据：Api.account() + Api.positions()。
+ *
+ * 页面结构（自上而下）：
+ *   ① 账户类型切换栏：A股 / 基金 / 期货 / 黄金 / 模拟（红底白字，选中纯白/未选中暗白）
+ *   ② 证券账户行（居中，含图标，行高稍高）
+ *   ③ 分割线 → 两行两列统计（总资产/浮动盈亏/总市值/当日参考盈亏，数值在文字下方）
+ *   ④ 分割线 → 一排操作按钮（买入/卖出/撤单/持仓查询）—— 本轮文字占位
+ *
+ * 本轮只实现 A股 子页；基金/期货/黄金/模拟 先占位。
  */
 private val TP_RED = Color(0xFFE23B3B)     // 涨
 private val TP_GREEN = Color(0xFF12A05C)   // 跌
 private val TP_GRAY = Color(0xFF888888)
 
+/** 切换栏文字：选中纯白；未选中暗白 */
+private val TP_TAB_ON = Color.White
+private val TP_TAB_OFF = Color.White.copy(alpha = 0.5f)
+
 private fun tpMoney(v: Double): String =
     String.format(Locale.CHINA, "%,.2f", v)
-
 private fun tpPct(v: Double): String =
     String.format(Locale.CHINA, "%+.2f%%", v)
-
 private fun tpColor(v: Double): Color = when {
     v > 1e-9 -> TP_RED
     v < -1e-9 -> TP_GREEN
     else -> TP_GRAY
 }
 
+/** 账户类型（切换栏顺序） */
+private val TRADE_TYPES = listOf("A股", "基金", "期货", "黄金", "模拟")
+
 @Composable
 fun TradePage(
     token: String,
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
 ) {
-    var loading by remember { mutableStateOf(true) }
-    var account by remember { mutableStateOf(AccountInfo()) }
-    var positions by remember { mutableStateOf<List<PositionItem>>(emptyList()) }
-    val scope = rememberCoroutineScope()
-
-    suspend fun load() {
-        loading = true
-        try {
-            val acc = withContext(Dispatchers.IO) { Api.account(token) }
-            val pos = withContext(Dispatchers.IO) { Api.positions(token) }
-            account = acc
-            positions = pos
-        } catch (e: Exception) {
-            // 保持上次数据
-        } finally {
-            loading = false
-        }
-    }
-
-    // 进入页面自动加载
-    LaunchedEffect(token) { load() }
-
-    // 持仓 → StockItem 列表（用于点进详情，详情页红条要显示名称/代码）
-    val stockList = remember(positions) {
-        positions.map {
-            StockItem(
-                code = it.code,
-                name = it.name,
-                price = it.price,
-                change = 0.0,
-                changePct = 0.0
-            )
-        }
-    }
+    // 当前账户类型；默认 A股
+    var subTab by remember { mutableStateOf("A股") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
     ) {
-        // ===== 账户总览卡片 =====
+        // ===== ① 账户类型切换栏（红底白字） =====
+        TradeTypeBar(
+            current = subTab,
+            onSelect = { subTab = it }
+        )
+
+        // ===== 子页内容 =====
+        when (subTab) {
+            "A股" -> ASharePage(token = token, onOpenDetail = onOpenDetail)
+            else -> PlaceholderPage(subTab)
+        }
+    }
+}
+
+/** ① 账户类型切换栏：红底，选中纯白 / 未选中暗白 */
+@Composable
+private fun TradeTypeBar(
+    current: String,
+    onSelect: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(Config.COLOR_PRIMARY))
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TRADE_TYPES.forEach { t ->
+            val selected = t == current
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onSelect(t) }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = t,
+                    color = if (selected) TP_TAB_ON else TP_TAB_OFF,
+                    fontSize = 15.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+/** A股子页 */
+@Composable
+private fun ASharePage(
+    token: String,
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit
+) {
+    var loading by remember { mutableStateOf(true) }
+    var account by remember { mutableStateOf(AccountInfo()) }
+    suspend fun load() {
+        loading = true
+        try {
+            val acc = withContext(Dispatchers.IO) { Api.account(token) }
+            account = acc
+        } catch (e: Exception) {
+            // 保持上次数据
+        } finally {
+            loading = false
+        }
+    }
+    LaunchedEffect(token) { load() }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // ===== ② 证券账户行（居中，含图标，行高稍高） =====
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+                .padding(vertical = 18.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Image(
+                painter = painterResource(R.drawable.btn_asset),
+                contentDescription = null,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "证券账户",
+                color = Color(Config.COLOR_TEXT_MAIN),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        tpDivider()
+
+        // ===== ③ 两行两列统计 =====
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "总资产",
-                    color = TP_GRAY,
-                    fontSize = 13.sp
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = if (loading) "加载中…" else "¥ " + tpMoney(account.total),
-                    color = Color(0xFF222222),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                StatCell("可用资金", tpMoney(account.cash), Modifier.weight(1f))
-                StatCell("持仓市值", tpMoney(account.marketValue), Modifier.weight(1f))
                 StatCell(
-                    "总盈亏",
-                    tpMoney(account.totalPn),
-                    Modifier.weight(1f),
-                    valueColor = tpColor(account.totalPn)
+                    label = "总资产",
+                    value = if (loading) "加载中…" else tpMoney(account.total),
+                    modifier = Modifier.weight(1f)
+                )
+                StatCell(
+                    label = "浮动盈亏",
+                    value = tpMoney(account.floatPn),
+                    valueColor = tpColor(account.floatPn),
+                    modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
-                StatCell("初始资金", tpMoney(account.initial), Modifier.weight(1f))
                 StatCell(
-                    "盈亏比例",
-                    if (account.initial > 0) tpPct(account.totalPnPct) else "—",
-                    Modifier.weight(1f),
-                    valueColor = tpColor(account.totalPn)
+                    label = "总市值",
+                    value = tpMoney(account.marketValue),
+                    modifier = Modifier.weight(1f)
                 )
                 StatCell(
-                    "浮动盈亏",
-                    tpMoney(account.floatPn),
-                    Modifier.weight(1f),
-                    valueColor = tpColor(account.floatPn)
+                    label = "当日参考盈亏",
+                    value = "—",
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
+        tpDivider()
 
-        // ===== 持仓标题栏 =====
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "我的持仓",
-                color = Color(0xFF222222),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "（${positions.size}）",
-                color = TP_GRAY,
-                fontSize = 13.sp
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = if (loading) "刷新中…" else "刷新",
-                color = if (loading) TP_GRAY else Color(Config.COLOR_PRIMARY),
-                fontSize = 13.sp,
-                modifier = Modifier.clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { if (!loading) scope.launch { load() } }
-            )
-        }
+        // ===== ④ 一排操作按钮（本轮文字占位） =====
+        ActionBarRow()
 
-        // ===== 持仓列表 =====
-        if (positions.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (loading) "加载中…" else "暂无持仓",
-                    color = TP_GRAY,
-                    fontSize = 14.sp
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .background(Color.White)
-            ) {
-                items(positions.size) { idx ->
-                    val p = positions[idx]
-                    PositionRow(
-                        p = p,
-                        onClick = {
-                            if (idx in stockList.indices) onOpenDetail(stockList, idx)
-                        }
-                    )
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .height(0.5.dp)
-                            .background(Color(Config.COLOR_DIVIDER))
-                            .padding(start = 16.dp)
-                    )
-                }
-            }
-        }
+        // 下方留白（持仓列表将在「持仓」入口内展示，本轮不铺开）
+        Box(modifier = Modifier.fillMaxWidth().weight(1f))
     }
 }
 
+/** ③ 统计单元格：标签灰色在上，数值在下 */
 @Composable
 private fun StatCell(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: Color = Color(0xFF222222)
+    valueColor: Color = Color(Config.COLOR_TEXT_MAIN)
 ) {
     Column(modifier = modifier) {
-        Text(text = label, color = TP_GRAY, fontSize = 12.sp)
-        Spacer(Modifier.height(3.dp))
+        Text(
+            text = label,
+            color = TP_GRAY,
+            fontSize = 12.sp
+        )
+        Spacer(Modifier.height(6.dp))
         Text(
             text = value,
             color = valueColor,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
         )
     }
 }
 
+/** ④ 操作按钮排：买入 / 卖出 / 撤单 / 持仓 / 查询（文字占位） */
 @Composable
-private fun PositionRow(p: PositionItem, onClick: () -> Unit) {
+private fun ActionBarRow() {
+    val actions = listOf("买入", "卖出", "撤单", "持仓", "查询")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .background(Color.White)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左：名称 + 代码 + 持仓量/成本
-        Column(modifier = Modifier.weight(1.4f)) {
-            Text(
-                text = p.name.ifEmpty { p.code },
-                color = Color(0xFF222222),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = p.code,
-                color = TP_GRAY,
-                fontSize = 11.sp,
-                maxLines = 1
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = "持 ${p.quantity}  成本 ${String.format(Locale.CHINA, "%.2f", p.avgCost)}",
-                color = TP_GRAY,
-                fontSize = 11.sp,
-                maxLines = 1
-            )
-        }
-        // 中：现价 + 涨跌
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.End
-        ) {
-            Text(
-                text = String.format(Locale.CHINA, "%.2f", p.price),
-                color = tpColor(p.price - p.avgCost),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = "市值 " + tpMoney(p.marketValue),
-                color = TP_GRAY,
-                fontSize = 11.sp
-            )
-        }
-        // 右：浮动盈亏
-        Column(
-            modifier = Modifier.weight(1.1f),
-            horizontalAlignment = Alignment.End
-        ) {
-            Text(
-                text = (if (p.pnl > 1e-9) "+" else "") + tpMoney(p.pnl),
-                color = tpColor(p.pnl),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.End
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = tpPct(p.pnlPct),
-                color = tpColor(p.pnl),
-                fontSize = 11.sp
-            )
+        actions.forEach { a ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        // TODO: 本轮占位，点击暂不处理
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = a,
+                    color = Color(Config.COLOR_PRIMARY),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
     }
+}
+
+/** 其他账户类型占位页 */
+@Composable
+private fun PlaceholderPage(name: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "$name 敬请期待",
+            color = TP_GRAY,
+            fontSize = 14.sp
+        )
+    }
+}
+
+/** 浅灰分割线 */
+@Composable
+private fun tpDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(0.5.dp)
+            .background(Color(Config.COLOR_DIVIDER))
+    )
 }
