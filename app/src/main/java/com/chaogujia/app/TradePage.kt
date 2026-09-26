@@ -6,6 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.border
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -592,7 +596,7 @@ private fun OrderPanel(
                                 if (r.mode == "limit") {
                                     msg = "挂单成功：订单号 ${r.orderId}，到价自动成交"
                                 } else {
-                                    msg = "$sideText成交：${r.quantity} 股 @ ${tpMoney(r.price)}"
+                                    msg = "${sideText}成交：${r.quantity} 股 @ ${tpMoney(r.price)}"
                                 }
                                 msgColor = if (isBuy) TP_RED else TP_BLUE
                                 priceText = ""
