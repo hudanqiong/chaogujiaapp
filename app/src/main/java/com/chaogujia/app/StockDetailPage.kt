@@ -5957,22 +5957,8 @@ private fun TradeOrderSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = Color.White,
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp, bottom = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(36.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color(0xFFD9D9D9))
-                )
-            }
-        }
+        shape = RoundedCornerShape(8.dp),   // 小圆角：肉眼可辨即可
+        dragHandle = null                   // 不要拖拽条
     ) {
         Column(
             modifier = Modifier
@@ -5980,81 +5966,71 @@ private fun TradeOrderSheet(
                 .height(sheetH)
                 .padding(horizontal = 16.dp)
         ) {
-            // ---------- 顶部行：X 关闭（右上）----------
-            Box(Modifier.fillMaxWidth()) {
-                Text(
-                    text = "✕",
-                    color = TEXT_SUB,
-                    fontSize = 20.sp,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .clickable { onDismiss() }
-                        .padding(6.dp)
-                )
-            }
-            // ---------- 券商名称 + 资金账户 + 切换按钮（左上）----------
+            // ---------- 第一行：券商名 + 资金账户 + 切换（左）  ✕（右，同一水平线）----------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 2.dp),
+                    .padding(top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = current?.broker ?: "证券账户",
-                        color = TEXT_MAIN,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    Text(
-                        text = current?.account?.ifEmpty { "未添加账户" } ?: "未添加账户",
-                        color = TEXT_SUB,
-                        fontSize = 13.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                // 切换按钮
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFFF2F3F5))
-                        .clickable { if (brokers.isNotEmpty()) showSwitch = true }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "切换 ⇄",
-                        color = Color(Config.COLOR_PRIMARY),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                // 券商名（同色，同一行）
+                Text(
+                    text = current?.broker ?: "证券账户",
+                    color = TEXT_MAIN,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.width(8.dp))
+                // 资金账户（与券商名同色，同一行）
+                Text(
+                    text = current?.account?.ifEmpty { "未添加账户" } ?: "未添加账户",
+                    color = TEXT_MAIN,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                // 切换：只有两个蓝色文字，无背景无特效
+                Text(
+                    text = "切换 ⇄",
+                    color = Color(0xFF2A7BFF),
+                    fontSize = 13.sp,
+                    modifier = Modifier.clickable { if (brokers.isNotEmpty()) showSwitch = true }
+                )
+                Spacer(Modifier.width(12.dp))
+                // ✕ 关闭：与账户行同水平线，无任何特效
+                Text(
+                    text = "✕",
+                    color = TEXT_MAIN,
+                    fontSize = 18.sp,
+                    modifier = Modifier.clickable { onDismiss() }
+                )
             }
             Spacer(Modifier.weight(1f))
-            // ---------- 并排三实心圆按钮：买(红) / 卖(蓝) / 撤(灰) ----------
+            // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，牙签分隔 ----------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 18.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                CircleOrderButton("买", Color(0xFFE23B3B)) { onBuy() }
-                CircleOrderButton("卖", Color(0xFF2A7BFF)) { onSell() }
-                CircleOrderButton("撤", Color(0xFF6B6B6B)) { onCancelOrder() }
+                OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
+                ToothpickDivider()
+                OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
+                ToothpickDivider()
+                OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
             }
         }
     }
-
     // ---------- 切换证券账户弹层 ----------
     if (showSwitch) {
         ModalBottomSheet(
             onDismissRequest = { showSwitch = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = Color.White
+            containerColor = Color.White,
+            shape = RoundedCornerShape(8.dp)
         ) {
             Column(
                 modifier = Modifier
@@ -6116,29 +6092,65 @@ private fun TradeOrderSheet(
     }
 }
 
-/** 下单实心圆按钮：圆内居中写字 */
+/** 一根「牙签」竖向分隔线（三个圆圈之间） */
 @Composable
-private fun CircleOrderButton(
-    text: String,
-    color: Color,
-    onClick: () -> Unit
-) {
+private fun ToothpickDivider() {
     Box(
         modifier = Modifier
-            .size(60.dp)
-            .clip(CircleShape)
-            .background(color)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onClick() },
-        contentAlignment = Alignment.Center
+            .width(1.dp)
+            .height(56.dp)
+            .background(Color(0xFFE8E8E8))
+    )
+}
+
+/**
+ * 下单列：上=实心圆按钮（圆内白字），下=浅灰底黑字标签；整体在列内水平居中。
+ * 圆在标签正中间上方，列宽由外层 weight(1f) 均匀分配。
+ */
+@Composable
+private fun OrderColumn(
+    circleText: String,
+    circleColor: Color,
+    labelText: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold
-        )
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(circleColor)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = circleText,
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        // 浅灰底 + 黑色文字标签
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(Color(0xFFF2F3F5))
+                .padding(horizontal = 14.dp, vertical = 5.dp)
+        ) {
+            Text(
+                text = labelText,
+                color = Color(0xFF000000),
+                fontSize = 12.sp,
+                maxLines = 1
+            )
+        }
     }
 }
