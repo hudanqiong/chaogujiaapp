@@ -226,6 +226,18 @@ fun StockDetailPage(
     // 五档盘口（第十轮：给下单弹窗透出买卖盘，可点击填价；同时取真实涨跌停价）
     var orderBook by remember { mutableStateOf<OrderBook?>(null) }
     val scope = rememberCoroutineScope()
+    // A2-D 修复：进入页面即预拉券商账户（否则点下单后才拉，异步期间「可买 N 股」算不出 / 为 0）
+    LaunchedEffect(Unit) {
+        if (orderBrokers.isEmpty()) {
+            val ls = withContext(Dispatchers.IO) {
+                try { Api.brokerList(token) } catch (e: Exception) { emptyList<MyBroker>() }
+            }
+            if (ls.isNotEmpty()) {
+                orderBrokers = ls
+                if (orderBroker == null) orderBroker = ls.firstOrNull()
+            }
+        }
+    }
     // 第十轮需求⑤⑦：行情页每 3 秒轮询五档；用于弹窗上方透出的买卖盘 + 实时股价
     LaunchedEffect(current?.code) {
         val code = current?.code ?: return@LaunchedEffect
@@ -6014,7 +6026,9 @@ private fun TradeOrderSheet(
     var showSwitch by remember { mutableStateOf(false) }
     // 第十轮需求(5)：上方要透出五档买卖盘并可点选，弹窗高度相应增大（约半屏）
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val sheetH = if (side == "buy" || side == "sell") screenH * 0.42f else screenH * 0.28f
+    // A2-D 修复：原 0.42 高度不足，底部按钮行被 Box 裁掉；改为更高并让弹窗坐在系统导航栏之上
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val sheetH = if (side == "buy" || side == "sell") screenH * 0.62f else screenH * 0.36f
 
     // 第十轮需求⑤(A2)：改为自定义底部覆盖层——上方完全不绘制，可点穿到分时页五档
     Box(modifier = Modifier.fillMaxSize()) {
@@ -6022,6 +6036,7 @@ private fun TradeOrderSheet(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
+            .padding(bottom = navInset)
             .height(sheetH)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White)
@@ -6333,7 +6348,12 @@ private fun OrderFormBlock(
             onDone(r)
         }
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
+    // A2-D 修复：表单主体可滚动，避免在小屏上底部齿轮/买入按钮被裁掉看不到
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+    ) {
         Spacer(Modifier.height(10.dp))
         // 两个连体编辑框：左价格，右手数
         Row(
@@ -6488,12 +6508,12 @@ private fun OrderFormBlock(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
         }
-        Spacer(Modifier.weight(1f))
+        // A2-D 修复：去掉 weight(1f) 顶底，避免高度不足时按钮被挤出；按钮行正常跟随内容
         // 底部：齿轮在红按钮外侧（浅灰正方形边框，与红按钮等高）+ 红色买入按钮
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 齿轮：浅灰正方形边框，高度与红按钮一致
