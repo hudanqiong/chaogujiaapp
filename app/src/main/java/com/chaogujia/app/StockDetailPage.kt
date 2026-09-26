@@ -6133,11 +6133,11 @@ private fun TradeOrderSheet(
                     .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = navInset + 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OrderColumn(R.drawable.ic_trade_buy, "去交易下单", Modifier.weight(1f)) { onBuy() }
+                OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
                 Spacer(Modifier.width(TOOTHPICK))
-                OrderColumn(R.drawable.ic_trade_sell, "双向下单", Modifier.weight(1f)) { onSell() }
+                OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
                 Spacer(Modifier.width(TOOTHPICK))
-                OrderColumn(R.drawable.ic_trade_cancel, "条件单", Modifier.weight(1f)) { onCancelOrder() }
+                OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
             }
             }
         }
@@ -6221,7 +6221,8 @@ private val TOOTHPICK = 6.dp
  */
 @Composable
 private fun OrderColumn(
-    iconRes: Int,
+    circleText: String,
+    circleColor: Color,
     labelText: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -6230,18 +6231,25 @@ private fun OrderColumn(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // H3：圆形按钮改为图片资源（透明 PNG，保留了原圆内白字）
-        Image(
-            painter = painterResource(iconRes),
-            contentDescription = labelText,
+        // H5：回退为代码绘制的实心圆（圆内白字），不再用图片
+        Box(
             modifier = Modifier
                 .size(72.dp)
+                .clip(CircleShape)
+                .background(circleColor)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) { onClick() },
-            contentScale = ContentScale.Fit
-        )
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = circleText,
+                color = Color.White,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
         // 圆圈与标签之间：四根牙签
         Spacer(Modifier.height(TOOTHPICK * 4))
         // 浅灰底 + 黑色文字标签（固定高度：比首版再高一半）
@@ -6531,42 +6539,29 @@ private fun OrderFormBlock(
                 )
             }
             Spacer(Modifier.width(10.dp))
-            // H3：买入按钮改为图片（4=买入不可点 5=买入可点）；卖出暂用原纯色按钮，待卖出页定稿再换图
-            if (isBuy) {
-                val buyIcon = if (canSubmit && !busy) R.drawable.ic_buy_on else R.drawable.ic_buy_off
-                Image(
-                    painter = painterResource(buyIcon),
-                    contentDescription = "买入",
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(46.dp)
-                        .clickable(enabled = canSubmit && !busy) { submit() },
-                    contentScale = ContentScale.FillWidth
+            // H5：回退为原纯色按钮（买/卖共用同一布局，仅靠 sideColor/sideText 区分）
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .clip(RectangleShape)
+                    .background(if (busy) Color(0xFFBBBBBB) else sideColor)
+                    .clickable(enabled = canSubmit && !busy) { submit() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (busy) "提交中..." else sideText,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
                 )
-            } else {
-                // 卖出：沿用原纯色按钮（布局与买入共用，等卖出页定稿再把 Box 换成 6/7 图片即可）
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(46.dp)
-                        .clip(RectangleShape)
-                        .background(if (busy) Color(0xFFBBBBBB) else sideColor)
-                        .clickable(enabled = canSubmit && !busy) { submit() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (busy) "提交中..." else sideText,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                // 禁用时盖一层半透明白
+                if (!canSubmit && !busy) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.White.copy(alpha = 0.55f))
                     )
-                    if (!canSubmit && !busy) {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .background(Color.White.copy(alpha = 0.55f))
-                        )
-                    }
                 }
             }
         }
