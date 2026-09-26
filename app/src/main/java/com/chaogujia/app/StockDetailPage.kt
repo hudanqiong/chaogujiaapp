@@ -5314,6 +5314,19 @@ private fun AfterHoursBar(detail: StockDetail?) {
     val preClose = detail?.base?.preClose ?: d.price
     val bid1 = quote?.bids?.firstOrNull()
     val ask1 = quote?.asks?.firstOrNull()
+    // 买一/卖一显示色：标签与数值同色，按各自报价对比收盘价红涨绿跌
+    val bid1Color = when {
+        bid1 == null -> TEXT_SUB
+        bid1.price > preClose -> RED_UP
+        bid1.price < preClose -> GREEN_TEXT
+        else -> GRAY_FLAT
+    }
+    val ask1Color = when {
+        ask1 == null -> TEXT_SUB
+        ask1.price > preClose -> RED_UP
+        ask1.price < preClose -> GREEN_TEXT
+        else -> GRAY_FLAT
+    }
 
     var expanded by remember(code) { mutableStateOf(false) }
 
@@ -5367,10 +5380,10 @@ private fun AfterHoursBar(detail: StockDetail?) {
                 softWrap = false
             )
             Spacer(Modifier.width(8.dp))
-            // 买一：带标签
+            // 买一：带标签，标签与数值同色
             Text(
                 if (bid1 != null) "买一 ${fmtAhVol(bid1.vol)}" else "买一 --",
-                color = TEXT_SUB,
+                color = bid1Color,
                 fontSize = 10.sp,
                 fontFamily = DSpNumFont,
                 fontWeight = FontWeight.Bold,
@@ -5378,10 +5391,10 @@ private fun AfterHoursBar(detail: StockDetail?) {
                 softWrap = false
             )
             Spacer(Modifier.width(8.dp))
-            // 卖一：带标签
+            // 卖一：带标签，标签与数值同色
             Text(
                 if (ask1 != null) "卖一 ${fmtAhVol(ask1.vol)}" else "卖一 --",
-                color = TEXT_SUB,
+                color = ask1Color,
                 fontSize = 10.sp,
                 fontFamily = DSpNumFont,
                 fontWeight = FontWeight.Bold,
@@ -5610,6 +5623,41 @@ private fun AhExpanded(d: AfterHours, preClose: Double, code: String, market: St
                     AhTimeAxis(modifier = Modifier.fillMaxWidth().height(AH_TIME_H))
                     AhVolChart(minutes, preClose, cursorX, modifier = Modifier.fillMaxWidth().height(AH_VOL_H))
                 }
+                // 分时价区左上角：委托趋势（标签 买一:手数 卖一:手数；标签与数值同色，红涨绿跌）
+                val trendAsk1 = quote?.asks?.firstOrNull()
+                val trendBid1 = quote?.bids?.firstOrNull()
+                val trendAskColor = when {
+                    trendAsk1 == null -> TEXT_SUB
+                    trendAsk1.price > preClose -> RED_UP
+                    trendAsk1.price < preClose -> GREEN_TEXT
+                    else -> GRAY_FLAT
+                }
+                val trendBidColor = when {
+                    trendBid1 == null -> TEXT_SUB
+                    trendBid1.price > preClose -> RED_UP
+                    trendBid1.price < preClose -> GREEN_TEXT
+                    else -> GRAY_FLAT
+                }
+                Row(
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = 2.dp, top = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("委托趋势", color = TEXT_SUB, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                    Spacer(Modifier.width(4.dp))
+                    Text("买一:", color = trendBidColor, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                    Text(
+                        if (trendBid1 != null) fmtAhVol(trendBid1.vol) else "--",
+                        color = trendBidColor, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                        maxLines = 1, softWrap = false,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("卖一:", color = trendAskColor, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                    Text(
+                        if (trendAsk1 != null) fmtAhVol(trendAsk1.vol) else "--",
+                        color = trendAskColor, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                        maxLines = 1, softWrap = false,
+                    )
+                }
                 // 手势层：X 连续拖动，轻点清除（覆盖价图/时间轴/量图整体，不拦截右侧明细的滑动）
                 AhCursorGesture(
                     onCursor = { cursorX = it },
@@ -5679,27 +5727,8 @@ private fun AhRightPanel(
 ) {
     val pc = quote?.prevClose ?: 0.0
     Column(modifier = modifier) {
-        // ---- 左上角：委托趋势（标签 + 买一 + 卖一，各带标签，单行不换行）----
         val ask1 = quote?.asks?.firstOrNull()
         val bid1 = quote?.bids?.firstOrNull()
-        Row(modifier = Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("委托趋势", color = TEXT_SUB, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-            Spacer(Modifier.width(4.dp))
-            Text("买一", color = RED_UP, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-            Text(
-                if (bid1 != null) " " + fmtAhVol(bid1.vol) else " --",
-                color = TEXT_SUB, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
-                maxLines = 1, softWrap = false,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("卖一", color = GREEN_TEXT, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
-            Text(
-                if (ask1 != null) " " + fmtAhVol(ask1.vol) else " --",
-                color = TEXT_SUB, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
-                maxLines = 1, softWrap = false,
-            )
-        }
-        Spacer(Modifier.height(2.dp))
         // ---- 卖一 / 买一：标签 | 价格（右对齐，单行不换行）| 手数（加粗）----
         // 价格用固定宽度 + maxLines(1) + softWrap(false)，避免价格串太长把行撑成两行。
         Row(modifier = Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -5713,13 +5742,13 @@ private fun AhRightPanel(
                     else -> GRAY_FLAT
                 },
                 fontSize = 11.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(56.dp),
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(52.dp),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 if (ask1 != null) fmtAhVol(ask1.vol) else "--",
                 color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Start, maxLines = 1, softWrap = false, modifier = Modifier.width(54.dp),
             )
         }
         Row(modifier = Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -5733,13 +5762,13 @@ private fun AhRightPanel(
                     else -> GRAY_FLAT
                 },
                 fontSize = 11.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(56.dp),
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(52.dp),
             )
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(6.dp))
             Text(
                 if (bid1 != null) fmtAhVol(bid1.vol) else "--",
                 color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Start, maxLines = 1, softWrap = false, modifier = Modifier.width(54.dp),
             )
         }
         Spacer(Modifier.height(2.dp))
