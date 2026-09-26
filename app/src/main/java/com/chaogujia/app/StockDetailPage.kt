@@ -5556,11 +5556,14 @@ private fun AhExpanded(d: AfterHours, preClose: Double, code: String, market: St
 
     Row(modifier = Modifier.fillMaxWidth()) {
         // 左侧：盘后分时（价图 + 时间轴 + 量图 + 光标数值行）
+        // 注意：此处不能依赖 weight 撑高——父 Column 高度是 wrap_content，
+        // weight 会失效并让 Canvas.fillMaxSize 撑到无限高，把底部固定价交易按钮顶出屏幕。
+        // 因此左列整体给定固定高 = 价图 + 量图（AH_PRICE_H + AH_VOL_H）。
         Column(modifier = Modifier.weight(1f - ORDERBOOK_RATIO)) {
-            Box(modifier = Modifier.weight(259f + 101f).fillMaxWidth()) {
+            Box(modifier = Modifier.fillMaxWidth().height(AH_PRICE_H + AH_VOL_H)) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    AhPriceChart(minutes, preClose, cursorX, modifier = Modifier.weight(259f).fillMaxWidth())
-                    AhVolChart(minutes, preClose, cursorX, modifier = Modifier.weight(101f).fillMaxWidth())
+                    AhPriceChart(minutes, preClose, cursorX, modifier = Modifier.fillMaxWidth().height(AH_PRICE_H))
+                    AhVolChart(minutes, preClose, cursorX, modifier = Modifier.fillMaxWidth().height(AH_VOL_H))
                 }
                 // 手势层：X 连续拖动，轻点清除（不拦截右侧明细的滑动）
                 AhCursorGesture(
@@ -5633,7 +5636,7 @@ private fun AhRightPanel(
     Column(modifier = modifier) {
         val ask1 = quote?.asks?.firstOrNull()
         Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("卖一", color = GREEN_TEXT, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
+            Text("卖一", color = GREEN_TEXT, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text(
                 if (ask1 != null) fmtAhPrice(ask1.price) else "--",
                 color = when {
@@ -5651,7 +5654,7 @@ private fun AhRightPanel(
         }
         val bid1 = quote?.bids?.firstOrNull()
         Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("买一", color = RED_UP, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(30.dp))
+            Text("买一", color = RED_UP, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             Text(
                 if (bid1 != null) fmtAhPrice(bid1.price) else "--",
                 color = when {
