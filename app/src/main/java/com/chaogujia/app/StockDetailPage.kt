@@ -435,6 +435,7 @@ fun StockDetailPage(
                 asks = orderBook?.asks ?: emptyList(),
                 bids = orderBook?.bids ?: emptyList(),
                 onPickPrice = { p -> orderPickPrice = p },
+                pickPrice = orderPickPrice,
                 onBack = { orderSide = "" },
                 onSwitch = { orderBroker = it },
                 onBuy = { orderSide = "buy" },
@@ -1340,7 +1341,8 @@ private fun MinuteChart(
             modifier = Modifier
                 .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
-                .padding(start = 4.dp, end = 4.dp)
+                .padding(start = 4.dp, end = 4.dp),
+            onPickPrice = { p -> orderPickPrice = p }
         )
         } // end 内层 Row
     } // end 外层 Column
@@ -1763,7 +1765,7 @@ private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参
 // 右侧盘口栏：上=五档（卖5→卖1，买1→买5），下=逐笔成交明细
 // ============================================================
 @Composable
-private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean = false, modifier: Modifier = Modifier) {
+private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean = false, modifier: Modifier = Modifier, onPickPrice: ((Double) -> Unit)? = null) {
     // 明细是否展开：展开时上面五档收缩为「卖1 + 买1」两行，把空间让给明细
     var dealsExpanded by remember { mutableStateOf(false) }
     Column(modifier = modifier) {
@@ -1818,6 +1820,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                     preClose = pc,
                     isAsk = true,
                     showAmount = showAmount,
+                    onPick = onPickPrice,
                 )
                 // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
                 Box(
@@ -1835,6 +1838,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                     preClose = pc,
                     isAsk = false,
                     showAmount = showAmount,
+                    onPick = onPickPrice,
                 )
                 bigBid?.takeIf { bigBidShown }?.let { BigOrderRow(it, obRowHeight) }
             } else {
@@ -1846,12 +1850,12 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                         expanded = limitPanelExpanded, onToggle = { limitPanelExpanded = !limitPanelExpanded })
                     if (!limitPanelExpanded) {
                         for (i in 4 downTo 0) {
-                            OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight)
+                            OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight, onPick = onPickPrice)
                         }
                     }
                 } else {
                     for (i in 4 downTo 0) {
-                        OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight)
+                        OrderLevelRow(label = "卖" + (i + 1), lv = asks.getOrNull(i), preClose = pc, isAsk = true, showAmount = showAmount, rowHeight = obRowHeight, onPick = onPickPrice)
                     }
                 }
                 // 卖买分界：块内竖直居中画一根细白线，保证线在豁口正中间
@@ -1870,12 +1874,12 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
                         expanded = limitPanelExpanded, onToggle = { limitPanelExpanded = !limitPanelExpanded })
                     if (!limitPanelExpanded) {
                         for (i in 0 until 5) {
-                            OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight)
+                            OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight, onPick = onPickPrice)
                         }
                     }
                 } else {
                     for (i in 0 until 5) {
-                        OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight)
+                        OrderLevelRow(label = "买" + (i + 1), lv = bids.getOrNull(i), preClose = pc, isAsk = false, showAmount = showAmount, rowHeight = obRowHeight, onPick = onPickPrice)
                     }
                 }
                 // 买五下方：买侧大单（跌停展开时被面板一并盖住，故此处不再渲染）
@@ -2033,7 +2037,7 @@ private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
 
 /** 五档单行：左标签 + 中价格 + 右手数 */
 @Composable
-private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean, showAmount: Boolean = false, rowHeight: Dp = ORDERBOOK_TOP_HEIGHT / 10) {
+private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean, showAmount: Boolean = false, rowHeight: Dp = ORDERBOOK_TOP_HEIGHT / 10, onPick: ((Double) -> Unit)? = null) {
     val price = lv?.price ?: 0.0
     val vol = lv?.vol ?: 0.0
     val priceColor = when {
@@ -2047,6 +2051,7 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
         modifier = Modifier
             .fillMaxWidth()
             .height(rowHeight)
+            .then(if (onPick != null && price > 0.0) Modifier.clickable { onPick?.invoke(price) } else Modifier)
             .padding(horizontal = 1.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -5995,6 +6000,7 @@ private fun TradeOrderSheet(
     asks: List<OrderLevel> = emptyList(),
     bids: List<OrderLevel> = emptyList(),
     onPickPrice: (Double) -> Unit = {},
+    pickPrice: Double = 0.0,
     onBack: () -> Unit = {},
 ) {
     // 第十轮需求④：只能靠右上角 ✕ 关闭（禁掉下拉/点背景关闭）
@@ -6007,21 +6013,22 @@ private fun TradeOrderSheet(
     var orderPickPriceLocal by remember { mutableStateOf(0.0) }
     // 第十轮需求(5)：上方要透出五档买卖盘并可点选，弹窗高度相应增大（约半屏）
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val sheetH = if (side == "buy" || side == "sell") screenH * 0.30f else screenH * 0.28f
+    val sheetH = if (side == "buy" || side == "sell") screenH * 0.42f else screenH * 0.28f
 
-    ModalBottomSheet(
-        // 第十轮需求④：点背景/下拖都不关，只有 ✕ 才能关
-        onDismissRequest = { },
-        sheetState = sheetState,
-        // 第十轮需求⑤：上方容器透明，透出下层行情买卖盘
-        containerColor = Color.White,
-        shape = RoundedCornerShape(8.dp),   // 小圆角：肉眼可辨即可
-        dragHandle = null                   // 不要拖拽条
+    // 第十轮需求⑤(A2)：改为自定义底部覆盖层——上方完全不绘制，可点穿到分时页五档
+    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .height(sheetH)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(sheetH)
+                .fillMaxHeight()
         ) {
             // ---------- 第一行：券商名 + 资金账户 + 切换（左）  ✕（右，同一水平线）----------
             Row(
@@ -6078,26 +6085,6 @@ private fun TradeOrderSheet(
                     modifier = Modifier.clickable { onDismiss() }
                 )
             }
-            // 第十轮需求(5)：上方不填充颜色（透明），只保留一行极简提示；
-            // 不在这里重绘五档（行情页本身已有），避免弹窗被撑高。
-            if (side == "buy" || side == "sell") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            val pp = if (livePrice > 0.0) livePrice else 0.0
-                            if (pp > 0.0) { orderPickPriceLocal = pp; onPickPrice(pp) }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (livePrice > 0.0) String.format(java.util.Locale.CHINA, "实时价 %.2f（点此填入）", livePrice) else "实时价 --",
-                        color = if (livePrice > 0.0) Color(0xFFE8A33D) else TEXT_SUB,
-                        fontSize = 11.sp
-                    )
-                }
-            }
             if (side == "buy" || side == "sell") {
                 Column(modifier = Modifier.weight(1f)) {
                     OrderFormBlock(
@@ -6111,7 +6098,7 @@ private fun TradeOrderSheet(
                         livePrice = livePrice,
                         limitUp = limitUp,
                         limitDown = limitDown,
-                        pickPrice = orderPickPriceLocal,
+                        pickPrice = pickPrice,
                         onPickPrice = onPickPrice,
                         onBack = onBack,
                         onDone = { r -> onBack() }
@@ -6136,6 +6123,7 @@ private fun TradeOrderSheet(
             }
             }
         }
+    }
     }
     // ---------- 切换证券账户弹层 ----------
     if (showSwitch) {
