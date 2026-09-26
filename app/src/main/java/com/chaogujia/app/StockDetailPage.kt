@@ -6566,8 +6566,13 @@ private fun OrderFormBlock(
                     }
                     val p0 = priceText.trim().toDoubleOrNull() ?: 0.0
                     val pp = if (p0 > 0.0) p0 else livePrice
-                    if (pp > 0.0 && frac > 0.0) {
-                        val maxQty = (availableCash * frac / pp / 100.0).toInt() * 100
+                    if (frac > 0.0) {
+                        // H11-fix2：买=按可用资金算（资金×仓位比例÷价格）；卖=按持仓算（持仓×仓位比例）
+                        val maxQty = if (isBuy) {
+                            if (pp > 0.0) (availableCash * frac / pp / 100.0).toInt() * 100 else 0
+                        } else {
+                            (sellableQty * frac / 100.0).toInt() * 100
+                        }
                         if (maxQty > 0) qtyText = maxQty.toString()
                     }
                 }
