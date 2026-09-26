@@ -353,7 +353,7 @@ private fun TradeHeaderRow(cur: String, onSelect: (String) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp),          // ★ 整排下移，靠近红条底部
+            .padding(bottom = 6.dp),           // ★ 整排下移，贴近红条底部（约两根牙签空隙）
         horizontalArrangement = Arrangement.Center,   // ★ 整排水平居中
         verticalAlignment = Alignment.CenterVertically
     ) {
