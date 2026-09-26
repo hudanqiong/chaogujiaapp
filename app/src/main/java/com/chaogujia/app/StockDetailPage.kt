@@ -324,7 +324,8 @@ fun StockDetailPage(
                             symmetric = symmetricAxis,
                             cursorMin = cursorMin,
                             showAmount = showOrderAmount,
-                            onCursorChange = { cursorMin = it }
+                            onCursorChange = { cursorMin = it },
+                            onPickPrice = { orderPickPrice = it }
                         )
                         "fiveday" -> FiveDayChart(detail)
                         else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
@@ -1149,7 +1150,9 @@ private fun MinuteChart(
     showAmount: Boolean = false,
     // 十字光标分钟（-1 = 无）：由父层持有并传入，便于顶部「分时信息条」与光标联动
     cursorMin: Float = CURSOR_NONE,
-    onCursorChange: (Float) -> Unit = {}
+    onCursorChange: (Float) -> Unit = {},
+    // 第十轮需求⑤：点右侧五档价格 → 回填下单弹窗价格（由 StockDetailPage 注入）
+    onPickPrice: (Double) -> Unit = {}
 ) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
     // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
@@ -1342,7 +1345,7 @@ private fun MinuteChart(
                 .weight(ORDERBOOK_RATIO)
                 .fillMaxHeight()
                 .padding(start = 4.dp, end = 4.dp),
-            onPickPrice = { p -> orderPickPrice = p }
+            onPickPrice = { p -> onPickPrice(p) }
         )
         } // end 内层 Row
     } // end 外层 Column
@@ -6009,8 +6012,6 @@ private fun TradeOrderSheet(
         confirmValueChange = { false }
     )
     var showSwitch by remember { mutableStateOf(false) }
-    // 第十轮需求(5)：弹窗内部点选买卖盘价格 -> 透传给表单回填
-    var orderPickPriceLocal by remember { mutableStateOf(0.0) }
     // 第十轮需求(5)：上方要透出五档买卖盘并可点选，弹窗高度相应增大（约半屏）
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     val sheetH = if (side == "buy" || side == "sell") screenH * 0.42f else screenH * 0.28f
