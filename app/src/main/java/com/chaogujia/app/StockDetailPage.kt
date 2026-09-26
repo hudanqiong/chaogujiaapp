@@ -5701,18 +5701,33 @@ private fun AhCursorGesture(
     Box(
         modifier = modifier
             .fillMaxSize()
+            // 与分时页 MinuteCursorGesture 同款长按逻辑：
+            //   长按 ~0.5s 成立 → 激活光标 + 拖动跟随；
+            //   未达长按就抬手/短滑 → 关闭光标且【不消费事件】，让事件穿透给外层垂直滚动。
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { off -> onCursor((off.x / size.width).coerceIn(0f, 1f)) },
-                    onDragEnd = { },
-                    onDragCancel = { },
-                ) { change, _ ->
-                    onCursor((change.position.x / size.width).coerceIn(0f, 1f))
-                    change.consume()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val longPress = awaitLongPressOrCancellation(down.id)
+                    if (longPress == null) {
+                        // 短滑/轻点：清除光标，不消费事件（滚动交还给外层）
+                        onClear()
+                    } else {
+                        // 长按成立：按落点激活光标
+                        val w = size.width.toFloat()
+                        if (w > 0f) onCursor((longPress.position.x / w).coerceIn(0f, 1f))
+                        // 进入拖动循环：跟随手指实时更新，松手停在最后位置
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if (ch.changedToUpIgnoreConsumed()) break
+                            if (ch.positionChanged()) {
+                                val ww = size.width.toFloat()
+                                if (ww > 0f) onCursor((ch.position.x / ww).coerceIn(0f, 1f))
+                                ch.consume()
+                            }
+                        }
+                    }
                 }
-            }
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { onClear() })
             },
     )
 }
