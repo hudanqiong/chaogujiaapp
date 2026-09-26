@@ -5555,10 +5555,11 @@ private fun AhExpanded(d: AfterHours, preClose: Double, code: String, market: St
     }
 
     Row(modifier = Modifier.fillMaxWidth()) {
-        // 左侧：盘后分时（价图 + 时间轴 + 量图 + 光标数值行）
+        // 左侧：盘后分时（价图 + 量图 + 时间轴）
         // 注意：此处不能依赖 weight 撑高——父 Column 高度是 wrap_content，
         // weight 会失效并让 Canvas.fillMaxSize 撑到无限高，把底部固定价交易按钮顶出屏幕。
-        // 因此左列整体给定固定高 = 价图 + 量图（AH_PRICE_H + AH_VOL_H）。
+        // 因此左列整体给定固定高 = 价图 + 量图 + 时间轴（AH_PRICE_H + AH_VOL_H + AH_TIME_H），
+        // 与右侧 AhRightPanel 高度一致，保证左右两列上下对齐、一样高。
         Column(modifier = Modifier.weight(1f - ORDERBOOK_RATIO)) {
             Box(modifier = Modifier.fillMaxWidth().height(AH_PRICE_H + AH_VOL_H)) {
                 Column(modifier = Modifier.fillMaxSize()) {
@@ -5572,26 +5573,27 @@ private fun AhExpanded(d: AfterHours, preClose: Double, code: String, market: St
                     modifier = Modifier.matchParentSize(),
                 )
             }
-            AhTimeAxis(modifier = Modifier.fillMaxWidth().height(TIME_BAR_HEIGHT))
-            val hover = if (cursorIdx in minutes.indices) minutes[cursorIdx] else null
-            Text(
-                if (hover != null) fmtAhTime(hover.time) + "   价 " + fmtAhPrice(hover.price) + "   量 " + fmtAhVol(hover.vol) + "手"
-                else "拖动查看盘后每分钟成交",
-                color = if (hover != null) TEXT_MAIN else TEXT_SUB,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = DSpNumFont,
-                modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-            )
+            AhTimeAxis(modifier = Modifier.fillMaxWidth().height(AH_TIME_H))
         }
-        // 右侧：卖一/买一 + 交易明细，高度与左侧价+量平齐，明细区可上下滑动
+        // 右侧：卖一/买一 + 交易明细，高度与左侧价+量+时间轴平齐，明细区可上下滑动
         AhRightPanel(
             quote = quote,
             minutes = minutes,
             selectedIdx = cursorIdx,
-            modifier = Modifier.weight(ORDERBOOK_RATIO).height(AH_PRICE_H + AH_VOL_H).padding(start = 4.dp),
+            modifier = Modifier.weight(ORDERBOOK_RATIO).height(AH_PRICE_H + AH_VOL_H + AH_TIME_H).padding(start = 4.dp),
         )
     }
+    // 光标数值行：放在左右两列下方，不参与左右两列的高度对齐
+    val hover = if (cursorIdx in minutes.indices) minutes[cursorIdx] else null
+    Text(
+        if (hover != null) fmtAhTime(hover.time) + "   价 " + fmtAhPrice(hover.price) + "   量 " + fmtAhVol(hover.vol) + "手"
+        else "拖动查看盘后每分钟成交",
+        color = if (hover != null) TEXT_MAIN else TEXT_SUB,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        fontFamily = DSpNumFont,
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+    )
 }
 
 // ---- 盘后分时手势：X 连续坐标，轻点清除 ----
