@@ -6013,11 +6013,11 @@ private fun TradeOrderSheet(
             }
             Spacer(Modifier.weight(1f))
             // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，均匀分布 ----------
-            // 两边各留三根牙签；标签之间一根牙签；三列等宽
+            // 两边各留一根牙签；标签之间一根牙签；三列等宽
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = TOOTHPICK * 3, end = TOOTHPICK * 3, bottom = 18.dp),
+                    .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
