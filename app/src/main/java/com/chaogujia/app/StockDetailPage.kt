@@ -196,8 +196,26 @@ fun StockDetailPage(
     var orderBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
     var orderBroker by remember { mutableStateOf<MyBroker?>(null) }
     var orderSide by remember { mutableStateOf("") }
+    // H11：真实持仓（用于卖出页「可卖多少股」）——按当前账户拉取 positions.php
+    var orderPositions by remember { mutableStateOf<List<PositionItem>>(emptyList()) }
+    // H11：当前股票在当前账户下的可卖股数（持仓多少股 = 可卖多少股）
+    val orderSellableQty = remember(current?.code, orderBroker?.id, orderPositions) {
+        val c = current?.code ?: ""
+        orderPositions.firstOrNull { it.code == c }?.quantity ?: 0
+    }
     // 第十轮需求⑤：用户在弹窗上方点五档价格 → 暂存，传给表单回填
     var orderPickPrice by remember { mutableStateOf(0.0) }
+    // H11：下单弹窗打开且账户就绪时，拉取该账户持仓（供卖出页「可卖多少股」）
+    LaunchedEffect(showOrderSheet, orderBroker?.id) {
+        val bid = orderBroker?.id ?: 0
+        orderPositions = if (showOrderSheet && bid > 0) {
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                Api.positions(token, bid)
+            }
+        } else {
+            emptyList()
+        }
+    }
     var showAuction by remember {
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("minute_auction", false))
@@ -441,7 +459,7 @@ fun StockDetailPage(
                 token = token,
                 brokerAccountId = orderBroker?.id ?: 0,
                 availableCash = orderBroker?.available ?: 0.0,
-                sellableQty = 0,
+                sellableQty = orderSellableQty,
                 livePrice = livePrice,
                 limitUp = orderBook?.limitUp ?: 0.0,
                 limitDown = orderBook?.limitDown ?: 0.0,
@@ -493,13 +511,16 @@ private fun DetailHeaderBar(
         modifier = Modifier.fillMaxWidth().height(D_BAR_HEIGHT),
         contentAlignment = Alignment.Center
       ) {
-        // 左侧：返回箭头（H10：命中区放大到 48dp，避免点不准）
+        // 左侧：返回箭头（H10：命中区放大到 48dp；H11：去掉点击水波纹，无任何特效）
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(start = 6.dp)
                 .size(48.dp)
-                .clickable { onBack() },
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onBack() },
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -6311,10 +6332,10 @@ private fun OrderFormBlock(
     val isBuy = side == "buy"
     val sideColor = if (isBuy) Color(0xFFFA0000) else Color(0xFF008AFF)
     val sideText = if (isBuy) "买入" else "卖出"
-    // H7：加减按钮底色改为用户指定红 #FA0000 的极淡填充
-    val redFill = Color(0x0DFA0000)
-    // H7：纯红（按下瞬时反馈底色 + 步进器外框/竖线），= 用户 #FA0000
-    val redSolid = Color(0xFFFA0000)
+    // H11：加减按钮底色按买/卖动态取色（买=淡红 / 卖=淡蓝）
+    val redFill = if (isBuy) Color(0x0DFA0000) else Color(0x0D008AFF)
+    // H11：主色（按下瞬时反馈底色 + 步进器外框/竖线）——买=#FA0000 / 卖=#008AFF
+    val redSolid = if (isBuy) Color(0xFFFA0000) else Color(0xFF008AFF)
     // 浅灰边框（齿轮等）
     val grayBorder = Color(0xFFDDDDDD)
     // H7：标签外框细线（涨跌停 / 全仓等）——更细、更灰
@@ -6340,6 +6361,11 @@ private fun OrderFormBlock(
     // 第十轮需求⑦：未输入价格时，默认按左上方实时股价计算「可买多少股」
     val calcPrice = if (price > 0.0) price else livePrice
     val canBuyQty = if (calcPrice > 0.0) ((availableCash / calcPrice / 100.0).toInt() * 100) else 0
+    // H11：卖出态「可卖多少股」= 账户当前该股票持仓（持仓多少股 = 可卖多少股），向下取整到 100 的整数倍
+    val sellQty = (sellableQty / 100) * 100
+    // H11：当前态展示股数（买=按资金算 / 卖=按持仓算）与标签文案
+    val showQty = if (isBuy) canBuyQty else sellQty
+    val showQtyLabel = if (isBuy) "可买" else "可卖"
     // H7 需求③：加载窗口时，默认按当前股价 + 可用资金算出「可买多少股」并回填数量框。
     // 仅当数量框为空、且算出的可买股数 > 0 时回填一次，避免覆盖用户已输入的内容。
     // H8 修复①：可买股数「智能跟随」。
@@ -6347,11 +6373,12 @@ private fun OrderFormBlock(
     // 就允许跟随 canBuyQty 实时刷新（解决「时算时不算」「点价不重算」）；
     // 一旦用户在框里手输过（内容 != 上次自动值），则永久不再覆盖用户输入。
     var autoQty by remember { mutableStateOf("") }
-    LaunchedEffect(canBuyQty, pickPrice) {
+    // H11：买入跟随「可买股数」、卖出跟随「可卖股数（持仓）」
+    LaunchedEffect(showQty, pickPrice) {
         val cur = qtyText.trim()
         val userEdited = cur.isNotEmpty() && cur != autoQty
-        if (!userEdited && canBuyQty > 0) {
-            val nv = canBuyQty.toString()
+        if (!userEdited && showQty > 0) {
+            val nv = showQty.toString()
             if (nv != cur) {
                 qtyText = nv
                 autoQty = nv
@@ -6362,6 +6389,8 @@ private fun OrderFormBlock(
         if (busy) return
         if (!canSubmit) return
         if (qty % 100 != 0) { msg = "数量需为 100 的整数倍"; return }
+        // H11：卖出时数量不得超过当前持仓（持仓多少股 = 可卖多少股）
+        if (!isBuy && qty > sellableQty) { msg = "卖出数量超过可卖持仓"; return }
         busy = true
         msg = ""
         val acctId = brokerAccountId
@@ -6484,30 +6513,35 @@ private fun OrderFormBlock(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            // 可买多少股：无边框、无背景；「可买」「股」灰字，数字黄橙（跟在涨跌停后面）
+            // 可买/可卖多少股：无边框、无背景；标签/单位灰字，数字黄橙（跟在涨跌停后面）
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("可买", color = TEXT_SUB, fontSize = 12.sp)
-                Text(canBuyQty.toString(), color = amberText, fontSize = 12.sp)
+                Text(showQtyLabel, color = TEXT_SUB, fontSize = 12.sp)
+                Text(showQty.toString(), color = amberText, fontSize = 12.sp)
                 Text("股", color = TEXT_SUB, fontSize = 12.sp)
             }
             Spacer(Modifier.weight(1f))
-            // 按金额买入：红色边框 + 红字 + 白底（行最右，与第二个编辑框加号右对齐）
+            // 按金额买入 / 按净额卖：主色边框 + 主色字 + 白底（行最右，与第二个编辑框加号右对齐）
             Box(
                 modifier = Modifier
                     .clip(RectangleShape)
                     .background(Color.White)
                     .border(1.dp, sideColor, RectangleShape)
                     .clickable {
-                        val p = priceText.trim().toDoubleOrNull() ?: 0.0
-                        val p2 = if (p > 0.0) p else livePrice
-                        if (p2 > 0.0) {
-                            val maxQty = (availableCash / p2 / 100.0).toInt() * 100
-                            if (maxQty > 0) qtyText = maxQty.toString()
+                        // H11：买入=按可用资金估最大可买；卖出=按当前持仓最大可卖
+                        if (isBuy) {
+                            val p = priceText.trim().toDoubleOrNull() ?: 0.0
+                            val p2 = if (p > 0.0) p else livePrice
+                            if (p2 > 0.0) {
+                                val maxQty = (availableCash / p2 / 100.0).toInt() * 100
+                                if (maxQty > 0) qtyText = maxQty.toString()
+                            }
+                        } else {
+                            if (sellQty > 0) qtyText = sellQty.toString()
                         }
                     }
                     .padding(horizontal = 8.dp, vertical = 3.dp)
             ) {
-                Text("按金额买入", color = sideColor, fontSize = 12.sp)
+                Text(if (isBuy) "按金额买入" else "按净额卖", color = sideColor, fontSize = 12.sp)
             }
         }
         Spacer(Modifier.height(10.dp))
