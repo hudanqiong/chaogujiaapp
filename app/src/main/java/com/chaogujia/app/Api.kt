@@ -262,6 +262,44 @@ data class MinuteDeal(
     val net: Double get() = buy - sell
 }
 
+/**
+ * 盘后固定价格交易 —— 单分钟点。
+ *   time  : "1506"（HHmm，盘后时段 1506..1530，1 分钟 1 点）
+ *   price : 该分钟成交价（盘后价恒等于收盘价）
+ *   vol   : 该分钟成交量（手，已由接口的「累计量」差分得到）
+ *   amt   : 该分钟成交额（元，已差分）
+ *
+ * 说明：数据来源为腾讯 minute/query，其原始 vol/amt 均为「当日累计」，
+ * 解析时必须对相邻两条做差分，切勿直接读取单条值。
+ */
+data class AfterMinute(
+    val time: String = "",
+    /** 该分钟成交价（= 收盘价） */
+    val price: Double = 0.0,
+    /** 该分钟成交量（手） */
+    val vol: Double = 0.0,
+    /** 该分钟成交额（元） */
+    val amt: Double = 0.0
+)
+
+/**
+ * 盘后固定价格交易 —— 聚合结果。
+ *   price    : 盘后固定价（= 当日收盘价）
+ *   totalVol : 盘后总成交量（手）
+ *   totalAmt : 盘后总成交额（元）
+ *   minutes  : 盘后逐分钟点（时间升序，1506..1530，仅含有成交的分钟）
+ *   supported: 该标的当日是否有盘后固定价交易（无成交时为 false，UI 不显示）
+ *
+ * 仅科创板(688/689)、创业板(300/301) 存在此机制；接口对无盘后数据的标的返回空列表。
+ */
+data class AfterHours(
+    val price: Double = 0.0,
+    val totalVol: Double = 0.0,
+    val totalAmt: Double = 0.0,
+    val minutes: List<AfterMinute> = emptyList(),
+    val supported: Boolean = false
+)
+
 /** 五档盘口 + 成交明细（orderbook.php） */
 data class OrderBook(
     val code: String = "",
@@ -1197,4 +1235,119 @@ object Api {
             null
         }
     }
+
+    /**
+     * 盘后固定价格交易（科创板 688/689、创业板 300/301，15:05–15:30）。
+     *
+     * 数据源：腾讯分时 minute/query —— 其返回的「当日分时」尾部自带 15:00 之后
+     * 的盘后分钟点（1506..1530，1 分钟 1 根），实测 5 个标识标的全部命中。
+     * 每行格式固定为 4 列：`HHmm 价 累计量(手) 累计额(元)`，因此必须对相邻两条
+     * 做差分才能得到「这一分钟」的量与额。
+     *
+     * @param code   6 位纯代码或带市场前缀（如 sh688981）均可
+     * @param market "sh"/"sz"，为空时按代码首位推断
+     * @return AfterHours（拿不到数据时 supported=false、minutes 为空）
+     */
+    fun afterHours(code: String, market: String = ""): AfterHours {
+        // ---- 归一化代码 & 前缀 ----
+        val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
+        if (pure.isEmpty()) return AfterHours()
+        val prefix = when {
+            market == "sh" || market == "sz" || market == "bj" -> market
+            pure.startsWith("6") || pure.startsWith("5") || pure.startsWith("9") -> "sh"
+            else -> "sz"
+        }
+        val sym = prefix + pure
+
+        // ---- 仅支持有盘后固定价机制的板块：688/689（科创）、300/301（创业）----
+        val hasAfter = pure.startsWith("688") || pure.startsWith("689") ||
+            pure.startsWith("300") || pure.startsWith("301")
+        if (!hasAfter) return AfterHours()
+
+        try {
+            val url = "https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=$sym"
+            val raw = Net.getRaw(url, referer = "https://gu.qq.com/") ?: return AfterHours()
+            val arr = JSONObject(raw)
+                .optJSONObject("data")
+                ?.optJSONObject(sym)
+                ?.optJSONObject("data")
+                ?.optJSONArray("data")
+                ?: return AfterHours()
+            if (arr.length() == 0) return AfterHours()
+
+            // ---- 解析为原始行列表：[HHmm, price, 累计量(手), 累计额(元)] ----
+            data class Raw(val hhmm: String, val price: Double, val cVol: Double, val cAmt: Double)
+            val rows = ArrayList<Raw>(arr.length())
+            for (i in 0 until arr.length()) {
+                val line = arr.optString(i, "")
+                if (line.isEmpty()) continue
+                // 行内以空格分隔；个别源可能用制表符/多空格，统一按空白切分
+                val f = line.trim().split(Regex("\\s+"))
+                if (f.size < 4) continue
+                val hhmm = f[0]
+                val price = f[1].toDoubleOrNull() ?: continue
+                val cVol = f[2].toDoubleOrNull() ?: 0.0
+                val cAmt = f[3].toDoubleOrNull() ?: 0.0
+                rows.add(Raw(hhmm, price, cVol, cAmt))
+            }
+            if (rows.isEmpty()) return AfterHours()
+
+            // ---- 定位 15:00 的累计快照，作为差分的基准 ----
+            var baseIdx = -1
+            for (i in rows.indices) {
+                if (rows[i].hhmm == "1500") { baseIdx = i; break }
+            }
+            // 无 1500 行（极少数情况）则退化为「最后一条 ≤1500 的」作基准
+            if (baseIdx < 0) {
+                for (i in rows.indices) {
+                    if (rows[i].hhmm <= "1500") baseIdx = i
+                }
+            }
+            if (baseIdx < 0) baseIdx = 0
+
+            // ---- 差分：只取严格晚于 15:00 的盘后分钟点 ----
+            val minutes = ArrayList<AfterMinute>()
+            var prevVol = rows[baseIdx].cVol
+            var prevAmt = rows[baseIdx].cAmt
+            var lastPrice = rows[baseIdx].price
+            for (i in (baseIdx + 1) until rows.size) {
+                val r = rows[i]
+                if (r.hhmm <= "1500") continue          // 仍在连续竞价内，跳过
+                if (r.hhmm > "1530") break              // 超出盘后时段，结束
+                val dv = (r.cVol - prevVol).coerceAtLeast(0.0)
+                val da = (r.cAmt - prevAmt).coerceAtLeast(0.0)
+                prevVol = r.cVol
+                prevAmt = r.cAmt
+                lastPrice = if (r.price > 0) r.price else lastPrice
+                // 只保留「有成交」的分钟，界面柱状图与明细才不会出现一排空柱
+                if (dv > 0) {
+                    minutes.add(AfterMinute(time = r.hhmm, price = lastPrice, vol = dv, amt = da))
+                }
+            }
+
+            if (minutes.isEmpty()) return AfterHours()
+
+            // 盘后总量 = 15:30 累计 − 15:00 累计
+            val endSnapshot = rows.last { it.hhmm <= "1530" }
+            val endIdx = rows.indexOfLast { it.hhmm <= "1530" }
+            val totalVol = (rows[endIdx].cVol - rows[baseIdx].cVol).coerceAtLeast(0.0)
+            val totalAmt = (rows[endIdx].cAmt - rows[baseIdx].cAmt).coerceAtLeast(0.0)
+
+            android.util.Log.i(
+                "Api",
+                "盘后固定价 $sym: 分钟点 ${minutes.size} 个, 总量 ${totalVol}手, 总额 ${totalAmt}元, 价 $lastPrice"
+            )
+            return AfterHours(
+                price = lastPrice,
+                totalVol = totalVol,
+                totalAmt = totalAmt,
+                minutes = minutes,
+                supported = true
+            )
+        } catch (e: Exception) {
+            android.util.Log.w("Api", "盘后固定价失败: $sym ${e.message}")
+            return AfterHours()
+        }
+    }
+}
 }
