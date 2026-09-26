@@ -5968,7 +5968,7 @@ private fun TradeOrderSheet(
     var showSwitch by remember { mutableStateOf(false) }
     // 约 1/4 屏高：用系统屏幕高度 * 0.28 作为内容区高度
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val sheetH = if (side == "buy" || side == "sell") screenH * 0.52f else screenH * 0.28f
+    val sheetH = if (side == "buy" || side == "sell") screenH * 0.28f else screenH * 0.28f
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -6187,13 +6187,13 @@ private fun OrderColumn(
         }
     }
 }
-
 // ============================================================
-// 下单表单块（买入/卖出）：与下单弹窗同款外观，内容为具体下单项
-// side = "buy" | "sell"
-// 布局：顶行(名称+代码) → 价格减/编辑/加 连体框 + 手数减/编辑/加 连体框
-//       → 跌停/涨停/可买/按金额买入 一行 → 快捷仓位 1/2 1/3 1/4 2/3
-//       → 底部红色长按钮（左齿轮 + 买入/卖出）
+// 下单表单块（买/卖共用）—— 本轮第九轮修正版
+//   顶部：仅保留「券商名 + 账户 + 切换 + ✕」由外层 TradeOrderSheet 负责，本块不再重复
+//   两个连体编辑框（价格 / 手数）：直角、淡红填充更淡、按下瞬红松手恢复
+//   跌停/涨停/可买多少股/按金额买入：仅「可买多少股」无边框，其余浅灰边框白底
+//   快捷仓位：全仓 1/2仓 1/3仓 1/4仓 2/3仓，浅灰边框
+//   底部：齿轮（浅灰正方形边框，与红按钮等高）在红按钮外侧；红按钮空值禁用
 // ============================================================
 @Composable
 private fun OrderFormBlock(
@@ -6210,26 +6210,30 @@ private fun OrderFormBlock(
     val isBuy = side == "buy"
     val sideColor = if (isBuy) Color(0xFFE23B3B) else Color(0xFF2A7BFF)
     val sideText = if (isBuy) "买入" else "卖出"
-    // 淡红填充（加减按钮底色）与纯红（按下反馈底色）
-    val redFill = Color(0x33E23B3B)
+    // 更淡的红色填充（加减按钮底色）
+    val redFill = Color(0x14E23B3B)
+    // 纯红（按下瞬时反馈底色）
     val redSolid = Color(0xFFE23B3B)
+    // 浅灰边框
+    val grayBorder = Color(0xFFDDDDDD)
     val greenText = Color(0xFF1AAE5A)
+    // 数字黄偏橙
+    val amberText = Color(0xFFE8A33D)
     var qtyText by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf("quick") }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
-    // 每个加减按钮的按下瞬时反馈
-    var priceMinusPressed by remember { mutableStateOf(false) }
-    var pricePlusPressed by remember { mutableStateOf(false) }
-    var qtyMinusPressed by remember { mutableStateOf(false) }
-    var qtyPlusPressed by remember { mutableStateOf(false) }
     val qty = qtyText.trim().toIntOrNull() ?: 0
     val price = priceText.trim().toDoubleOrNull() ?: 0.0
+    // 两个编辑框都有内容才可点击（且数量合法）
+    val canSubmit = qtyText.trim().isNotEmpty() and priceText.trim().isNotEmpty() and (qty > 0) and (price > 0.0)
+    // 可买多少股 = 可用金额 ÷ 输入股价
+    val canBuyQty = if (price > 0.0) ((availableCash / price / 100.0).toInt() * 100) else 0
     fun submit() {
         if (busy) return
-        if (qty <= 0 || qty % 100 != 0) { msg = "数量需为 100 的整数倍"; return }
-        if (price <= 0.0) { msg = "请输入价格"; return }
+        if (!canSubmit) return
+        if (qty % 100 != 0) { msg = "数量需为 100 的整数倍"; return }
         busy = true
         msg = ""
         val acctId = brokerAccountId
@@ -6245,37 +6249,6 @@ private fun OrderFormBlock(
         }
     }
     Column(modifier = Modifier.fillMaxWidth()) {
-        // 顶行：名称 + 代码 + 方向标签 + 可用/可卖
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = (if (name.isNotEmpty()) name else code) + " " + code,
-                color = TEXT_MAIN,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.width(8.dp))
-            Box(
-                Modifier
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(sideColor)
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(sideText, color = Color.White, fontSize = 11.sp)
-            }
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = if (isBuy) ("可用 " + String.format(java.util.Locale.CHINA, "%.2f", availableCash)) else ("可卖 " + sellableQty + " 股"),
-                color = TEXT_SUB,
-                fontSize = 12.sp
-            )
-        }
         Spacer(Modifier.height(10.dp))
         // 两个连体编辑框：左价格，右手数
         Row(
@@ -6289,21 +6262,15 @@ private fun OrderFormBlock(
                 placeholder = "价格",
                 isDecimal = true,
                 onValueChange = { priceText = it },
-                minusPressed = priceMinusPressed,
-                plusPressed = pricePlusPressed,
                 onMinus = {
-                    priceMinusPressed = true
                     val v = priceText.trim().toDoubleOrNull() ?: 0.0
-                    val nv = if (v <= 0.01) 0.0 else (v - 0.01)
+                    val nv = v - 0.01
                     priceText = if (nv <= 0.0) "" else String.format(java.util.Locale.CHINA, "%.2f", nv)
                 },
                 onPlus = {
-                    pricePlusPressed = true
                     val v = priceText.trim().toDoubleOrNull() ?: 0.0
                     priceText = String.format(java.util.Locale.CHINA, "%.2f", v + 0.01)
                 },
-                onMinusRelease = { priceMinusPressed = false },
-                onPlusRelease = { pricePlusPressed = false },
                 redFill = redFill,
                 redSolid = redSolid,
                 modifier = Modifier.weight(1f)
@@ -6314,21 +6281,15 @@ private fun OrderFormBlock(
                 placeholder = "手数",
                 isDecimal = false,
                 onValueChange = { qtyText = it },
-                minusPressed = qtyMinusPressed,
-                plusPressed = qtyPlusPressed,
                 onMinus = {
-                    qtyMinusPressed = true
                     val v = qtyText.trim().toIntOrNull() ?: 0
                     val nv = v - 100
                     qtyText = if (nv <= 0) "" else nv.toString()
                 },
                 onPlus = {
-                    qtyPlusPressed = true
                     val v = qtyText.trim().toIntOrNull() ?: 0
                     qtyText = (v + 100).toString()
                 },
-                onMinusRelease = { qtyMinusPressed = false },
-                onPlusRelease = { qtyPlusPressed = false },
                 redFill = redFill,
                 redSolid = redSolid,
                 modifier = Modifier.weight(1f)
@@ -6336,56 +6297,92 @@ private fun OrderFormBlock(
         }
         Spacer(Modifier.height(10.dp))
         // 跌停 / 涨停 / 可买多少股 / 按金额买入 —— 四个一行水平对齐
+        // 仅「可买多少股」无边框；其余浅灰边框 + 纯白底
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("跌停", color = greenText, fontSize = 12.sp)
-            Spacer(Modifier.width(4.dp))
-            Text("--", color = greenText, fontSize = 12.sp)
-            Spacer(Modifier.weight(1f))
-            Text("涨停", color = sideColor, fontSize = 12.sp)
-            Spacer(Modifier.width(4.dp))
-            Text("--", color = sideColor, fontSize = 12.sp)
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "可买 " + (if (price > 0.0) (availableCash / price / 100.0).toInt() * 100 else 0) + " 股",
-                color = TEXT_SUB,
-                fontSize = 12.sp
-            )
-            Spacer(Modifier.weight(1f))
-            Text(
-                text = "按金额买入",
-                color = sideColor,
-                fontSize = 12.sp,
-                modifier = Modifier.clickable {
-                    // 按金额买入：以可用资金按当前价折算最大手数（预留）
-                    val p = priceText.trim().toDoubleOrNull() ?: 0.0
-                    if (p > 0.0) {
-                        val maxQty = (availableCash / p / 100.0).toInt() * 100
-                        if (maxQty > 0) qtyText = maxQty.toString()
-                    }
+            // 跌停：标签黑字，价格绿字；浅灰边框白底
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .background(Color.White)
+                    .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("跌停", color = TEXT_MAIN, fontSize = 12.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text("--", color = greenText, fontSize = 12.sp)
                 }
-            )
+            }
+            Spacer(Modifier.width(8.dp))
+            // 涨停：标签黑字，价格红字；浅灰边框白底
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .background(Color.White)
+                    .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("涨停", color = TEXT_MAIN, fontSize = 12.sp)
+                    Spacer(Modifier.width(4.dp))
+                    Text("--", color = sideColor, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            // 可买多少股：无边框、无背景；「可买」「股」灰字，数字黄橙
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("可买", color = TEXT_SUB, fontSize = 12.sp)
+                Text(canBuyQty.toString(), color = amberText, fontSize = 12.sp)
+                Text("股", color = TEXT_SUB, fontSize = 12.sp)
+            }
         }
-        Spacer(Modifier.height(12.dp))
-        // 快捷仓位
+        Spacer(Modifier.height(8.dp))
+        // 按金额买入：红色边框 + 红字 + 白底（单独一行靠左）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val posList = listOf("1/2", "1/3", "1/4", "2/3")
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .background(Color.White)
+                    .border(1.dp, sideColor, androidx.compose.foundation.shape.RectangleShape)
+                    .clickable {
+                        val p = priceText.trim().toDoubleOrNull() ?: 0.0
+                        if (p > 0.0) {
+                            val maxQty = (availableCash / p / 100.0).toInt() * 100
+                            if (maxQty > 0) qtyText = maxQty.toString()
+                        }
+                    }
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text("按金额买入", color = sideColor, fontSize = 12.sp)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        // 快捷仓位：全仓 + 1/2仓 1/3仓 1/4仓 2/3仓；浅灰边框
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val posList = listOf("全仓", "1/2仓", "1/3仓", "1/4仓", "2/3仓")
             posList.forEachIndexed { idx, p ->
-                QuickPosButton(label = p, redFill = redFill, redSolid = redSolid) {
+                QuickPosButton(label = p, grayBorder = grayBorder) {
                     val frac = when (p) {
-                        "1/2" -> 0.5
-                        "1/3" -> 1.0 / 3.0
-                        "1/4" -> 0.25
-                        "2/3" -> 2.0 / 3.0
+                        "全仓" -> 1.0
+                        "1/2仓" -> 0.5
+                        "1/3仓" -> 1.0 / 3.0
+                        "1/4仓" -> 0.25
+                        "2/3仓" -> 2.0 / 3.0
                         else -> 0.0
                     }
                     val p0 = priceText.trim().toDoubleOrNull() ?: 0.0
@@ -6407,41 +6404,66 @@ private fun OrderFormBlock(
             )
         }
         Spacer(Modifier.weight(1f))
-        // 底部红色长按钮：左齿轮 + 买入/卖出
-        Box(
+        // 底部：齿轮在红按钮外侧（浅灰正方形边框，与红按钮等高）+ 红色买入按钮
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                .height(46.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (busy) Color(0xFFBBBBBB) else sideColor)
-                .clickable { submit() },
-            contentAlignment = Alignment.Center
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 齿轮图标（复用均线设置 icon）
-            Image(
-                painter = painterResource(R.drawable.aen),
-                contentDescription = "下单设置",
+            // 齿轮：浅灰正方形边框，高度与红按钮一致
+            Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 12.dp)
-                    .size(20.dp),
-                contentScale = ContentScale.Fit
-            )
-            Text(
-                text = if (busy) "提交中..." else sideText,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
-            )
+                    .size(46.dp)
+                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .background(Color.White)
+                    .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+                    .clickable {
+                        // 下单设置（暂未接）
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.aen),
+                    contentDescription = "下单设置",
+                    modifier = Modifier.size(20.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            // 红色买入按钮：任一为空则禁用
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(46.dp)
+                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .background(if (busy) Color(0xFFBBBBBB) else sideColor)
+                    .clickable(enabled = canSubmit && !busy) { submit() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (busy) "提交中..." else sideText,
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                // 禁用时盖一层半透明白
+                if (!canSubmit && !busy) {
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.White.copy(alpha = 0.55f))
+                    )
+                }
+            }
         }
     }
 }
 
 /**
  * 连体步进框：减号方块 + 中间编辑区 + 加号方块，三者连成一体。
- * 边框红色；中间编辑区背景保持原样；加减方块淡红填充、符号红色；
- * 按下时方块变纯红、符号变白（瞬时反馈）。
+ * 直角（无圆角）、边框红色；加减方块淡红填充、符号红色；
+ * 按下瞬红、松手立刻恢复（pointerInput 监听松手复位）。
  */
 @Composable
 private fun ConnectStepper(
@@ -6449,36 +6471,38 @@ private fun ConnectStepper(
     placeholder: String,
     isDecimal: Boolean,
     onValueChange: (String) -> Unit,
-    minusPressed: Boolean,
-    plusPressed: Boolean,
     onMinus: () -> Unit,
     onPlus: () -> Unit,
-    onMinusRelease: () -> Unit,
-    onPlusRelease: () -> Unit,
     redFill: Color,
     redSolid: Color,
     modifier: Modifier = Modifier
 ) {
     val borderColor = redSolid
+    var minusPressed by remember { mutableStateOf(false) }
+    var plusPressed by remember { mutableStateOf(false) }
     Row(
         modifier = modifier
             .height(40.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .clip(androidx.compose.foundation.shape.RectangleShape)
             .background(Color.White)
-            .border(1.dp, borderColor, RoundedCornerShape(6.dp)),
+            .border(1.dp, borderColor, androidx.compose.foundation.shape.RectangleShape),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 减号方块
+        // 减号方块：按下瞬红，松手恢复
         Box(
             modifier = Modifier
                 .width(40.dp)
                 .fillMaxHeight()
                 .background(if (minusPressed) redSolid else redFill)
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null
-                ) {
-                    onMinus()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            minusPressed = true
+                            tryAwaitRelease()
+                            minusPressed = false
+                        },
+                        onTap = { onMinus() }
+                    )
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -6524,17 +6548,21 @@ private fun ConnectStepper(
                 }
             )
         }
-        // 加号方块
+        // 加号方块：按下瞬红，松手恢复
         Box(
             modifier = Modifier
                 .width(40.dp)
                 .fillMaxHeight()
                 .background(if (plusPressed) redSolid else redFill)
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null
-                ) {
-                    onPlus()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onPress = {
+                            plusPressed = true
+                            tryAwaitRelease()
+                            plusPressed = false
+                        },
+                        onTap = { onPlus() }
+                    )
                 },
             contentAlignment = Alignment.Center
         ) {
@@ -6548,32 +6576,25 @@ private fun ConnectStepper(
     }
 }
 
-/** 快捷仓位小按钮：淡红底、红字，按下短暂变纯红白字 */
+/** 快捷仓位小按钮：白底 + 浅灰边框 + 灰字/黑字，按下短暂变红填充 */
 @Composable
 private fun QuickPosButton(
     label: String,
-    redFill: Color,
-    redSolid: Color,
+    grayBorder: Color,
     onClick: () -> Unit
 ) {
-    var pressed by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(if (pressed) redSolid else redFill)
-            .clickable(
-                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                indication = null
-            ) {
-                pressed = true
-                onClick()
-            }
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .clip(androidx.compose.foundation.shape.RectangleShape)
+            .background(Color.White)
+            .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (pressed) Color.White else redSolid,
+            color = TEXT_MAIN,
             fontSize = 13.sp
         )
     }
