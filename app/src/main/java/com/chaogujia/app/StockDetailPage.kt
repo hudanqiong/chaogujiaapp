@@ -6013,14 +6013,17 @@ private fun TradeOrderSheet(
             }
             Spacer(Modifier.weight(1f))
             // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，均匀分布 ----------
+            // 两边各留一根牙签；标签之间一根牙签；三列等宽
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 18.dp),
+                    .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
+                Spacer(Modifier.width(TOOTHPICK))
                 OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
+                Spacer(Modifier.width(TOOTHPICK))
                 OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
             }
         }
@@ -6094,6 +6097,9 @@ private fun TradeOrderSheet(
 }
 
 
+// 一根牙签的间距基准值
+private val TOOTHPICK = 6.dp
+
 /**
  * 下单列：上=实心圆按钮（圆内白字），下=浅灰底黑字标签；整体在列内水平居中。
  * 圆在标签正中间上方，列宽由外层 weight(1f) 均匀分配。
@@ -6128,18 +6134,21 @@ private fun OrderColumn(
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(Modifier.height(10.dp))
-        // 浅灰底 + 黑色文字标签
+        // 圆圈与标签之间：两根牙签
+        Spacer(Modifier.height(TOOTHPICK * 2))
+        // 浅灰底 + 黑色文字标签（固定高度：与圆圈同宽的标签，高度加倍）
         Box(
             modifier = Modifier
+                .fillMaxWidth()
+                .height(TOOTHPICK * 2 + 14.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFFF2F3F5))
-                .padding(horizontal = 14.dp, vertical = 5.dp)
+                .background(Color(0xFFF2F3F5)),
+            contentAlignment = Alignment.Center
         ) {
             Text(
                 text = labelText,
                 color = Color(0xFF000000),
-                fontSize = 12.sp,
+                fontSize = 15.sp,
                 maxLines = 1
             )
         }
