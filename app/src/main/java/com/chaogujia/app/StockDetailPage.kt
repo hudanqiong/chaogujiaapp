@@ -6007,14 +6007,14 @@ private fun TradeOrderSheet(
     var orderPickPriceLocal by remember { mutableStateOf(0.0) }
     // 第十轮需求(5)：上方要透出五档买卖盘并可点选，弹窗高度相应增大（约半屏）
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val sheetH = if (side == "buy" || side == "sell") screenH * 0.52f else screenH * 0.28f
+    val sheetH = if (side == "buy" || side == "sell") screenH * 0.30f else screenH * 0.28f
 
     ModalBottomSheet(
         // 第十轮需求④：点背景/下拖都不关，只有 ✕ 才能关
         onDismissRequest = { },
         sheetState = sheetState,
         // 第十轮需求⑤：上方容器透明，透出下层行情买卖盘
-        containerColor = Color.Transparent,
+        containerColor = Color.White,
         shape = RoundedCornerShape(8.dp),   // 小圆角：肉眼可辨即可
         dragHandle = null                   // 不要拖拽条
     ) {
@@ -6078,46 +6078,24 @@ private fun TradeOrderSheet(
                     modifier = Modifier.clickable { onDismiss() }
                 )
             }
-            // 第十轮需求(5)：弹窗上方透明区，渲染五档买卖盘（卖5->卖1 / 买1->买5）
-            // 点击任一行价格 -> 回填到下方价格编辑框（不穿透，属弹窗自身内容）
+            // 第十轮需求(5)：上方不填充颜色（透明），只保留一行极简提示；
+            // 不在这里重绘五档（行情页本身已有），避免弹窗被撑高。
             if (side == "buy" || side == "sell") {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp)
-                ) {
-                    val askRows = (4 downTo 0).map { asks.getOrNull(it) }
-                    val bidRows = (0 until 5).map { bids.getOrNull(it) }
-                    (askRows + bidRows).forEachIndexed { idx, lv ->
-                        val isAsk = idx < 5
-                        val label = if (isAsk) ("卖" + (5 - idx)) else ("买" + (idx - 4))
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    val pp = lv?.price ?: 0.0
-                                    if (pp > 0.0) {
-                                        orderPickPriceLocal = pp
-                                        onPickPrice(pp)
-                                    }
-                                }
-                                .padding(vertical = 1.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(label, color = TEXT_SUB, fontSize = 11.sp, modifier = Modifier.width(28.dp))
-                            Text(
-                                if ((lv?.price ?: 0.0) > 0.0) String.format(java.util.Locale.CHINA, "%.2f", lv!!.price) else "--",
-                                color = if (isAsk) Color(0xFF1AAE5A) else Color(0xFFE23B3B),
-                                fontSize = 11.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                if ((lv?.vol ?: 0.0) > 0.0) String.format(java.util.Locale.CHINA, "%.0f", lv!!.vol) else "--",
-                                color = TEXT_SUB,
-                                fontSize = 11.sp
-                            )
+                        .clickable {
+                            val pp = if (livePrice > 0.0) livePrice else 0.0
+                            if (pp > 0.0) { orderPickPriceLocal = pp; onPickPrice(pp) }
                         }
-                    }
+                        .padding(horizontal = 16.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (livePrice > 0.0) String.format(java.util.Locale.CHINA, "实时价 %.2f（点此填入）", livePrice) else "实时价 --",
+                        color = if (livePrice > 0.0) Color(0xFFE8A33D) else TEXT_SUB,
+                        fontSize = 11.sp
+                    )
                 }
             }
             if (side == "buy" || side == "sell") {
