@@ -1252,6 +1252,14 @@ object Api {
         // ---- 归一化代码 & 前缀 ----
         val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
         if (pure.isEmpty()) return AfterHours()
+        // 市场前缀：优先用调用方（detail.php 已按类型正确判定）传入的 market；
+        // 兜底按代码首位推断，覆盖 股票/ETF/LOF/基金/B股/指数 全类型：
+        //   沪：6(主板)/5(沪基金ETF)/9(沪B)/68(科创)  → sh
+        //   深：0(主板)/3(创业板)/1(深基金ETF/LOF)/2(深B)/15/16/18 → sz
+        // 市场前缀：优先用调用方（detail.php 已按类型正确判定）传入的 market；
+        // 兜底按代码首位推断，覆盖 股票/ETF/LOF/基金/B股/指数 全类型：
+        //   沪：6(主板)/5(沪基金ETF)/9(沪B)/68(科创) -> sh
+        //   深：0(主板)/3(创业板)/1(深基金ETF/LOF)/2(深B) -> sz
         val prefix = when {
             market == "sh" || market == "sz" || market == "bj" -> market
             pure.startsWith("6") || pure.startsWith("5") || pure.startsWith("9") -> "sh"

@@ -275,20 +275,6 @@ fun StockDetailPage(
         // 全市场均适用；仅当该股当日有盘后成交时显示。默认收起，点击展开分时图+分钟明细。
         AfterHoursBar(detail)
 
-        // ================= 标签栏 =================
-        PeriodTabs(period, onPick = { period = it; selK = null; cursorMin = CURSOR_NONE }, onGear = { showMaSetting = true })
-        // 分时信息条：仅在分时/五日视图显示，位于标签栏下方、分时价图上方；
-        // 与十字光标联动：光标在图上时显示该分钟时点值，抬手恢复最新值。
-        if (period == "minute" || period == "fiveday") {
-            val infoTrends = cleanMinuteTrends(detail?.trends ?: emptyList())
-            MinuteInfoBar(
-                trends = infoTrends,
-                preClose = detail?.base?.preClose ?: 0.0,
-                cursorMin = cursorMin
-            )
-        }
-        // 均线参数（父层持有，供 KLineChart 与图例共享）
-        if (period == "day" || period == "week" || period == "month") MaLegend(maPeriods, showChip = showChip, onToggleChip = { showChip = !showChip })
         if (showMaSetting) {
             MaSettingDialog(
                 initial = maPeriods,
@@ -326,6 +312,19 @@ fun StockDetailPage(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
+                // ================= 标签栏（跟随上滑）=================
+                PeriodTabs(period, onPick = { period = it; selK = null; cursorMin = CURSOR_NONE }, onGear = { showMaSetting = true })
+                // 分时信息条：仅分时/五日视图显示（跟随上滑）
+                if (period == "minute" || period == "fiveday") {
+                    val infoTrends = cleanMinuteTrends(detail?.trends ?: emptyList())
+                    MinuteInfoBar(
+                        trends = infoTrends,
+                        preClose = detail?.base?.preClose ?: 0.0,
+                        cursorMin = cursorMin
+                    )
+                }
+                // 均线图例（跟随上滑）
+                if (period == "day" || period == "week" || period == "month") MaLegend(maPeriods, showChip = showChip, onToggleChip = { showChip = !showChip })
                 // ---- 图表区（固定高度，下方预留其它功能模块）----
                 Box(
                     modifier = Modifier
@@ -5286,6 +5285,9 @@ private val AH_SLOTS = 25
  */
 @Composable
 private fun AfterHoursBar(detail: StockDetail?) {
+    // ---- 时间窗：仅 15:00-24:00 显示盘后固定价格交易整条内容 ----
+    val ahHour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    if (ahHour < 15) return
     val code = detail?.code ?: ""
     val market = detail?.market ?: ""
     // 盘后数据：随股票切换重新拉取
