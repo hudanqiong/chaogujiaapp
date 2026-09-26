@@ -246,7 +246,7 @@ fun StockDetailPage(
         if (nm.isNotEmpty()) onNameChange(nm)
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
@@ -254,13 +254,27 @@ fun StockDetailPage(
             .pointerInput(Unit) { detectTapGestures { /* 空白区：无操作，仅拦截 */ } }
     ) {
         // ================= 内容区：顶红条以下全部可上滑（内容从红条下方穿过被盖住）=================
+            // ================= 顶部红条（占布局，贴顶，不跟随上滑）=================
+            if (showOwnHeader) {
+                DetailHeaderBar(
+                    name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
+                    code = current?.code ?: "",
+                    canPrev = idx > 0,
+                    canNext = idx < list.size - 1,
+                    onBack = onClose,
+                    onPrev = { setIdx(idx - 1) },
+                    onNext = { setIdx(idx + 1) },
+                    onOpenSearch = onOpenSearch
+                )
+            } else {
+                Spacer(Modifier.fillMaxWidth().statusBarsPadding())
+            }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth().weight(1f)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ---- 顶部占位：避让浮在表层的顶红条 ----
-            Spacer(Modifier.height(D_BAR_HEIGHT).statusBarsPadding())
 
             // ================= 头部数据区 =================
             // selK：K线被选中的柱子下标（null=未选中，显示最新一天）
@@ -307,8 +321,7 @@ fun StockDetailPage(
                         }
                     }
                 }
-                // ---- 底部栏占位（防止滚动内容被铉底的底部栏遮挡）----
-            Spacer(Modifier.height(DETAIL_BAR_HEIGHT))
+
             // TODO: 后续功能模块追加在此处下方（自动跟随上滑）
         }
         if (showMaSetting) {
@@ -336,21 +349,7 @@ fun StockDetailPage(
                 }
             )
         }
-        // ================= 顶部红条（浮层，不跟随上滑）=================
-        if (showOwnHeader) {
-            Box(Modifier.align(Alignment.TopCenter).zIndex(2f)) {
-                DetailHeaderBar(
-                    name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
-                    code = current?.code ?: "",
-                    canPrev = idx > 0,
-                    canNext = idx < list.size - 1,
-                    onBack = onClose,
-                    onPrev = { setIdx(idx - 1) },
-                    onNext = { setIdx(idx + 1) },
-                    onOpenSearch = onOpenSearch
-                )
-            }
-        }
+
         // ---- 底部功能栏：钉在屏幕最底，不跟随上滑 ----
         DetailBottomBar(
                 concept = concept,
@@ -369,8 +368,6 @@ fun StockDetailPage(
                 },
                 onMore = { /* TODO 功能菜单 */ },
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .zIndex(2f)
             )
     }
     }
@@ -1955,7 +1952,6 @@ private fun BigOrderRow(b: BigOrder, rowHeight: Dp) {
     }
 }
 
-
 /** 五档单行：左标签 + 中价格 + 右手数 */
 @Composable
 private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAsk: Boolean, showAmount: Boolean = false, rowHeight: Dp = ORDERBOOK_TOP_HEIGHT / 10) {
@@ -2404,7 +2400,6 @@ private fun MinutePriceCanvas(
         }
         drawPath(path, priceColor, style = Stroke(width = 3.0f))
 
-
         // ===== 均价线（黄色，随累计均价）=====
         val avgPath = Path()
         var started = false
@@ -2481,7 +2476,6 @@ private fun MinutePriceCanvas(
         }
     }
 }
-
 
 // ============================================================
 // 分时指标计算（纯前端自算）
@@ -3236,7 +3230,6 @@ private fun computeMACD(line: List<KLinePoint>): MacdResult {
     return MacdResult(dif, dea, macd)
 }
 
-
 // ============================================================
 // 副图指标算法（全部基于「全量」line，递归/平滑与历史一致；绘制时再切片）
 // ============================================================
@@ -3521,7 +3514,6 @@ private fun KLineChart(
         visible = K_DEFAULT_VISIBLE.coerceIn(K_MIN_VISIBLE, line.size.coerceAtLeast(1))
         rightIndex = line.lastIndex
     }
-
 
     // 取当前窗口数据
     val n = visible.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
