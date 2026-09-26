@@ -6028,9 +6028,10 @@ private fun TradeOrderSheet(
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     // H1 修复：0.62 过高（超出个股详情页下单弹窗原高度），回调至 0.52；表单已可滚动，按钮仍可达
     // H2：弹窗底边贴屏幕最底、盖住底部固定栏（zIndex 10 > BottomBar 2），关窗后 BottomBar 自然还原
-    // H3：两个弹窗高度统一（买卖撤态与表单态同高）。买卖撤态要让"买/卖/撤"标签完整可见，
-    // 表单态原 0.52 过高，统一到 0.52（表单已可滚动，按钮仍可达）
-    val sheetH = screenH * 0.52f
+    // H4：两个弹窗高度统一到【矮的那个】(买卖撤入口原高 0.36)，即把表单态从 0.52 压到 0.36
+    val sheetH = screenH * 0.36f
+    // H4：系统导航栏（虚拟按键）高度——标签行要坐在它上方，避免被虚拟按键挡住
+    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     // 第十轮需求⑤(A2)：改为自定义底部覆盖层——上方完全不绘制，可点穿到分时页五档
     // H2：zIndex(10) 高于底部固定栏(2)，保证弹窗盖住底部那排固定按钮；关窗后 BottomBar 自然还原
@@ -6129,7 +6130,7 @@ private fun TradeOrderSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = 72.dp),
+                    .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = navInset + 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OrderColumn(R.drawable.ic_trade_buy, "去交易下单", Modifier.weight(1f)) { onBuy() }
