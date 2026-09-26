@@ -8,15 +8,17 @@ import org.json.JSONObject
  *  code==0 表示成功。
  */
 
-/** 账户信息（account.php） */
+/** 账户信息（account.php，按 broker_account_id 隔离） */
 data class AccountInfo(
-    val cash: Double = 0.0,
-    val marketValue: Double = 0.0,
-    val total: Double = 0.0,
-    val floatPn: Double = 0.0,
-    val totalPn: Double = 0.0,
-    val totalPnPct: Double = 0.0,
-    val initial: Double = 0.0
+    val cash: Double = 0.0,          // 现金余额
+    val available: Double = 0.0,     // 可用资金 = 现金 - 冻结
+    val frozen: Double = 0.0,        // 冻结资金（挂单占用）
+    val marketValue: Double = 0.0,   // 持仓市值
+    val total: Double = 0.0,         // 总资产
+    val floatPn: Double = 0.0,       // 浮动盈亏
+    val totalPn: Double = 0.0,       // 总盈亏
+    val totalPnPct: Double = 0.0,    // 总盈亏率 %
+    val initial: Double = 0.0        // 初始资金
 )
 
 /** 持仓明细（positions.php 的 data[]） */
@@ -30,7 +32,9 @@ data class PositionItem(
     val pnl: Double = 0.0,
     val pnlPct: Double = 0.0
 )
-/** 下单结果（buy.php / sell.php 的 data） */
+/** 下单结果（buy.php / sell.php 的 data）
+ *  quick（方式A）：立即成交，字段 price/quantity/amount/commission/settle
+ *  limit（方式B）：挂单，字段 orderId/status/mode/price/quantity/frozen */
 data class TradeResult(
     val ok: Boolean = false,
     val msg: String = "",
@@ -39,7 +43,15 @@ data class TradeResult(
     val amount: Double = 0.0,
     val commission: Double = 0.0,
     /** 买入：总支出；卖出：净收入 */
-    val settle: Double = 0.0
+    val settle: Double = 0.0,
+    /** 挂单模式返回：订单号 */
+    val orderId: Int = 0,
+    /** 挂单模式返回：filled / pending */
+    val status: String = "",
+    /** quick / limit */
+    val mode: String = "",
+    /** 挂单冻结金额（买入） */
+    val frozen: Double = 0.0
 )
 /** 交易记录（trades.php 的 data[]） */
 data class TradeRecord(
@@ -53,6 +65,25 @@ data class TradeRecord(
     val commission: Double = 0.0,
     val time: String = ""
 )
+/** 挂单/委托单（order_list.php 的 data[]） */
+data class OrderItem(
+    val id: Int = 0,
+    val accountId: Int = 0,
+    val code: String = "",
+    val name: String = "",
+    /** buy / sell */
+    val type: String = "",
+    /** 1=买入 2=卖出 */
+    val direction: Int = 0,
+    val price: Double = 0.0,
+    val quantity: Int = 0,
+    val frozen: Double = 0.0,
+    /** pending / filled / cancelled / failed */
+    val status: String = "",
+    val filledPrice: Double = 0.0,
+    val time: String = ""
+)
+
 /** 会员套餐（member.php 的 plans[]） */
 data class MemberPlan(
     val name: String = "",
@@ -104,13 +135,20 @@ data class Broker(
     val name: String = "",
     val key: String = ""
 )
-/** 我的券商账户（多账户：id 为后端主键，key 用于映射 drawable/broker_<key>.png） */
+/** 我的券商账户（多账户：id 为后端主键，key 用于映射 drawable/broker_<key>.png）
+ *  cash/frozen/initial 为后端 broker.php list 随行返回的资金字段 */
 data class MyBroker(
     val id: Int = 0,
     val broker: String = "",
     val account: String = "",
-    val key: String = ""
-)
+    val key: String = "",
+    val cash: Double = 0.0,
+    val frozen: Double = 0.0,
+    val initial: Double = 0.0
+) {
+    /** 可用资金 = 现金 - 冻结 */
+    val available: Double get() = cash - frozen
+}
 /** 自选分组（watch_group.php） */
 data class WatchGroup(
     val id: Int = 0,
@@ -629,10 +667,10 @@ object Api {
         }
     }
 
-    /** 拉取持仓列表（positions.php） */
-    fun positions(token: String?): List<PositionItem> {
+    /** 拉取持仓列表（positions.php ?broker_account_id=） */
+    fun positions(token: String?, brokerAccountId: Int): List<PositionItem> {
         return try {
-            val raw = Net.get(base("positions.php"), token)
+            val raw = Net.get(base("positions.php?broker_account_id=$brokerAccountId"), token)
             val o = JSONObject(raw)
             if (o.optInt("code", -1) != 0) return emptyList()
             val arr = o.optJSONArray("data") ?: return emptyList()
@@ -657,12 +695,30 @@ object Api {
             emptyList()
         }
     }
-    /** 买入（buy.php），body {code,name,quantity} */
-    fun buy(token: String?, code: String, name: String, quantity: Int): TradeResult {
+    /** 买入（buy.php）
+     *  mode=quick（方式A）：手填价即时成交，必传 price
+     *  mode=limit（方式B）：按价挂单，命中即成交
+     *  body {broker_account_id,code,name,quantity,mode,price} */
+    fun buy(
+        token: String?,
+        brokerAccountId: Int,
+        code: String,
+        name: String,
+        quantity: Int,
+        mode: String = "quick",
+        price: Double = 0.0
+    ): TradeResult {
         return try {
             val raw = Net.postJson(
                 base("buy.php"),
-                jsonOf("code" to code, "name" to name, "quantity" to quantity),
+                jsonOf(
+                    "broker_account_id" to brokerAccountId,
+                    "code" to code,
+                    "name" to name,
+                    "quantity" to quantity,
+                    "mode" to mode,
+                    "price" to price
+                ),
                 token
             )
             val o = JSONObject(raw)
@@ -674,18 +730,38 @@ object Api {
                 quantity = d?.optInt("quantity", 0) ?: 0,
                 amount = d?.optDouble("amount", 0.0) ?: 0.0,
                 commission = d?.optDouble("commission", 0.0) ?: 0.0,
-                settle = d?.optDouble("totalCost", 0.0) ?: 0.0
+                settle = d?.optDouble("totalCost", 0.0) ?: 0.0,
+                orderId = d?.optInt("orderId", 0) ?: 0,
+                status = d?.optString("status", "") ?: "",
+                mode = d?.optString("mode", mode) ?: mode,
+                frozen = d?.optDouble("frozen", 0.0) ?: 0.0
             )
         } catch (e: Exception) {
             TradeResult(false, e.message ?: "网络异常")
         }
     }
-    /** 卖出（sell.php），body {code,quantity} */
-    fun sell(token: String?, code: String, quantity: Int): TradeResult {
+    /** 卖出（sell.php）
+     *  mode=quick（方式A）：手填价即时成交，必传 price
+     *  mode=limit（方式B）：按价挂单（不冻结资金，成交时二次校验持仓）
+     *  body {broker_account_id,code,quantity,mode,price} */
+    fun sell(
+        token: String?,
+        brokerAccountId: Int,
+        code: String,
+        quantity: Int,
+        mode: String = "quick",
+        price: Double = 0.0
+    ): TradeResult {
         return try {
             val raw = Net.postJson(
                 base("sell.php"),
-                jsonOf("code" to code, "quantity" to quantity),
+                jsonOf(
+                    "broker_account_id" to brokerAccountId,
+                    "code" to code,
+                    "quantity" to quantity,
+                    "mode" to mode,
+                    "price" to price
+                ),
                 token
             )
             val o = JSONObject(raw)
@@ -697,16 +773,19 @@ object Api {
                 quantity = d?.optInt("quantity", 0) ?: 0,
                 amount = d?.optDouble("amount", 0.0) ?: 0.0,
                 commission = d?.optDouble("commission", 0.0) ?: 0.0,
-                settle = d?.optDouble("netIncome", 0.0) ?: 0.0
+                settle = d?.optDouble("netIncome", 0.0) ?: 0.0,
+                orderId = d?.optInt("orderId", 0) ?: 0,
+                status = d?.optString("status", "") ?: "",
+                mode = d?.optString("mode", mode) ?: mode
             )
         } catch (e: Exception) {
             TradeResult(false, e.message ?: "网络异常")
         }
     }
-    /** 交易记录（trades.php） */
-    fun trades(token: String?): List<TradeRecord> {
+    /** 交易记录（trades.php ?broker_account_id=） */
+    fun trades(token: String?, brokerAccountId: Int): List<TradeRecord> {
         return try {
-            val raw = Net.get(base("trades.php"), token)
+            val raw = Net.get(base("trades.php?broker_account_id=$brokerAccountId"), token)
             val o = JSONObject(raw)
             if (o.optInt("code", -1) != 0) return emptyList()
             val arr = o.optJSONArray("data") ?: return emptyList()
@@ -731,12 +810,14 @@ object Api {
             emptyList()
         }
     }
-    /** 拉取账户信息 */
-    fun account(token: String?): AccountInfo {
-        val raw = Net.get(base("account.php"), token)
+    /** 拉取账户信息（account.php ?broker_account_id=） */
+    fun account(token: String?, brokerAccountId: Int): AccountInfo {
+        val raw = Net.get(base("account.php?broker_account_id=$brokerAccountId"), token)
         val d = dataOf(raw) ?: return AccountInfo()
         return AccountInfo(
             cash = d.optDouble("cash", 0.0),
+            available = d.optDouble("available", 0.0),
+            frozen = d.optDouble("frozen", 0.0),
             marketValue = d.optDouble("marketValue", 0.0),
             total = d.optDouble("total", 0.0),
             floatPn = d.optDouble("floatPnl", 0.0),
@@ -746,9 +827,59 @@ object Api {
         )
     }
 
-    /** 设置初始资金 */
-    fun setInitial(token: String?, amount: Double): Res =
-        post("account.php", token, "action" to "set_balance", "initial" to amount)
+    /** 设置初始资金（account.php action=set_balance，按账户） */
+    fun setInitial(token: String?, brokerAccountId: Int, amount: Double): Res =
+        post(
+            "account.php", token,
+            "action" to "set_balance",
+            "broker_account_id" to brokerAccountId,
+            "initial" to amount
+        )
+
+    /** 挂单列表（order_list.php）
+     *  status 默认 pending；传 "all" 取全部 */
+    fun orderList(
+        token: String?,
+        brokerAccountId: Int,
+        code: String = "",
+        status: String = "pending"
+    ): List<OrderItem> {
+        return try {
+            var url = "order_list.php?broker_account_id=$brokerAccountId&status=$status"
+            if (code.isNotEmpty()) url += "&code=$code"
+            val raw = Net.get(base(url), token)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<OrderItem>()
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                list.add(
+                    OrderItem(
+                        id = p.optInt("id", 0),
+                        accountId = p.optInt("accountId", 0),
+                        code = p.optString("code", ""),
+                        name = p.optString("name", ""),
+                        type = p.optString("type", ""),
+                        direction = p.optInt("direction", 0),
+                        price = p.optDouble("price", 0.0),
+                        quantity = p.optInt("quantity", 0),
+                        frozen = p.optDouble("frozen", 0.0),
+                        status = p.optString("status", ""),
+                        filledPrice = p.optDouble("filledPrice", 0.0),
+                        time = p.optString("time", "")
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 撤单（order_cancel.php，body {order_id}） */
+    fun orderCancel(token: String?, orderId: Int): Res =
+        post("order_cancel.php", token, "order_id" to orderId)
 
     /** 拉取会员信息 */
     fun member(token: String?): MemberInfo {
@@ -911,7 +1042,10 @@ object Api {
                         id = j.optInt("id", 0),
                         broker = bname,
                         account = j.optString("account_no", ""),
-                        key = keyOfBroker(bname)
+                        key = keyOfBroker(bname),
+                        cash = j.optDouble("cash", 0.0),
+                        frozen = j.optDouble("frozen", 0.0),
+                        initial = j.optDouble("initial", 0.0)
                     )
                 )
             }
@@ -921,9 +1055,19 @@ object Api {
         }
     }
 
-    /** 新增券商账户（action=add） */
-    fun addBroker(token: String?, broker: String, account: String): Res =
-        post("broker.php", token, "action" to "add", "broker" to broker, "account_no" to account)
+    /** 新增券商账户（action=add，可自设初始资金 initial） */
+    fun addBroker(
+        token: String?,
+        broker: String,
+        account: String,
+        initial: Double = 1_000_000.0
+    ): Res = post(
+        "broker.php", token,
+        "action" to "add",
+        "broker" to broker,
+        "account_no" to account,
+        "initial" to initial
+    )
 
     /** 删除券商账户（action=delete，按 id） */
     fun delBroker(token: String?, id: Int): Res =

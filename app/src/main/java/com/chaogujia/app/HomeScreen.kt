@@ -38,10 +38,14 @@ fun HomeScreen(
     var member by remember { mutableStateOf(MemberInfo()) }
     var points by remember { mutableStateOf(0) }
     var subPage by remember { mutableStateOf<String?>(null) }
+    // 首页资产卡取「默认券商账户」= 列表第一个；下拉切换在交易页
+    var brokerAccountId by remember { mutableStateOf(0) }
 
     LaunchedEffect(token) {
         try {
-            val a = withContext(Dispatchers.IO) { Api.account(token) }
+            val brokers = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            if (brokerAccountId == 0) brokerAccountId = brokers.firstOrNull()?.id ?: 0
+            val a = withContext(Dispatchers.IO) { Api.account(token, brokerAccountId) }
             val m = withContext(Dispatchers.IO) { Api.member(token) }
             val p = withContext(Dispatchers.IO) { Api.point(token) }
             account = a
@@ -60,6 +64,7 @@ fun HomeScreen(
             account = account,
             member = member,
             points = points,
+            brokerAccountId = brokerAccountId,
             onBack = { subPage = null },
             onRefreshMember = { member = it; onMemberChanged(it) },
             onLogout = onLogout

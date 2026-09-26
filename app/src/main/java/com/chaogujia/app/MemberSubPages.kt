@@ -30,12 +30,13 @@ fun SubPage(
     account: AccountInfo,
     member: MemberInfo,
     points: Int,
+    brokerAccountId: Int = 0,
     onBack: () -> Unit,
     onRefreshMember: (MemberInfo) -> Unit,
     onLogout: () -> Unit
 ) {
     when (key) {
-        "initial" -> PageInitial(token, account, onBack)
+        "initial" -> PageInitial(token, brokerAccountId, account, onBack)
         "points" -> PagePoints(token, points, onBack)
         "invite" -> PageInvite(token, onBack)
         "exchange" -> PageExchange(token, member, onBack, onRefreshMember)
@@ -112,7 +113,7 @@ fun BigBtn(text: String, onClick: () -> Unit) {
 
 // ===== 1. 初始资金 =====
 @Composable
-private fun PageInitial(token: String?, account: AccountInfo, onBack: () -> Unit) {
+private fun PageInitial(token: String?, brokerAccountId: Int, account: AccountInfo, onBack: () -> Unit) {
     var txt by remember { mutableStateOf(account.initial.toInt().toString()) }
     var msg by remember { mutableStateOf("") }
     SubShell("设置初始资金", onBack) {
@@ -127,7 +128,7 @@ private fun PageInitial(token: String?, account: AccountInfo, onBack: () -> Unit
                     if (v == null || v < 0) { msg = "请输入正确的金额" }
                     else {
                         Thread {
-                            val r = Api.setInitial(token, v)
+                            val r = Api.setInitial(token, brokerAccountId, v)
                             msg = if (r.ok) "设置成功" else "失败：${r.msg}"
                         }.start()
                     }
