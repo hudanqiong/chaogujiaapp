@@ -6133,11 +6133,11 @@ private fun TradeOrderSheet(
                     .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = navInset + 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
+                OrderColumn("买", Color(0xFFFA0000), "去交易下单", Modifier.weight(1f)) { onBuy() }
                 Spacer(Modifier.width(TOOTHPICK))
-                OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
+                OrderColumn("卖", Color(0xFF008AFF), "双向下单", Modifier.weight(1f)) { onSell() }
                 Spacer(Modifier.width(TOOTHPICK))
-                OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
+                OrderColumn("撤", Color(0xFF5A607A), "条件单", Modifier.weight(1f)) { onCancelOrder() }
             }
             }
         }
@@ -6304,7 +6304,7 @@ private fun OrderFormBlock(
     onDone: (TradeResult) -> Unit
 ) {
     val isBuy = side == "buy"
-    val sideColor = if (isBuy) Color(0xFFE23B3B) else Color(0xFF2A7BFF)
+    val sideColor = if (isBuy) Color(0xFFFA0000) else Color(0xFF008AFF)
     val sideText = if (isBuy) "买入" else "卖出"
     // 更淡的红色填充（加减按钮底色）——第十轮再调淡
     val redFill = Color(0x0DE23B3B)
@@ -6545,7 +6545,7 @@ private fun OrderFormBlock(
                     .weight(1f)
                     .height(46.dp)
                     .clip(RectangleShape)
-                    .background(if (busy) Color(0xFFBBBBBB) else sideColor)
+                    .background(if (busy) sideColor.copy(alpha = 0.45f) else if (canSubmit) sideColor else sideColor.copy(alpha = 0.45f))
                     .clickable(enabled = canSubmit && !busy) { submit() },
                 contentAlignment = Alignment.Center
             ) {
@@ -6555,14 +6555,6 @@ private fun OrderFormBlock(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                // 禁用时盖一层半透明白
-                if (!canSubmit && !busy) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(Color.White.copy(alpha = 0.55f))
-                    )
-                }
             }
         }
     }
