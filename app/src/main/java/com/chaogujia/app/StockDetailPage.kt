@@ -253,9 +253,8 @@ fun StockDetailPage(
             // detail-overlay-swallow：吞掉自身空白区点击，阻止穿透到下层 IndexBar 触发「编辑表头」
             .pointerInput(Unit) { detectTapGestures { /* 空白区：无操作，仅拦截 */ } }
     ) {
-        // ================= 内容区：顶红条以下全部可上滑（内容从红条下方穿过被盖住）=================
-            // ================= 顶部红条（占布局，贴顶，不跟随上滑）=================
-            if (showOwnHeader) {
+        // ================= 顶部红条（占布局，贴顶，不随上滑；红底覆盖到状态栏）=================
+        if (showOwnHeader) {
                 DetailHeaderBar(
                     name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
                     code = current?.code ?: "",
@@ -393,7 +392,6 @@ private fun DetailHeaderBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(D_BAR_HEIGHT)
             .background(
                 Brush.verticalGradient(
                     listOf(Color(Config.COLOR_PRIMARY), Color(0xFFD0202A))
@@ -402,6 +400,10 @@ private fun DetailHeaderBar(
             .statusBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
+      Box(
+        modifier = Modifier.fillMaxWidth().height(D_BAR_HEIGHT),
+        contentAlignment = Alignment.Center
+      ) {
         // 左侧：返回箭头
         Text(
             text = "←",
@@ -480,6 +482,7 @@ private fun DetailHeaderBar(
                 contentScale = ContentScale.FillBounds
             )
         }
+      }
     }
 }
 
