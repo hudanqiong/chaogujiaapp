@@ -5401,8 +5401,6 @@ private fun ahSlotOf(hhmm: String): Int {
     return (h * 60 + m) - (15 * 60 + 6)
 }
 
-// ---- 盘后分时：价图（自绘 + 十字手势）----
-@Composable
 // ---- 盘后分时：价图（自绘，X 连续光标）----
 @Composable
 private fun AhPriceChart(
@@ -5429,7 +5427,7 @@ private fun AhPriceChart(
         val pc = preClose.toFloat()
         var maxDev = 0f
         for (m in minutes) {
-            val d = abs(m.price - pc)
+            val d = abs(m.price.toFloat() - pc)
             if (d > maxDev) maxDev = d
         }
         if (maxDev <= 0f) maxDev = pc * 0.01f
@@ -5445,7 +5443,7 @@ private fun AhPriceChart(
             val s = ahSlotOf(m.time)
             if (s < 0) continue
             val x = (s + 0.5f) / slots * w
-            val y = cx - (m.price - pc) / maxDev * half
+            val y = cx - (m.price.toFloat() - pc) / maxDev * half
             pts.add(Offset(x, y))
         }
         if (pts.size >= 2) {
@@ -5670,7 +5668,7 @@ private fun AhRightPanel(
             )
         }
         Spacer(Modifier.height(2.dp))
-        HorizontalDivider(color = LINE_GRID, thickness = 1.dp)
+        androidx.compose.material3.HorizontalDivider(color = LINE_GRID, thickness = 1.dp)
         AhDealList(minutes = minutes, selectedIdx = selectedIdx, modifier = Modifier.weight(1f).fillMaxWidth())
     }
 }
