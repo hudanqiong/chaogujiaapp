@@ -5555,25 +5555,26 @@ private fun AhExpanded(d: AfterHours, preClose: Double, code: String, market: St
     }
 
     Row(modifier = Modifier.fillMaxWidth()) {
-        // 左侧：盘后分时（价图 + 量图 + 时间轴）
+        // 左侧：盘后分时（价图 + 时间轴 + 量图）
         // 注意：此处不能依赖 weight 撑高——父 Column 高度是 wrap_content，
         // weight 会失效并让 Canvas.fillMaxSize 撑到无限高，把底部固定价交易按钮顶出屏幕。
-        // 因此左列整体给定固定高 = 价图 + 量图 + 时间轴（AH_PRICE_H + AH_VOL_H + AH_TIME_H），
+        // 因此左列整体给定固定高 = 价图 + 时间轴 + 量图（AH_PRICE_H + AH_TIME_H + AH_VOL_H），
         // 与右侧 AhRightPanel 高度一致，保证左右两列上下对齐、一样高。
+        // 时间轴夹在价图与量图之间。
         Column(modifier = Modifier.weight(1f - ORDERBOOK_RATIO)) {
-            Box(modifier = Modifier.fillMaxWidth().height(AH_PRICE_H + AH_VOL_H)) {
+            Box(modifier = Modifier.fillMaxWidth().height(AH_PRICE_H + AH_TIME_H + AH_VOL_H)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     AhPriceChart(minutes, preClose, cursorX, modifier = Modifier.fillMaxWidth().height(AH_PRICE_H))
+                    AhTimeAxis(modifier = Modifier.fillMaxWidth().height(AH_TIME_H))
                     AhVolChart(minutes, preClose, cursorX, modifier = Modifier.fillMaxWidth().height(AH_VOL_H))
                 }
-                // 手势层：X 连续拖动，轻点清除（不拦截右侧明细的滑动）
+                // 手势层：X 连续拖动，轻点清除（覆盖价图/时间轴/量图整体，不拦截右侧明细的滑动）
                 AhCursorGesture(
                     onCursor = { cursorX = it },
                     onClear = { cursorX = -1f },
                     modifier = Modifier.matchParentSize(),
                 )
             }
-            AhTimeAxis(modifier = Modifier.fillMaxWidth().height(AH_TIME_H))
         }
         // 右侧：卖一/买一 + 交易明细，高度与左侧价+量+时间轴平齐，明细区可上下滑动
         AhRightPanel(
