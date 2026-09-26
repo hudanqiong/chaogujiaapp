@@ -184,7 +184,8 @@ fun ChaoGuJiaApp() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFF5F5F5))
-                    .navigationBarsPadding()
+                    // 普通页 decorFits=true，系统已将 Scaffold 裁到导航栏之上；
+                    // 若此处再加 navigationBarsPadding() 会双重避让，导致从详情页返回后底栏被顶高
             ) {
                 tabs.forEach { t ->
                     val selected = current == t.key
