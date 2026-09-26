@@ -260,18 +260,18 @@ private fun ActionBarRow() {
                     },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                Image(
+                    painter = painterResource(icon),
+                    contentDescription = label,
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = label,
                     color = Color(Config.COLOR_TEXT_MAIN),
                     fontSize = 12.sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(6.dp))
-                Image(
-                    painter = painterResource(icon),
-                    contentDescription = label,
-                    modifier = Modifier.size(30.dp)
                 )
             }
         }
