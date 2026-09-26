@@ -18,6 +18,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -6307,9 +6308,9 @@ private fun OrderFormBlock(
             // 跌停：标签黑字，价格绿字；浅灰边框白底
             Box(
                 modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .clip(RectangleShape)
                     .background(Color.White)
-                    .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+                    .border(1.dp, grayBorder, RectangleShape)
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -6322,9 +6323,9 @@ private fun OrderFormBlock(
             // 涨停：标签黑字，价格红字；浅灰边框白底
             Box(
                 modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .clip(RectangleShape)
                     .background(Color.White)
-                    .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+                    .border(1.dp, grayBorder, RectangleShape)
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -6351,9 +6352,9 @@ private fun OrderFormBlock(
         ) {
             Box(
                 modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .clip(RectangleShape)
                     .background(Color.White)
-                    .border(1.dp, sideColor, androidx.compose.foundation.shape.RectangleShape)
+                    .border(1.dp, sideColor, RectangleShape)
                     .clickable {
                         val p = priceText.trim().toDoubleOrNull() ?: 0.0
                         if (p > 0.0) {
@@ -6415,9 +6416,9 @@ private fun OrderFormBlock(
             Box(
                 modifier = Modifier
                     .size(46.dp)
-                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .clip(RectangleShape)
                     .background(Color.White)
-                    .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+                    .border(1.dp, grayBorder, RectangleShape)
                     .clickable {
                         // 下单设置（暂未接）
                     },
@@ -6436,7 +6437,7 @@ private fun OrderFormBlock(
                 modifier = Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .clip(androidx.compose.foundation.shape.RectangleShape)
+                    .clip(RectangleShape)
                     .background(if (busy) Color(0xFFBBBBBB) else sideColor)
                     .clickable(enabled = canSubmit && !busy) { submit() },
                 contentAlignment = Alignment.Center
@@ -6483,9 +6484,9 @@ private fun ConnectStepper(
     Row(
         modifier = modifier
             .height(40.dp)
-            .clip(androidx.compose.foundation.shape.RectangleShape)
+            .clip(RectangleShape)
             .background(Color.White)
-            .border(1.dp, borderColor, androidx.compose.foundation.shape.RectangleShape),
+            .border(1.dp, borderColor, RectangleShape),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 减号方块：按下瞬红，松手恢复
@@ -6585,9 +6586,9 @@ private fun QuickPosButton(
 ) {
     Box(
         modifier = Modifier
-            .clip(androidx.compose.foundation.shape.RectangleShape)
+            .clip(RectangleShape)
             .background(Color.White)
-            .border(1.dp, grayBorder, androidx.compose.foundation.shape.RectangleShape)
+            .border(1.dp, grayBorder, RectangleShape)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
