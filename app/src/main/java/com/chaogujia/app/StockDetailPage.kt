@@ -6191,6 +6191,9 @@ private fun OrderColumn(
 // ============================================================
 // 下单表单块（买入/卖出）：与下单弹窗同款外观，内容为具体下单项
 // side = "buy" | "sell"
+// 布局：顶行(名称+代码) → 价格减/编辑/加 连体框 + 手数减/编辑/加 连体框
+//       → 跌停/涨停/可买/按金额买入 一行 → 快捷仓位 1/2 1/3 1/4 2/3
+//       → 底部红色长按钮（左齿轮 + 买入/卖出）
 // ============================================================
 @Composable
 private fun OrderFormBlock(
@@ -6207,11 +6210,20 @@ private fun OrderFormBlock(
     val isBuy = side == "buy"
     val sideColor = if (isBuy) Color(0xFFE23B3B) else Color(0xFF2A7BFF)
     val sideText = if (isBuy) "买入" else "卖出"
+    // 淡红填充（加减按钮底色）与纯红（按下反馈底色）
+    val redFill = Color(0x33E23B3B)
+    val redSolid = Color(0xFFE23B3B)
+    val greenText = Color(0xFF1AAE5A)
     var qtyText by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
     var mode by remember { mutableStateOf("quick") }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
+    // 每个加减按钮的按下瞬时反馈
+    var priceMinusPressed by remember { mutableStateOf(false) }
+    var pricePlusPressed by remember { mutableStateOf(false) }
+    var qtyMinusPressed by remember { mutableStateOf(false) }
+    var qtyPlusPressed by remember { mutableStateOf(false) }
     val qty = qtyText.trim().toIntOrNull() ?: 0
     val price = priceText.trim().toDoubleOrNull() ?: 0.0
     fun submit() {
@@ -6233,11 +6245,11 @@ private fun OrderFormBlock(
         }
     }
     Column(modifier = Modifier.fillMaxWidth()) {
-        // 股票名 + 代码 + 方向
+        // 顶行：名称 + 代码 + 方向标签 + 可用/可卖
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -6264,116 +6276,305 @@ private fun OrderFormBlock(
                 fontSize = 12.sp
             )
         }
-        Spacer(Modifier.height(8.dp))
-        // 数量
+        Spacer(Modifier.height(10.dp))
+        // 两个连体编辑框：左价格，右手数
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("数量", color = TEXT_SUB, fontSize = 13.sp, modifier = Modifier.width(44.dp))
-            androidx.compose.foundation.text.BasicTextField(
-                value = qtyText,
-                onValueChange = { qtyText = it.filter { ch -> ch.isDigit() } },
-                singleLine = true,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                textStyle = androidx.compose.ui.text.TextStyle(color = TEXT_MAIN, fontSize = 14.sp),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        if (qtyText.isEmpty()) Text("100 的整数倍", color = TEXT_SUB, fontSize = 14.sp)
-                        inner()
-                    }
-                }
-            )
-        }
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFFEEEEEE)))
-        // 价格
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("价格", color = TEXT_SUB, fontSize = 13.sp, modifier = Modifier.width(44.dp))
-            androidx.compose.foundation.text.BasicTextField(
+            ConnectStepper(
                 value = priceText,
+                placeholder = "价格",
+                isDecimal = true,
                 onValueChange = { priceText = it },
-                singleLine = true,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
-                textStyle = androidx.compose.ui.text.TextStyle(color = TEXT_MAIN, fontSize = 14.sp),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                        if (priceText.isEmpty()) Text("委托价", color = TEXT_SUB, fontSize = 14.sp)
-                        inner()
+                minusPressed = priceMinusPressed,
+                plusPressed = pricePlusPressed,
+                onMinus = {
+                    priceMinusPressed = true
+                    val v = priceText.trim().toDoubleOrNull() ?: 0.0
+                    val nv = if (v <= 0.01) 0.0 else (v - 0.01)
+                    priceText = if (nv <= 0.0) "" else String.format(java.util.Locale.CHINA, "%.2f", nv)
+                },
+                onPlus = {
+                    pricePlusPressed = true
+                    val v = priceText.trim().toDoubleOrNull() ?: 0.0
+                    priceText = String.format(java.util.Locale.CHINA, "%.2f", v + 0.01)
+                },
+                onMinusRelease = { priceMinusPressed = false },
+                onPlusRelease = { pricePlusPressed = false },
+                redFill = redFill,
+                redSolid = redSolid,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(Modifier.width(12.dp))
+            ConnectStepper(
+                value = qtyText,
+                placeholder = "手数",
+                isDecimal = false,
+                onValueChange = { qtyText = it },
+                minusPressed = qtyMinusPressed,
+                plusPressed = qtyPlusPressed,
+                onMinus = {
+                    qtyMinusPressed = true
+                    val v = qtyText.trim().toIntOrNull() ?: 0
+                    val nv = v - 100
+                    qtyText = if (nv <= 0) "" else nv.toString()
+                },
+                onPlus = {
+                    qtyPlusPressed = true
+                    val v = qtyText.trim().toIntOrNull() ?: 0
+                    qtyText = (v + 100).toString()
+                },
+                onMinusRelease = { qtyMinusPressed = false },
+                onPlusRelease = { qtyPlusPressed = false },
+                redFill = redFill,
+                redSolid = redSolid,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        // 跌停 / 涨停 / 可买多少股 / 按金额买入 —— 四个一行水平对齐
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("跌停", color = greenText, fontSize = 12.sp)
+            Spacer(Modifier.width(4.dp))
+            Text("--", color = greenText, fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text("涨停", color = sideColor, fontSize = 12.sp)
+            Spacer(Modifier.width(4.dp))
+            Text("--", color = sideColor, fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "可买 " + (if (price > 0.0) (availableCash / price / 100.0).toInt() * 100 else 0) + " 股",
+                color = TEXT_SUB,
+                fontSize = 12.sp
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "按金额买入",
+                color = sideColor,
+                fontSize = 12.sp,
+                modifier = Modifier.clickable {
+                    // 按金额买入：以可用资金按当前价折算最大手数（预留）
+                    val p = priceText.trim().toDoubleOrNull() ?: 0.0
+                    if (p > 0.0) {
+                        val maxQty = (availableCash / p / 100.0).toInt() * 100
+                        if (maxQty > 0) qtyText = maxQty.toString()
                     }
                 }
             )
         }
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFFEEEEEE)))
-        // 方式选择
+        Spacer(Modifier.height(12.dp))
+        // 快捷仓位
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(if (mode == "quick") sideColor else Color.Transparent)
-                    .clickable { mode = "quick" },
-                contentAlignment = Alignment.Center
-            ) {
-                if (mode == "quick") Text("✓", color = Color.White, fontSize = 12.sp)
-                else Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFDDDDDD)))
+            val posList = listOf("1/2", "1/3", "1/4", "2/3")
+            posList.forEachIndexed { idx, p ->
+                QuickPosButton(label = p, redFill = redFill, redSolid = redSolid) {
+                    val frac = when (p) {
+                        "1/2" -> 0.5
+                        "1/3" -> 1.0 / 3.0
+                        "1/4" -> 0.25
+                        "2/3" -> 2.0 / 3.0
+                        else -> 0.0
+                    }
+                    val p0 = priceText.trim().toDoubleOrNull() ?: 0.0
+                    if (p0 > 0.0 && frac > 0.0) {
+                        val maxQty = (availableCash * frac / p0 / 100.0).toInt() * 100
+                        if (maxQty > 0) qtyText = maxQty.toString()
+                    }
+                }
+                if (idx != posList.lastIndex) Spacer(Modifier.width(8.dp))
             }
-            Spacer(Modifier.width(6.dp))
-            Text("方式A｜手填价·即时成交", color = TEXT_MAIN, fontSize = 13.sp)
             Spacer(Modifier.weight(1f))
-            Box(
-                Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(if (mode == "limit") sideColor else Color.Transparent)
-                    .clickable { mode = "limit" },
-                contentAlignment = Alignment.Center
-            ) {
-                if (mode == "limit") Text("✓", color = Color.White, fontSize = 12.sp)
-                else Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFDDDDDD)))
-            }
-            Spacer(Modifier.width(6.dp))
-            Text("方式B｜到价挂单", color = TEXT_MAIN, fontSize = 13.sp)
         }
         if (msg.isNotEmpty()) {
             Text(
                 text = msg,
                 color = Color(0xFFE23B3B),
                 fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
         }
         Spacer(Modifier.weight(1f))
-        // 确认按钮
+        // 底部红色长按钮：左齿轮 + 买入/卖出
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                .height(44.dp)
+                .height(46.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (busy) Color(0xFFBBBBBB) else sideColor)
                 .clickable { submit() },
             contentAlignment = Alignment.Center
         ) {
+            // 齿轮图标（复用均线设置 icon）
+            Image(
+                painter = painterResource(R.drawable.aen),
+                contentDescription = "下单设置",
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 12.dp)
+                    .size(20.dp),
+                contentScale = ContentScale.Fit
+            )
             Text(
-                text = if (busy) "提交中..." else (sideText + "确认"),
+                text = if (busy) "提交中..." else sideText,
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+}
+
+/**
+ * 连体步进框：减号方块 + 中间编辑区 + 加号方块，三者连成一体。
+ * 边框红色；中间编辑区背景保持原样；加减方块淡红填充、符号红色；
+ * 按下时方块变纯红、符号变白（瞬时反馈）。
+ */
+@Composable
+private fun ConnectStepper(
+    value: String,
+    placeholder: String,
+    isDecimal: Boolean,
+    onValueChange: (String) -> Unit,
+    minusPressed: Boolean,
+    plusPressed: Boolean,
+    onMinus: () -> Unit,
+    onPlus: () -> Unit,
+    onMinusRelease: () -> Unit,
+    onPlusRelease: () -> Unit,
+    redFill: Color,
+    redSolid: Color,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = redSolid
+    Row(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.White)
+            .border(1.dp, borderColor, RoundedCornerShape(6.dp)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 减号方块
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .fillMaxHeight()
+                .background(if (minusPressed) redSolid else redFill)
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
+                    onMinus()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "−",
+                color = if (minusPressed) Color.White else redSolid,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        // 中间编辑区（背景保持原样）
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = value,
+                onValueChange = { raw ->
+                    if (isDecimal) onValueChange(raw.filter { ch -> ch.isDigit() || ch == '.' })
+                    else onValueChange(raw.filter { ch -> ch.isDigit() })
+                },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = TEXT_MAIN,
+                    fontSize = 15.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                ),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = if (isDecimal) androidx.compose.ui.text.input.KeyboardType.Decimal
+                    else androidx.compose.ui.text.input.KeyboardType.Number
+                ),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                decorationBox = { inner ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (value.isEmpty()) Text(placeholder, color = TEXT_SUB, fontSize = 14.sp)
+                        inner()
+                    }
+                }
+            )
+        }
+        // 加号方块
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .fillMaxHeight()
+                .background(if (plusPressed) redSolid else redFill)
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
+                    onPlus()
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "+",
+                color = if (plusPressed) Color.White else redSolid,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+/** 快捷仓位小按钮：淡红底、红字，按下短暂变纯红白字 */
+@Composable
+private fun QuickPosButton(
+    label: String,
+    redFill: Color,
+    redSolid: Color,
+    onClick: () -> Unit
+) {
+    var pressed by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (pressed) redSolid else redFill)
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null
+            ) {
+                pressed = true
+                onClick()
+            }
+            .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (pressed) Color.White else redSolid,
+            fontSize = 13.sp
+        )
     }
 }
