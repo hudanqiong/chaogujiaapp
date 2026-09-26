@@ -19,6 +19,40 @@ data class AccountInfo(
     val initial: Double = 0.0
 )
 
+/** 持仓明细（positions.php 的 data[]） */
+data class PositionItem(
+    val code: String = "",
+    val name: String = "",
+    val quantity: Int = 0,
+    val avgCost: Double = 0.0,
+    val price: Double = 0.0,
+    val marketValue: Double = 0.0,
+    val pnl: Double = 0.0,
+    val pnlPct: Double = 0.0
+)
+/** 下单结果（buy.php / sell.php 的 data） */
+data class TradeResult(
+    val ok: Boolean = false,
+    val msg: String = "",
+    val price: Double = 0.0,
+    val quantity: Int = 0,
+    val amount: Double = 0.0,
+    val commission: Double = 0.0,
+    /** 买入：总支出；卖出：净收入 */
+    val settle: Double = 0.0
+)
+/** 交易记录（trades.php 的 data[]） */
+data class TradeRecord(
+    val code: String = "",
+    val name: String = "",
+    /** 1=买入 2=卖出 */
+    val direction: Int = 0,
+    val price: Double = 0.0,
+    val quantity: Int = 0,
+    val amount: Double = 0.0,
+    val commission: Double = 0.0,
+    val time: String = ""
+)
 /** 会员套餐（member.php 的 plans[]） */
 data class MemberPlan(
     val name: String = "",
@@ -594,6 +628,108 @@ object Api {
         }
     }
 
+    /** 拉取持仓列表（positions.php） */
+    fun positions(token: String?): List<PositionItem> {
+        return try {
+            val raw = Net.get(base("positions.php"), token)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<PositionItem>()
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                list.add(
+                    PositionItem(
+                        code = p.optString("code", ""),
+                        name = p.optString("name", ""),
+                        quantity = p.optInt("quantity", 0),
+                        avgCost = p.optDouble("avgCost", 0.0),
+                        price = p.optDouble("price", 0.0),
+                        marketValue = p.optDouble("marketValue", 0.0),
+                        pnl = p.optDouble("pnl", 0.0),
+                        pnlPct = p.optDouble("pnlPct", 0.0)
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    /** 买入（buy.php），body {code,name,quantity} */
+    fun buy(token: String?, code: String, name: String, quantity: Int): TradeResult {
+        return try {
+            val raw = Net.postJson(
+                base("buy.php"),
+                jsonOf("code" to code, "name" to name, "quantity" to quantity),
+                token
+            )
+            val o = JSONObject(raw)
+            val d = o.optJSONObject("data")
+            TradeResult(
+                ok = o.optInt("code", -1) == 0,
+                msg = o.optString("msg", ""),
+                price = d?.optDouble("price", 0.0) ?: 0.0,
+                quantity = d?.optInt("quantity", 0) ?: 0,
+                amount = d?.optDouble("amount", 0.0) ?: 0.0,
+                commission = d?.optDouble("commission", 0.0) ?: 0.0,
+                settle = d?.optDouble("totalCost", 0.0) ?: 0.0
+            )
+        } catch (e: Exception) {
+            TradeResult(false, e.message ?: "网络异常")
+        }
+    }
+    /** 卖出（sell.php），body {code,quantity} */
+    fun sell(token: String?, code: String, quantity: Int): TradeResult {
+        return try {
+            val raw = Net.postJson(
+                base("sell.php"),
+                jsonOf("code" to code, "quantity" to quantity),
+                token
+            )
+            val o = JSONObject(raw)
+            val d = o.optJSONObject("data")
+            TradeResult(
+                ok = o.optInt("code", -1) == 0,
+                msg = o.optString("msg", ""),
+                price = d?.optDouble("price", 0.0) ?: 0.0,
+                quantity = d?.optInt("quantity", 0) ?: 0,
+                amount = d?.optDouble("amount", 0.0) ?: 0.0,
+                commission = d?.optDouble("commission", 0.0) ?: 0.0,
+                settle = d?.optDouble("netIncome", 0.0) ?: 0.0
+            )
+        } catch (e: Exception) {
+            TradeResult(false, e.message ?: "网络异常")
+        }
+    }
+    /** 交易记录（trades.php） */
+    fun trades(token: String?): List<TradeRecord> {
+        return try {
+            val raw = Net.get(base("trades.php"), token)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<TradeRecord>()
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                list.add(
+                    TradeRecord(
+                        code = p.optString("code", ""),
+                        name = p.optString("name", ""),
+                        direction = p.optInt("direction", 0),
+                        price = p.optDouble("price", 0.0),
+                        quantity = p.optInt("quantity", 0),
+                        amount = p.optDouble("amount", 0.0),
+                        commission = p.optDouble("commission", 0.0),
+                        time = p.optString("time", "")
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
     /** 拉取账户信息 */
     fun account(token: String?): AccountInfo {
         val raw = Net.get(base("account.php"), token)
