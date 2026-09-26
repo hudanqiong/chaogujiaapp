@@ -190,6 +190,10 @@ fun StockDetailPage(
         // 均线设置页显隐（父层持有，齿轮与 ⚙ 共用）
         var showMaSetting by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
+    // ================= 下单弹窗（底部上弹）=================
+    var showOrderSheet by remember { mutableStateOf(false) }
+    var orderBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    var orderBroker by remember { mutableStateOf<MyBroker?>(null) }
     var showAuction by remember {
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("minute_auction", false))
@@ -364,7 +368,17 @@ fun StockDetailPage(
         DetailBottomBar(
                 concept = concept,
                 watched = watched,
-                onOrder = { /* TODO 下单 */ },
+                onOrder = {
+                    showOrderSheet = true
+                    // 拉取券商账户列表（默认选中第一个）
+                    if (orderBrokers.isEmpty()) {
+                        scope.launch {
+                            val ls = withContext(Dispatchers.IO) { Api.brokerList(token) }
+                            orderBrokers = ls
+                            if (orderBroker == null) orderBroker = ls.firstOrNull()
+                        }
+                    }
+                },
                 onDiagnose = { /* TODO 诊股 */ },
                 onToggleWatch = {
                     val code = current?.code ?: return@DetailBottomBar
@@ -381,6 +395,18 @@ fun StockDetailPage(
                     .align(Alignment.BottomCenter)
                     .zIndex(2f)
             )
+        // ---- 下单弹窗：屏幕下方上弹 ----
+        if (showOrderSheet) {
+            TradeOrderSheet(
+                brokers = orderBrokers,
+                current = orderBroker,
+                onSwitch = { orderBroker = it },
+                onBuy = { /* TODO 买 */ },
+                onSell = { /* TODO 卖 */ },
+                onCancelOrder = { /* TODO 撤 */ },
+                onDismiss = { showOrderSheet = false }
+            )
+        }
     }
     }
 
@@ -5905,3 +5931,214 @@ private fun DetailSectionTabs(
     }
 }
 // S16_END
+
+// ============================================================
+// 下单弹窗（从屏幕下方上弹，约 1/4 屏高）
+// 右上 X 关闭 / 左上 券商名 + 资金账户 + 切换 / 下方并排 买(红) 卖(蓝) 撤(灰) 三实心圆
+// ============================================================
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TradeOrderSheet(
+    brokers: List<MyBroker>,
+    current: MyBroker?,
+    onSwitch: (MyBroker) -> Unit,
+    onBuy: () -> Unit,
+    onSell: () -> Unit,
+    onCancelOrder: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showSwitch by remember { mutableStateOf(false) }
+    // 约 1/4 屏高：用系统屏幕高度 * 0.28 作为内容区高度
+    val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
+    val sheetH = screenH * 0.28f
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.White,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp, bottom = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFFD9D9D9))
+                )
+            }
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(sheetH)
+                .padding(horizontal = 16.dp)
+        ) {
+            // ---------- 顶部行：X 关闭（右上）----------
+            Box(Modifier.fillMaxWidth()) {
+                Text(
+                    text = "✕",
+                    color = TEXT_SUB,
+                    fontSize = 20.sp,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .clickable { onDismiss() }
+                        .padding(6.dp)
+                )
+            }
+            // ---------- 券商名称 + 资金账户 + 切换按钮（左上）----------
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = current?.broker ?: "证券账户",
+                        color = TEXT_MAIN,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = current?.account?.ifEmpty { "未添加账户" } ?: "未添加账户",
+                        color = TEXT_SUB,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // 切换按钮
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFF2F3F5))
+                        .clickable { if (brokers.isNotEmpty()) showSwitch = true }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "切换 ⇄",
+                        color = Color(Config.COLOR_PRIMARY),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            // ---------- 并排三实心圆按钮：买(红) / 卖(蓝) / 撤(灰) ----------
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 18.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CircleOrderButton("买", Color(0xFFE23B3B)) { onBuy() }
+                CircleOrderButton("卖", Color(0xFF2A7BFF)) { onSell() }
+                CircleOrderButton("撤", Color(0xFF6B6B6B)) { onCancelOrder() }
+            }
+        }
+    }
+
+    // ---------- 切换证券账户弹层 ----------
+    if (showSwitch) {
+        ModalBottomSheet(
+            onDismissRequest = { showSwitch = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "选择证券账户",
+                    color = TEXT_MAIN,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(0.5.dp)
+                        .background(Color(0xFFEEEEEE))
+                )
+                brokers.forEach { b ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSwitch(b)
+                                showSwitch = false
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = b.broker,
+                                color = TEXT_MAIN,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(text = b.account, color = TEXT_SUB, fontSize = 13.sp)
+                        }
+                        if (current != null && b.id == current.id) {
+                            Text(
+                                text = "✓",
+                                color = Color(Config.COLOR_PRIMARY),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(0.5.dp)
+                            .background(Color(0xFFEEEEEE))
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 下单实心圆按钮：圆内居中写字 */
+@Composable
+private fun CircleOrderButton(
+    text: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(60.dp)
+            .clip(CircleShape)
+            .background(color)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
