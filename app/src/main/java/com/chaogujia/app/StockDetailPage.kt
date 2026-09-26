@@ -6530,25 +6530,44 @@ private fun OrderFormBlock(
                 )
             }
             Spacer(Modifier.width(10.dp))
-            // H3：红色买入/卖出按钮改为图片资源（4=买入不可点 5=买入可点 6=卖出不可点 7=卖出可点）
-            // 可点 = 两个编辑框都有内容(canSubmit) 且非提交中(busy)
-            val submitIcon = when {
-                isBuy && busy -> R.drawable.ic_buy_off
-                isBuy && canSubmit -> R.drawable.ic_buy_on
-                isBuy -> R.drawable.ic_buy_off
-                busy -> R.drawable.ic_sell_off
-                canSubmit -> R.drawable.ic_sell_on
-                else -> R.drawable.ic_sell_off
+            // H3：买入按钮改为图片（4=买入不可点 5=买入可点）；卖出暂用原纯色按钮，待卖出页定稿再换图
+            if (isBuy) {
+                val buyIcon = if (canSubmit && !busy) R.drawable.ic_buy_on else R.drawable.ic_buy_off
+                Image(
+                    painter = painterResource(buyIcon),
+                    contentDescription = "买入",
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clickable(enabled = canSubmit && !busy) { submit() },
+                    contentScale = ContentScale.FillWidth
+                )
+            } else {
+                // 卖出：沿用原纯色按钮（布局与买入共用，等卖出页定稿再把 Box 换成 6/7 图片即可）
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RectangleShape)
+                        .background(if (busy) Color(0xFFBBBBBB) else sideColor)
+                        .clickable(enabled = canSubmit && !busy) { submit() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (busy) "提交中..." else sideText,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (!canSubmit && !busy) {
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(Color.White.copy(alpha = 0.55f))
+                        )
+                    }
+                }
             }
-            Image(
-                painter = painterResource(submitIcon),
-                contentDescription = if (isBuy) "买入" else "卖出",
-                modifier = Modifier
-                    .weight(1f)
-                    .height(46.dp)
-                    .clickable(enabled = canSubmit && !busy) { submit() },
-                contentScale = ContentScale.FillWidth
-            )
         }
     }
 }
