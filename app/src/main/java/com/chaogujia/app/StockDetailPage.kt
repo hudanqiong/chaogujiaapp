@@ -493,17 +493,22 @@ private fun DetailHeaderBar(
         modifier = Modifier.fillMaxWidth().height(D_BAR_HEIGHT),
         contentAlignment = Alignment.Center
       ) {
-        // 左侧：返回箭头
-        Text(
-            text = "←",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
+        // 左侧：返回箭头（H10：命中区放大到 48dp，避免点不准）
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .padding(start = 14.dp)
-                .clickable { onBack() }
-        )
+                .padding(start = 6.dp)
+                .size(48.dp)
+                .clickable { onBack() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "←",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
         // 中间：◀ 名称/代码 ▶
         Row(
