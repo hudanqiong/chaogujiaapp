@@ -231,19 +231,25 @@ private fun StatCell(
     }
 }
 
-/** ④ 操作按钮排：买入 / 卖出 / 撤单 / 持仓 / 查询（文字占位） */
+/** ④ 操作按钮排：买入 / 卖出 / 撤单 / 持仓 / 查询（图标 + 文字） */
 @Composable
 private fun ActionBarRow() {
-    val actions = listOf("买入", "卖出", "撤单", "持仓", "查询")
+    val actions = listOf(
+        "买入" to R.drawable.ico_trade_buy,
+        "卖出" to R.drawable.ico_trade_sell,
+        "撤单" to R.drawable.ico_trade_cancel,
+        "持仓" to R.drawable.ico_trade_position,
+        "查询" to R.drawable.ico_trade_query
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(horizontal = 12.dp, vertical = 14.dp),
+            .padding(horizontal = 8.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        actions.forEach { a ->
-            Box(
+        actions.forEach { (label, icon) ->
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .clickable(
@@ -252,15 +258,20 @@ private fun ActionBarRow() {
                     ) {
                         // TODO: 本轮占位，点击暂不处理
                     },
-                contentAlignment = Alignment.Center
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = a,
-                    color = Color(Config.COLOR_PRIMARY),
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    text = label,
+                    color = Color(Config.COLOR_TEXT_MAIN),
+                    fontSize = 12.sp,
                     maxLines = 1,
                     textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(6.dp))
+                Image(
+                    painter = painterResource(icon),
+                    contentDescription = label,
+                    modifier = Modifier.size(30.dp)
                 )
             }
         }
