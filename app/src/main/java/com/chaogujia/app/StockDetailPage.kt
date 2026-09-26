@@ -6508,7 +6508,8 @@ private fun OrderFormBlock(
                     Spacer(Modifier.width(4.dp))
                     Text(
                         if (limitUp > 0.0) String.format(java.util.Locale.CHINA, "%.2f", limitUp) else "--",
-                        color = sideColor, fontSize = 12.sp
+                        // H11-fix：涨停价固定红（涨红跌绿，与买卖方向无关；卖出页此前误用 sideColor 变成蓝色）
+                        color = Color(0xFFFA0000), fontSize = 12.sp
                     )
                 }
             }
