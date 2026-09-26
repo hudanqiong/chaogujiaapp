@@ -6306,12 +6306,14 @@ private fun OrderFormBlock(
     val isBuy = side == "buy"
     val sideColor = if (isBuy) Color(0xFFFA0000) else Color(0xFF008AFF)
     val sideText = if (isBuy) "买入" else "卖出"
-    // 更淡的红色填充（加减按钮底色）——第十轮再调淡
-    val redFill = Color(0x0DE23B3B)
-    // 纯红（按下瞬时反馈底色）
-    val redSolid = Color(0xFFE23B3B)
-    // 浅灰边框
+    // H7：加减按钮底色改为用户指定红 #FA0000 的极淡填充
+    val redFill = Color(0x0DFA0000)
+    // H7：纯红（按下瞬时反馈底色 + 步进器外框/竖线），= 用户 #FA0000
+    val redSolid = Color(0xFFFA0000)
+    // 浅灰边框（齿轮等）
     val grayBorder = Color(0xFFDDDDDD)
+    // H7：标签外框细线（涨跌停 / 全仓等）——更细、更灰
+    val thinBorder = Color(0xFFC8C8C8)
     val greenText = Color(0xFF1AAE5A)
     // 数字黄偏橙
     val amberText = Color(0xFFE8A33D)
@@ -6333,6 +6335,15 @@ private fun OrderFormBlock(
     // 第十轮需求⑦：未输入价格时，默认按左上方实时股价计算「可买多少股」
     val calcPrice = if (price > 0.0) price else livePrice
     val canBuyQty = if (calcPrice > 0.0) ((availableCash / calcPrice / 100.0).toInt() * 100) else 0
+    // H7 需求③：加载窗口时，默认按当前股价 + 可用资金算出「可买多少股」并回填数量框。
+    // 仅当数量框为空、且算出的可买股数 > 0 时回填一次，避免覆盖用户已输入的内容。
+    var qtySeeded by remember { mutableStateOf(false) }
+    LaunchedEffect(canBuyQty, pickPrice) {
+        if (!qtySeeded && qtyText.trim().isEmpty() && canBuyQty > 0) {
+            qtyText = canBuyQty.toString()
+            qtySeeded = true
+        }
+    }
     fun submit() {
         if (busy) return
         if (!canSubmit) return
@@ -6416,7 +6427,7 @@ private fun OrderFormBlock(
                 modifier = Modifier
                     .clip(RectangleShape)
                     .background(Color.White)
-                    .border(1.dp, grayBorder, RectangleShape)
+                    .border(0.5.dp, thinBorder, RectangleShape)
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -6434,7 +6445,7 @@ private fun OrderFormBlock(
                 modifier = Modifier
                     .clip(RectangleShape)
                     .background(Color.White)
-                    .border(1.dp, grayBorder, RectangleShape)
+                    .border(0.5.dp, thinBorder, RectangleShape)
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -6483,7 +6494,7 @@ private fun OrderFormBlock(
         ) {
             val posList = listOf("全仓", "1/2仓", "1/3仓", "1/4仓", "2/3仓")
             posList.forEachIndexed { idx, p ->
-                QuickPosButton(label = p, grayBorder = grayBorder) {
+                QuickPosButton(label = p, thinBorder = thinBorder) {
                     val frac = when (p) {
                         "全仓" -> 1.0
                         "1/2仓" -> 0.5
@@ -6578,7 +6589,9 @@ private fun ConnectStepper(
     modifier: Modifier = Modifier
 ) {
     val borderColor = redSolid
-    val dividerColor = Color(0xFFF0C9C9)
+    // H7：竖线颜色与外框保持一致（用户要求：减号右 / 加号左两条竖线跟外框同色，
+    // 这样左右两块看起来像两个正方形固定在编辑框两端）
+    val dividerColor = borderColor
     var minusPressed by remember { mutableStateOf(false) }
     var plusPressed by remember { mutableStateOf(false) }
     Row(
@@ -6694,14 +6707,14 @@ private fun ConnectStepper(
 @Composable
 private fun QuickPosButton(
     label: String,
-    grayBorder: Color,
+    thinBorder: Color,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .clip(RectangleShape)
             .background(Color.White)
-            .border(1.dp, grayBorder, RectangleShape)
+            .border(0.5.dp, thinBorder, RectangleShape)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
