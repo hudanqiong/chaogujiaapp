@@ -6337,11 +6337,20 @@ private fun OrderFormBlock(
     val canBuyQty = if (calcPrice > 0.0) ((availableCash / calcPrice / 100.0).toInt() * 100) else 0
     // H7 需求③：加载窗口时，默认按当前股价 + 可用资金算出「可买多少股」并回填数量框。
     // 仅当数量框为空、且算出的可买股数 > 0 时回填一次，避免覆盖用户已输入的内容。
-    var qtySeeded by remember { mutableStateOf(false) }
+    // H8 修复①：可买股数「智能跟随」。
+    // 记录上一次由本逻辑自动写入到数量框的值；只要框为空、或框内内容仍等于该自动值，
+    // 就允许跟随 canBuyQty 实时刷新（解决「时算时不算」「点价不重算」）；
+    // 一旦用户在框里手输过（内容 != 上次自动值），则永久不再覆盖用户输入。
+    var autoQty by remember { mutableStateOf("") }
     LaunchedEffect(canBuyQty, pickPrice) {
-        if (!qtySeeded && qtyText.trim().isEmpty() && canBuyQty > 0) {
-            qtyText = canBuyQty.toString()
-            qtySeeded = true
+        val cur = qtyText.trim()
+        val userEdited = cur.isNotEmpty() && cur != autoQty
+        if (!userEdited && canBuyQty > 0) {
+            val nv = canBuyQty.toString()
+            if (nv != cur) {
+                qtyText = nv
+                autoQty = nv
+            }
         }
     }
     fun submit() {
@@ -6423,11 +6432,17 @@ private fun OrderFormBlock(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 跌停：标签黑字，价格绿字；浅灰边框白底
+            // H8 修复②：可点击，点击后把跌停价填入价格编辑框（无有效价时不响应）
             Box(
                 modifier = Modifier
                     .clip(RectangleShape)
                     .background(Color.White)
                     .border(0.5.dp, thinBorder, RectangleShape)
+                    .clickable {
+                        if (limitDown > 0.0) {
+                            priceText = String.format(java.util.Locale.CHINA, "%.2f", limitDown)
+                        }
+                    }
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -6441,11 +6456,17 @@ private fun OrderFormBlock(
             }
             Spacer(Modifier.width(8.dp))
             // 涨停：标签黑字，价格红字；浅灰边框白底
+            // H8 修复②：可点击，点击后把涨停价填入价格编辑框（无有效价时不响应）
             Box(
                 modifier = Modifier
                     .clip(RectangleShape)
                     .background(Color.White)
                     .border(0.5.dp, thinBorder, RectangleShape)
+                    .clickable {
+                        if (limitUp > 0.0) {
+                            priceText = String.format(java.util.Locale.CHINA, "%.2f", limitUp)
+                        }
+                    }
                     .padding(horizontal = 6.dp, vertical = 3.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
