@@ -1835,7 +1835,7 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Text("明细", color = TEXT_SUB, fontSize = 9.sp)
+            Text("明细", color = TEXT_SUB, fontSize = 9.sp, maxLines = 1, softWrap = false)
             // 三角：收起朝上、展开朝下
             Canvas(modifier = Modifier.padding(start = 3.dp).size(7.dp)) {
                 val w = size.width
@@ -5886,8 +5886,10 @@ private fun DetailSectionTabs(
                     Text(
                         text = label,
                         color = if (on) SEC_TAB_ACTIVE else SEC_TAB_INACTIVE,
-                        fontSize = 15.sp,
+                        fontSize = 12.sp,
                         fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        softWrap = false,
                     )
                     Spacer(Modifier.height(5.dp))
                     // 指示红线：一个汉字宽（15dp）、粗 3dp；未选中用透明占位保持高度一致
