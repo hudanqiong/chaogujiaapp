@@ -5852,9 +5852,9 @@ private fun AhDealList(
 
 
 // ================= 下方内容切换栏（看点/资讯/盘口/资金/社区/简况/财务）=================
-// - 7 项横排，屏幕一次显示前 6 项，可左右横滑露出第 7 项（财务）
+// - 前 6 项等宽铺满一屏，第 7 项（财务）藏在屏幕右侧外，横滑才露出
 // - 选中：纯黑文字 + 下方粗红线指示器；未选中：灰黑文字
-private val SECTION_TABS = listOf("看点", "资讯", "盘口", "资金", "社区", "简况", "财务")
+private val SECTION_TABS = listOf("看点", "资讯", "盘口", "资金", "社区", "简况(F10)", "财务")
 private val SEC_TAB_ACTIVE = Color(0xFF000000)   // 选中：纯黑
 private val SEC_TAB_INACTIVE = Color(0x99000000) // 未选中：灰黑（可区分）
 private val SEC_TAB_INDICATOR = Color(0xFFE60012) // 指示红线：醒目红
@@ -5864,37 +5864,41 @@ private fun DetailSectionTabs(
     selected: Int,
     onPick: (Int) -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 4.dp), // 左右各留一点点（“两根牙签”的边距）
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SECTION_TABS.forEachIndexed { i, label ->
-            val on = i == selected
-            Column(
-                modifier = Modifier
-                    .clickable { onPick(i) }
-                    .padding(horizontal = 11.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Spacer(Modifier.height(9.dp))
-                Text(
-                    text = label,
-                    color = if (on) SEC_TAB_ACTIVE else SEC_TAB_INACTIVE,
-                    fontSize = 15.sp,
-                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                )
-                Spacer(Modifier.height(5.dp))
-                // 指示红线：一个汉字宽（15dp）、粗 3dp；未选中用透明占位保持高度一致
-                Box(
+    // 一屏正好 6 项：用 BoxWithConstraints 拿到可用宽度，每项宽 = 宽度/6，
+    // 所以前 6 项等宽铺满整屏，第 7 项（财务）自然落在屏幕右侧外，横滑才露出。
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        // 关键：先在未滚动层拿到真实可用宽（不在 horizontalScroll 内取，否则是无穷大），
+        // 每项宽 = 可用宽 / 6 → 前 6 项正好铺满一屏，第 7 项（财务）落在右侧屏幕外。
+        val itemW = maxWidth / 6
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SECTION_TABS.forEachIndexed { i, label ->
+                val on = i == selected
+                Column(
                     modifier = Modifier
-                        .width(15.dp)
-                        .height(3.dp)
-                        .background(if (on) SEC_TAB_INDICATOR else Color.Transparent)
-                )
-                Spacer(Modifier.height(9.dp))
+                        .width(itemW)
+                        .clickable { onPick(i) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Spacer(Modifier.height(9.dp))
+                    Text(
+                        text = label,
+                        color = if (on) SEC_TAB_ACTIVE else SEC_TAB_INACTIVE,
+                        fontSize = 15.sp,
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    // 指示红线：一个汉字宽（15dp）、粗 3dp；未选中用透明占位保持高度一致
+                    Box(
+                        modifier = Modifier
+                            .width(15.dp)
+                            .height(3.dp)
+                            .background(if (on) SEC_TAB_INDICATOR else Color.Transparent)
+                    )
+                    Spacer(Modifier.height(9.dp))
+                }
             }
         }
     }
