@@ -5964,13 +5964,12 @@ private fun TradeOrderSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(sheetH)
-                .padding(horizontal = 16.dp)
         ) {
             // ---------- 第一行：券商名 + 资金账户 + 切换（左）  ✕（右，同一水平线）----------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp),
+                    .padding(start = 16.dp, end = 16.dp, top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 券商名
@@ -6017,6 +6016,7 @@ private fun TradeOrderSheet(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // 屏幕两边各留一根牙签
                     .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
