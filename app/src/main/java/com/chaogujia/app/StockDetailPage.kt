@@ -5954,7 +5954,7 @@ private fun TradeOrderSheet(
     onBuy: () -> Unit,
     onSell: () -> Unit,
     onCancelOrder: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
     side: String = "",
     code: String = "",
     name: String = "",
@@ -6202,7 +6202,7 @@ private fun OrderFormBlock(
     availableCash: Double,
     sellableQty: Int,
     onBack: () -> Unit,
-    onDone: (Api.TradeResult) -> Unit
+    onDone: (TradeResult) -> Unit
 ) {
     val isBuy = side == "buy"
     val sideColor = if (isBuy) Color(0xFFE23B3B) else Color(0xFF2A7BFF)
@@ -6273,7 +6273,7 @@ private fun OrderFormBlock(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("数量", color = TEXT_SUB, fontSize = 13.sp, modifier = Modifier.width(44.dp))
-            BasicTextField(
+            androidx.compose.foundation.text.BasicTextField(
                 value = qtyText,
                 onValueChange = { qtyText = it.filter { ch -> ch.isDigit() } },
                 singleLine = true,
@@ -6297,7 +6297,7 @@ private fun OrderFormBlock(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("价格", color = TEXT_SUB, fontSize = 13.sp, modifier = Modifier.width(44.dp))
-            BasicTextField(
+            androidx.compose.foundation.text.BasicTextField(
                 value = priceText,
                 onValueChange = { priceText = it },
                 singleLine = true,
