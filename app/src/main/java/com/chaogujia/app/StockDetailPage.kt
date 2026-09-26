@@ -5973,7 +5973,7 @@ private fun TradeOrderSheet(
                     .padding(top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 券商名（同色，同一行）
+                // 券商名
                 Text(
                     text = current?.broker ?: "证券账户",
                     color = TEXT_MAIN,
@@ -5982,25 +5982,28 @@ private fun TradeOrderSheet(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                // 一根牙签的间距
                 Spacer(Modifier.width(8.dp))
-                // 资金账户（与券商名同色，同一行）
+                // 资金账户（与券商名同色）
                 Text(
                     text = current?.account?.ifEmpty { "未添加账户" } ?: "未添加账户",
                     color = TEXT_MAIN,
                     fontSize = 13.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    overflow = TextOverflow.Ellipsis
                 )
-                // 切换：只有两个蓝色文字，无背景无特效
+                // 一根牙签的间距
+                Spacer(Modifier.width(8.dp))
+                // 切换：只有蓝色文字，无背景无特效
                 Text(
                     text = "切换 ⇄",
                     color = Color(0xFF2A7BFF),
                     fontSize = 13.sp,
                     modifier = Modifier.clickable { if (brokers.isNotEmpty()) showSwitch = true }
                 )
-                Spacer(Modifier.width(12.dp))
-                // ✕ 关闭：与账户行同水平线，无任何特效
+                // 余下空间把 ✕ 顶到最右
+                Spacer(Modifier.weight(1f))
+                // ✕ 关闭：与账户行同水平线，无特效
                 Text(
                     text = "✕",
                     color = TEXT_MAIN,
@@ -6009,7 +6012,7 @@ private fun TradeOrderSheet(
                 )
             }
             Spacer(Modifier.weight(1f))
-            // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，牙签分隔 ----------
+            // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，均匀分布 ----------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -6017,9 +6020,7 @@ private fun TradeOrderSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
-                ToothpickDivider()
                 OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
-                ToothpickDivider()
                 OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
             }
         }
@@ -6092,16 +6093,6 @@ private fun TradeOrderSheet(
     }
 }
 
-/** 一根「牙签」竖向分隔线（三个圆圈之间） */
-@Composable
-private fun ToothpickDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(56.dp)
-            .background(Color(0xFFE8E8E8))
-    )
-}
 
 /**
  * 下单列：上=实心圆按钮（圆内白字），下=浅灰底黑字标签；整体在列内水平居中。
