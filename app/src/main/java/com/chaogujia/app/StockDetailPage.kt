@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -203,6 +204,8 @@ fun StockDetailPage(
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("orderbook_show_amount", false))
     }
+    // 下方内容切换栏（看点/资讯/盘口/资金/社区/简况/财务）当前选中下标
+    var sectionTab by remember { mutableStateOf(0) }
     // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
     var showChip by remember { mutableStateOf(false) }
     // 所属概念（含实时涨跌幅）
@@ -306,6 +309,13 @@ fun StockDetailPage(
                         }
                     }
                 }
+                // ================= 下方内容切换栏（看点/资讯/盘口/资金/社区/简况/财务）=================
+                // 属于滚动内容，跟随上滑；7 项横排，屏幕一次显示前 6 项，可左右横滑露出第 7 项
+                DetailSectionTabs(
+                    selected = sectionTab,
+                    onPick = { sectionTab = it }
+                )
+
                 // ---- 底部栏占位（防止滚动内容被铉底的底部栏遮挡）----
             Spacer(Modifier.height(DETAIL_BAR_HEIGHT))
             // TODO: 后续功能模块追加在此处下方（自动跟随上滑）
@@ -5839,3 +5849,54 @@ private fun AhDealList(
         }
     }
 }
+
+
+// ================= 下方内容切换栏（看点/资讯/盘口/资金/社区/简况/财务）=================
+// - 7 项横排，屏幕一次显示前 6 项，可左右横滑露出第 7 项（财务）
+// - 选中：纯黑文字 + 下方粗红线指示器；未选中：灰黑文字
+private val SECTION_TABS = listOf("看点", "资讯", "盘口", "资金", "社区", "简况", "财务")
+private val SEC_TAB_ACTIVE = Color(0xFF000000)   // 选中：纯黑
+private val SEC_TAB_INACTIVE = Color(0x99000000) // 未选中：灰黑（可区分）
+private val SEC_TAB_INDICATOR = Color(0xFFE60012) // 指示红线：醒目红
+
+@Composable
+private fun DetailSectionTabs(
+    selected: Int,
+    onPick: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 4.dp), // 左右各留一点点（“两根牙签”的边距）
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        SECTION_TABS.forEachIndexed { i, label ->
+            val on = i == selected
+            Column(
+                modifier = Modifier
+                    .clickable { onPick(i) }
+                    .padding(horizontal = 11.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(9.dp))
+                Text(
+                    text = label,
+                    color = if (on) SEC_TAB_ACTIVE else SEC_TAB_INACTIVE,
+                    fontSize = 15.sp,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                )
+                Spacer(Modifier.height(5.dp))
+                // 指示红线：一个汉字宽（15dp）、粗 3dp；未选中用透明占位保持高度一致
+                Box(
+                    modifier = Modifier
+                        .width(15.dp)
+                        .height(3.dp)
+                        .background(if (on) SEC_TAB_INDICATOR else Color.Transparent)
+                )
+                Spacer(Modifier.height(9.dp))
+            }
+        }
+    }
+}
+// S16_END
