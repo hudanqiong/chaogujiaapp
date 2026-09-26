@@ -5303,6 +5303,18 @@ private fun AfterHoursBar(detail: StockDetail?) {
     // 不支持 / 无盘后成交 / 尚未就绪 → 整块不渲染
     if (d == null || !d.supported || d.minutes.isEmpty()) return
 
+    // 盘口（买一/卖一）：标题条收起态也要显示，独立拉取
+    var quote by remember(code) { mutableStateOf<OrderBook?>(null) }
+    LaunchedEffect(code) {
+        if (code.isEmpty()) return@LaunchedEffect
+        quote = withContext(Dispatchers.IO) {
+            try { Api.orderbook(code) } catch (_: Exception) { null }
+        }
+    }
+    val preClose = detail?.base?.preClose ?: d.price
+    val bid1 = quote?.bids?.firstOrNull()
+    val ask1 = quote?.asks?.firstOrNull()
+
     var expanded by remember(code) { mutableStateOf(false) }
 
     Column(
@@ -5323,31 +5335,58 @@ private fun AfterHoursBar(detail: StockDetail?) {
                 "盘后固定价格交易",
                 color = TEXT_MAIN,
                 fontSize = 12.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
+            // 收盘价（固定价）：颜色同收盘价红涨绿跌
             Text(
                 fmtAhPrice(d.price),
-                color = RED_UP,
+                color = when {
+                    preClose <= 0.0 -> GRAY_FLAT
+                    d.price > preClose -> RED_UP
+                    d.price < preClose -> GREEN_TEXT
+                    else -> GRAY_FLAT
+                },
                 fontSize = 12.sp,
                 fontFamily = DSpNumFont,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
+            // 量：带标签
             Text(
                 "量 ${fmtAhVol(d.totalVol)}",
                 color = TEXT_SUB,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontFamily = DSpNumFont,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
             )
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(8.dp))
+            // 买一：带标签
             Text(
-                "额 ${fmtAhAmt(d.totalAmt)}",
+                if (bid1 != null) "买一 ${fmtAhVol(bid1.vol)}" else "买一 --",
                 color = TEXT_SUB,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 fontFamily = DSpNumFont,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
+            )
+            Spacer(Modifier.width(8.dp))
+            // 卖一：带标签
+            Text(
+                if (ask1 != null) "卖一 ${fmtAhVol(ask1.vol)}" else "卖一 --",
+                color = TEXT_SUB,
+                fontSize = 10.sp,
+                fontFamily = DSpNumFont,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false
             )
             Spacer(Modifier.weight(1f))
             Text(
@@ -5508,15 +5547,18 @@ private fun AhVolChart(
 private fun AhTimeAxis(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize()) {
         Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            val labels = listOf("15:00", "15:03", "15:06", "15:09", "15:12", "15:15")
-            val n = labels.size
-            for (i in 0 until n) {
-                Box(
-                    modifier = Modifier.weight(1f),
-                    contentAlignment = if (i == 0) Alignment.CenterStart else if (i == n - 1) Alignment.CenterEnd else Alignment.Center,
-                ) {
-                    Text(text = labels[i], color = TEXT_SUB, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
+            // 只显示两端时间刻度：左 15:05、右 15:30（中间刻度不显示）
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Text(text = "15:05", color = TEXT_SUB, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.CenterEnd,
+            ) {
+                Text(text = "15:30", color = TEXT_SUB, fontSize = 9.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -5637,9 +5679,31 @@ private fun AhRightPanel(
 ) {
     val pc = quote?.prevClose ?: 0.0
     Column(modifier = modifier) {
+        // ---- 左上角：委托趋势（标签 + 买一 + 卖一，各带标签，单行不换行）----
         val ask1 = quote?.asks?.firstOrNull()
-        Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("卖一", color = GREEN_TEXT, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        val bid1 = quote?.bids?.firstOrNull()
+        Row(modifier = Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("委托趋势", color = TEXT_SUB, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            Spacer(Modifier.width(4.dp))
+            Text("买一", color = RED_UP, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            Text(
+                if (bid1 != null) " " + fmtAhVol(bid1.vol) else " --",
+                color = TEXT_SUB, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                maxLines = 1, softWrap = false,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text("卖一", color = GREEN_TEXT, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+            Text(
+                if (ask1 != null) " " + fmtAhVol(ask1.vol) else " --",
+                color = TEXT_SUB, fontSize = 9.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                maxLines = 1, softWrap = false,
+            )
+        }
+        Spacer(Modifier.height(2.dp))
+        // ---- 卖一 / 买一：标签 | 价格（右对齐，单行不换行）| 手数（加粗）----
+        // 价格用固定宽度 + maxLines(1) + softWrap(false)，避免价格串太长把行撑成两行。
+        Row(modifier = Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("卖一", color = GREEN_TEXT, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, modifier = Modifier.width(28.dp))
             Text(
                 if (ask1 != null) fmtAhPrice(ask1.price) else "--",
                 color = when {
@@ -5648,16 +5712,18 @@ private fun AhRightPanel(
                     ask1.price < pc -> GREEN_TEXT
                     else -> GRAY_FLAT
                 },
-                fontSize = 11.sp, fontFamily = DSpNumFont, textAlign = TextAlign.End, modifier = Modifier.weight(1f),
+                fontSize = 11.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(56.dp),
             )
+            Spacer(Modifier.width(4.dp))
             Text(
                 if (ask1 != null) fmtAhVol(ask1.vol) else "--",
-                color = TEXT_SUB, fontSize = 10.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f),
+                color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f),
             )
         }
-        val bid1 = quote?.bids?.firstOrNull()
-        Row(modifier = Modifier.fillMaxWidth().height(22.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("买一", color = RED_UP, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Row(modifier = Modifier.fillMaxWidth().height(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("买一", color = RED_UP, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, modifier = Modifier.width(28.dp))
             Text(
                 if (bid1 != null) fmtAhPrice(bid1.price) else "--",
                 color = when {
@@ -5666,30 +5732,51 @@ private fun AhRightPanel(
                     bid1.price < pc -> GREEN_TEXT
                     else -> GRAY_FLAT
                 },
-                fontSize = 11.sp, fontFamily = DSpNumFont, textAlign = TextAlign.End, modifier = Modifier.weight(1f),
+                fontSize = 11.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.width(56.dp),
             )
+            Spacer(Modifier.width(4.dp))
             Text(
                 if (bid1 != null) fmtAhVol(bid1.vol) else "--",
-                color = TEXT_SUB, fontSize = 10.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f),
+                color = TEXT_SUB, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.End, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f),
             )
         }
         Spacer(Modifier.height(2.dp))
         androidx.compose.material3.HorizontalDivider(color = LINE_GRID, thickness = 1.dp)
-        AhDealList(minutes = minutes, selectedIdx = selectedIdx, modifier = Modifier.weight(1f).fillMaxWidth())
+        AhDealList(minutes = minutes, selectedIdx = selectedIdx, preClose = pc, modifier = Modifier.weight(1f).fillMaxWidth())
     }
 }
 
 // ---- 交易明细：无表头，可上下滑动 ----
+// 数字整体加粗；中列价格红涨绿跌（对比 preClose，与头部股价一致）；
+// 末列手数颜色由「主动买卖」决定：本分钟价 > 上一有成交分钟价 → 主动买(红)，
+// < → 主动卖(绿)，相等 → 中性(灰)。（腾讯盘后分时无逐笔方向，用相邻分钟价升/降近似）
 @Composable
 private fun AhDealList(
     minutes: List<AfterMinute>,
     selectedIdx: Int,
+    preClose: Double,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
         for (i in minutes.indices.reversed()) {
             val m = minutes[i]
             val sel = i == selectedIdx
+            // 中列价格：对比收盘价 preClose 红涨绿跌
+            val priceColor = when {
+                preClose <= 0.0 -> GRAY_FLAT
+                m.price > preClose -> RED_UP
+                m.price < preClose -> GREEN_TEXT
+                else -> GRAY_FLAT
+            }
+            // 末列手数：主动买/卖（对比上一有成交分钟价）
+            val prevPrice = if (i - 1 in minutes.indices) minutes[i - 1].price else m.price
+            val volColor = when {
+                m.price > prevPrice -> RED_UP      // 主动买
+                m.price < prevPrice -> GREEN_TEXT  // 主动卖
+                else -> TEXT_SUB                   // 平
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -5697,9 +5784,9 @@ private fun AhDealList(
                     .background(if (sel) TA_BG else Color.Transparent),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(fmtAhTime(m.time), color = TEXT_SUB, fontSize = 10.sp, modifier = Modifier.weight(1f))
-                Text(fmtAhPrice(m.price), color = GRAY_FLAT, fontSize = 10.sp, fontFamily = DSpNumFont, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
-                Text(fmtAhVol(m.vol), color = TEXT_SUB, fontSize = 10.sp, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+                Text(fmtAhTime(m.time), color = TEXT_SUB, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text(fmtAhPrice(m.price), color = priceColor, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+                Text(fmtAhVol(m.vol), color = volColor, fontSize = 10.sp, fontFamily = DSpNumFont, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
             }
         }
     }
