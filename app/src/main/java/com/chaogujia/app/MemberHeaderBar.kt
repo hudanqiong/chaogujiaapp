@@ -3,11 +3,13 @@ package com.chaogujia.app
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,7 +56,10 @@ fun MemberHeaderBar(
     detailCanNext: Boolean = false,
     onDetailBack: () -> Unit = {},
     onDetailPrev: () -> Unit = {},
-    onDetailNext: () -> Unit = {}
+    onDetailNext: () -> Unit = {},
+    // ===== 交易页模式（current == "trade"）专用参数：账户类型切换按钮 =====
+    tradeTab: String = "A股",
+    onTradeTabSelect: (String) -> Unit = {}
 ) {
     // ★ 只有详情页是 edge-to-edge（状态栏透明、由内容绘制），
     //   此时红条背景必须铺满到屏幕最顶（含状态栏区域），内容再下移该高度；
@@ -81,6 +86,8 @@ fun MemberHeaderBar(
 
             // 自选页：同花顺自选 + 三图标
             "watch" -> WatchHeaderRow(onOpenSearch)
+            // ★ 交易页：红条内直接放「账户类型切换按钮」(A股/基金/期货/黄金/模拟)
+            "trade" -> TradeHeaderRow(cur = tradeTab, onSelect = onTradeTabSelect)
 
             // ★ 详情页：唯一红条 [←返回] ◀名称/代码▶ [图二][图三]
             "detail" -> DetailHeaderRow(
@@ -334,6 +341,38 @@ private fun WatchHeaderRow(onOpenSearch: () -> Unit) {
                     .clickable { onOpenSearch() },   // ★ 点最右图标 → 全屏搜索页
                 contentScale = ContentScale.FillBounds
             )
+        }
+    }
+}
+
+/** 交易页顶栏内容：账户类型切换按钮（A股/基金/期货/黄金/模拟），居中一排，红底白字 */
+private val TRADE_TABS = listOf("A股", "基金", "期货", "黄金", "模拟")
+
+@Composable
+private fun TradeHeaderRow(cur: String, onSelect: (String) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TRADE_TABS.forEach { t ->
+            val selected = t == cur
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onSelect(t) },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = t,
+                    color = if (selected) Color.White else Color.White.copy(alpha = 0.9f),
+                    fontSize = 16.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

@@ -34,11 +34,6 @@ import java.util.Locale
 private val TP_RED = Color(0xFFE23B3B)     // 涨
 private val TP_GREEN = Color(0xFF12A05C)   // 跌
 private val TP_GRAY = Color(0xFF888888)
-
-/** 切换栏文字：选中纯白；未选中暗白 */
-private val TP_TAB_ON = Color.White
-private val TP_TAB_OFF = Color.White.copy(alpha = 0.5f)
-
 private fun tpMoney(v: Double): String =
     String.format(Locale.CHINA, "%,.2f", v)
 private fun tpPct(v: Double): String =
@@ -49,69 +44,22 @@ private fun tpColor(v: Double): Color = when {
     else -> TP_GRAY
 }
 
-/** 账户类型（切换栏顺序） */
-private val TRADE_TYPES = listOf("A股", "基金", "期货", "黄金", "模拟")
-
 @Composable
 fun TradePage(
     token: String,
+    subTab: String = "A股",
+    onSubTabChange: (String) -> Unit = {},
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
 ) {
-    // 当前账户类型；默认 A股
-    var subTab by remember { mutableStateOf("A股") }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFFF5F5F5))
     ) {
-        // ===== ① 账户类型切换栏（红底白字） =====
-        TradeTypeBar(
-            current = subTab,
-            onSelect = { subTab = it }
-        )
-
-        // ===== 子页内容 =====
+        // ===== 子页内容（账户类型切换按钮已移入顶部红条 MemberHeaderBar） =====
         when (subTab) {
             "A股" -> ASharePage(token = token, onOpenDetail = onOpenDetail)
             else -> PlaceholderPage(subTab)
-        }
-    }
-}
-
-/** ① 账户类型切换栏：红底，选中纯白 / 未选中暗白 */
-@Composable
-private fun TradeTypeBar(
-    current: String,
-    onSelect: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(Config.COLOR_PRIMARY))
-            .padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        TRADE_TYPES.forEach { t ->
-            val selected = t == current
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onSelect(t) }
-                    .padding(vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = t,
-                    color = if (selected) TP_TAB_ON else TP_TAB_OFF,
-                    fontSize = 15.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1
-                )
-            }
         }
     }
 }

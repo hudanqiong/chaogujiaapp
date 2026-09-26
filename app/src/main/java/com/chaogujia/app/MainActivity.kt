@@ -69,6 +69,8 @@ fun ChaoGuJiaApp() {
     var showLogin by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var targetTab by remember { mutableStateOf("index") }
+    // ★ 交易页账户类型（A股/基金/期货/黄金/模拟）：状态提升到 App 级，供顶部红条内切换按钮使用
+    var tradeTab by remember { mutableStateOf("A股") }
 
     // ============ 轻量导航栈：详情页状态提升到 App 级 ============
     var detail by remember { mutableStateOf<DetailState?>(null) }
@@ -173,7 +175,9 @@ fun ChaoGuJiaApp() {
                     isMember = member.isMember,
                     levelName = member.levelName,
                     expireAt = member.expireAt,
-                    onOpenSearch = { showSearch = true }   // ★ 点自选页红条最右图标 → 全屏搜索页
+                    onOpenSearch = { showSearch = true },   // ★ 点自选页红条最右图标 → 全屏搜索页
+                    tradeTab = tradeTab,
+                    onTradeTabSelect = { tradeTab = it }
                 )
             }
         },
@@ -262,6 +266,8 @@ fun ChaoGuJiaApp() {
                 // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
                 "trade" -> TradePage(
                     token = token,
+                    subTab = tradeTab,
+                    onSubTabChange = { tradeTab = it },
                     onOpenDetail = { list, index -> openDetail("trade", list, index) }
                 )
                 "news" -> EmptyScreen()
