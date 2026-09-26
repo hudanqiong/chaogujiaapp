@@ -194,6 +194,7 @@ fun StockDetailPage(
     var showOrderSheet by remember { mutableStateOf(false) }
     var orderBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
     var orderBroker by remember { mutableStateOf<MyBroker?>(null) }
+    var orderSide by remember { mutableStateOf("") }
     var showAuction by remember {
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("minute_auction", false))
@@ -400,11 +401,19 @@ fun StockDetailPage(
             TradeOrderSheet(
                 brokers = orderBrokers,
                 current = orderBroker,
+                side = orderSide,
+                code = current?.code ?: "",
+                name = current?.name ?: "",
+                token = token,
+                brokerAccountId = orderBroker?.id ?: 0,
+                availableCash = orderBroker?.available ?: 0.0,
+                sellableQty = 0,
+                onBack = { orderSide = "" },
                 onSwitch = { orderBroker = it },
-                onBuy = { /* TODO 买 */ },
-                onSell = { /* TODO 卖 */ },
+                onBuy = { orderSide = "buy" },
+                onSell = { orderSide = "sell" },
                 onCancelOrder = { /* TODO 撤 */ },
-                onDismiss = { showOrderSheet = false }
+                onDismiss = { showOrderSheet = false; orderSide = "" }
             )
         }
     }
@@ -5946,12 +5955,20 @@ private fun TradeOrderSheet(
     onSell: () -> Unit,
     onCancelOrder: () -> Unit,
     onDismiss: () -> Unit
+    side: String = "",
+    code: String = "",
+    name: String = "",
+    token: String = "",
+    brokerAccountId: Int = 0,
+    availableCash: Double = 0.0,
+    sellableQty: Int = 0,
+    onBack: () -> Unit = {},
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showSwitch by remember { mutableStateOf(false) }
     // 约 1/4 屏高：用系统屏幕高度 * 0.28 作为内容区高度
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val sheetH = screenH * 0.28f
+    val sheetH = if (side == "buy" || side == "sell") screenH * 0.52f else screenH * 0.28f
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -5995,7 +6012,7 @@ private fun TradeOrderSheet(
                 Spacer(Modifier.width(8.dp))
                 // 切换：只有蓝色文字，无背景无特效
                 Text(
-                    text = "切换 ⇄",
+                    text = "切换",
                     color = Color(0xFF2A7BFF),
                     fontSize = 13.sp,
                     modifier = Modifier.clickable { if (brokers.isNotEmpty()) showSwitch = true }
@@ -6010,6 +6027,21 @@ private fun TradeOrderSheet(
                     modifier = Modifier.clickable { onDismiss() }
                 )
             }
+            if (side == "buy" || side == "sell") {
+                Column(modifier = Modifier.weight(1f)) {
+                    OrderFormBlock(
+                        side = side,
+                        code = code,
+                        name = name,
+                        brokerAccountId = brokerAccountId,
+                        token = token,
+                        availableCash = availableCash,
+                        sellableQty = sellableQty,
+                        onBack = onBack,
+                        onDone = { r -> onBack() }
+                    )
+                }
+            } else {
             Spacer(Modifier.weight(1f))
             // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，均匀分布 ----------
             // 两边各留一根牙签；标签之间一根牙签；三列等宽
@@ -6025,6 +6057,7 @@ private fun TradeOrderSheet(
                 OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
                 Spacer(Modifier.width(TOOTHPICK))
                 OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
+            }
             }
         }
     }
@@ -6150,6 +6183,196 @@ private fun OrderColumn(
                 color = Color(0xFF000000),
                 fontSize = 15.sp,
                 maxLines = 1
+            )
+        }
+    }
+}
+
+// ============================================================
+// 下单表单块（买入/卖出）：与下单弹窗同款外观，内容为具体下单项
+// side = "buy" | "sell"
+// ============================================================
+@Composable
+private fun OrderFormBlock(
+    side: String,
+    code: String,
+    name: String,
+    brokerAccountId: Int,
+    token: String,
+    availableCash: Double,
+    sellableQty: Int,
+    onBack: () -> Unit,
+    onDone: (Api.TradeResult) -> Unit
+) {
+    val isBuy = side == "buy"
+    val sideColor = if (isBuy) Color(0xFFE23B3B) else Color(0xFF2A7BFF)
+    val sideText = if (isBuy) "买入" else "卖出"
+    var qtyText by remember { mutableStateOf("") }
+    var priceText by remember { mutableStateOf("") }
+    var mode by remember { mutableStateOf("quick") }
+    var busy by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf("") }
+    val qty = qtyText.trim().toIntOrNull() ?: 0
+    val price = priceText.trim().toDoubleOrNull() ?: 0.0
+    fun submit() {
+        if (busy) return
+        if (qty <= 0 || qty % 100 != 0) { msg = "数量需为 100 的整数倍"; return }
+        if (price <= 0.0) { msg = "请输入价格"; return }
+        busy = true
+        msg = ""
+        val acctId = brokerAccountId
+        val c = code
+        val nm = name
+        kotlinx.coroutines.MainScope().launch {
+            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                if (isBuy) Api.buy(token, acctId, c, nm, qty, mode, price)
+                else Api.sell(token, acctId, c, qty, mode, price)
+            }
+            busy = false
+            onDone(r)
+        }
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 股票名 + 代码 + 方向
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = (if (name.isNotEmpty()) name else code) + " " + code,
+                color = TEXT_MAIN,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(sideColor)
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(sideText, color = Color.White, fontSize = 11.sp)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = if (isBuy) ("可用 " + String.format(java.util.Locale.CHINA, "%.2f", availableCash)) else ("可卖 " + sellableQty + " 股"),
+                color = TEXT_SUB,
+                fontSize = 12.sp
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        // 数量
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("数量", color = TEXT_SUB, fontSize = 13.sp, modifier = Modifier.width(44.dp))
+            BasicTextField(
+                value = qtyText,
+                onValueChange = { qtyText = it.filter { ch -> ch.isDigit() } },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                textStyle = androidx.compose.ui.text.TextStyle(color = TEXT_MAIN, fontSize = 14.sp),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        if (qtyText.isEmpty()) Text("100 的整数倍", color = TEXT_SUB, fontSize = 14.sp)
+                        inner()
+                    }
+                }
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFFEEEEEE)))
+        // 价格
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("价格", color = TEXT_SUB, fontSize = 13.sp, modifier = Modifier.width(44.dp))
+            BasicTextField(
+                value = priceText,
+                onValueChange = { priceText = it },
+                singleLine = true,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                textStyle = androidx.compose.ui.text.TextStyle(color = TEXT_MAIN, fontSize = 14.sp),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    Box(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        if (priceText.isEmpty()) Text("委托价", color = TEXT_SUB, fontSize = 14.sp)
+                        inner()
+                    }
+                }
+            )
+        }
+        Box(Modifier.fillMaxWidth().height(0.5.dp).background(Color(0xFFEEEEEE)))
+        // 方式选择
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (mode == "quick") sideColor else Color.Transparent)
+                    .clickable { mode = "quick" },
+                contentAlignment = Alignment.Center
+            ) {
+                if (mode == "quick") Text("✓", color = Color.White, fontSize = 12.sp)
+                else Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFDDDDDD)))
+            }
+            Spacer(Modifier.width(6.dp))
+            Text("方式A｜手填价·即时成交", color = TEXT_MAIN, fontSize = 13.sp)
+            Spacer(Modifier.weight(1f))
+            Box(
+                Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(if (mode == "limit") sideColor else Color.Transparent)
+                    .clickable { mode = "limit" },
+                contentAlignment = Alignment.Center
+            ) {
+                if (mode == "limit") Text("✓", color = Color.White, fontSize = 12.sp)
+                else Box(Modifier.size(18.dp).clip(CircleShape).background(Color(0xFFDDDDDD)))
+            }
+            Spacer(Modifier.width(6.dp))
+            Text("方式B｜到价挂单", color = TEXT_MAIN, fontSize = 13.sp)
+        }
+        if (msg.isNotEmpty()) {
+            Text(
+                text = msg,
+                color = Color(0xFFE23B3B),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        // 确认按钮
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                .height(44.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (busy) Color(0xFFBBBBBB) else sideColor)
+                .clickable { submit() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (busy) "提交中..." else (sideText + "确认"),
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
