@@ -291,25 +291,81 @@ private fun PageExchange(
     }
 }
 
-// ===== 5. 券商账户 =====
+// ===== 5. 券商账户（多账户管理）=====
 @Composable
 private fun PageBroker(token: String?, onBack: () -> Unit) {
+    var list by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    var brokers by remember { mutableStateOf<List<Broker>>(emptyList()) }
     var selected by remember { mutableStateOf("") }
     var account by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
     var expanded by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(true) }
+    var reloadFlag by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    // 拉取：券商名单 + 我的账户列表
+    LaunchedEffect(reloadFlag) {
+        loading = true
         try {
-            val b = withContext(Dispatchers.IO) { Api.myBroker(token) }
-            selected = b.broker
-            account = b.account
+            val bs = withContext(Dispatchers.IO) { Api.brokers() }
+            val ls = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            brokers = bs
+            list = ls
         } catch (e: Exception) { }
+        loading = false
     }
 
     SubShell("券商账户", onBack) {
+        // ---------- 已添加的账户列表 ----------
         CardBox {
             Column {
+                Text("我的证券账户（${list.size}）", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                if (loading) {
+                    Text("加载中...", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                } else if (list.isEmpty()) {
+                    Text("还没有添加证券账户，请在下方添加", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                } else {
+                    list.forEachIndexed { i, it ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(it.broker, color = Color(Config.COLOR_TEXT_MAIN), fontSize = 15.sp)
+                                Spacer(Modifier.height(2.dp))
+                                Text(it.account, color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                            }
+                            Text(
+                                "删除",
+                                color = Color(Config.COLOR_PRIMARY),
+                                fontSize = 13.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        Thread {
+                                            val r = Api.delBroker(token, it.id)
+                                            msg = if (r.ok) "已删除" else "失败：${r.msg}"
+                                            reloadFlag++
+                                        }.start()
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                        }
+                        if (i < list.size - 1) HDivider()
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // ---------- 新增账户 ----------
+        CardBox {
+            Column {
+                Text("添加证券账户", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(10.dp))
+
                 Text("选择券商", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
                 Box(
@@ -323,36 +379,43 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                     Text(selected.ifEmpty { "请选择券商" }, color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp)
                 }
                 if (expanded) {
-                    CardBox {
-                        Column {
-                            Api.BROKERS.forEachIndexed { i, b ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                            selected = b.name; expanded = false
-                                        }
-                                        .padding(vertical = 10.dp)
-                                ) {
-                                    Text(b.name, color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp)
-                                }
-                                if (i < Api.BROKERS.size - 1) HDivider()
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 240.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        brokers.forEachIndexed { i, b ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        selected = b.name; expanded = false
+                                    }
+                                    .padding(vertical = 10.dp)
+                            ) {
+                                Text(b.name, color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp)
                             }
+                            if (i < brokers.size - 1) HDivider()
                         }
                     }
                 }
+
                 Spacer(Modifier.height(14.dp))
-                Text("券商账号", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Text("资金账号", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
-                InputBox(account, "请输入券商账号", { account = it })
+                InputBox(account, "请输入资金账号", { account = it })
+
                 Spacer(Modifier.height(16.dp))
-                BigBtn("保存") {
+                BigBtn("添加账户") {
                     if (selected.isEmpty()) { msg = "请选择券商" }
-                    else if (account.isEmpty()) { msg = "请输入账号" }
+                    else if (account.isEmpty()) { msg = "请输入资金账号" }
                     else {
                         Thread {
-                            val r = Api.saveBroker(token, selected, account)
-                            msg = if (r.ok) "保存成功" else "失败：${r.msg}"
+                            val r = Api.addBroker(token, selected, account)
+                            msg = if (r.ok) "添加成功" else "失败：${r.msg}"
+                            if (r.ok) { account = ""; selected = ""; expanded = false }
+                            reloadFlag++
                         }.start()
                     }
                 }

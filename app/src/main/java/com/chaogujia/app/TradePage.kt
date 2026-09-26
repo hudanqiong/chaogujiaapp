@@ -5,6 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -81,6 +88,8 @@ private fun ASharePage(
 ) {
     var loading by remember { mutableStateOf(true) }
     var account by remember { mutableStateOf(AccountInfo()) }
+    var myBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    var currentBroker by remember { mutableStateOf<MyBroker?>(null) }
     suspend fun load() {
         loading = true
         try {
@@ -92,31 +101,24 @@ private fun ASharePage(
             loading = false
         }
     }
-    LaunchedEffect(token) { load() }
+    LaunchedEffect(token) {
+        load()
+        try {
+            val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            myBrokers = bs
+            if (currentBroker == null) currentBroker = bs.firstOrNull()
+        } catch (e: Exception) {
+            // 无账户时保持空列表
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // ===== ② 证券账户行（居中，含图标，行高稍高） =====
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .padding(vertical = 18.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Image(
-                painter = painterResource(R.drawable.btn_asset),
-                contentDescription = null,
-                modifier = Modifier.size(26.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "证券账户",
-                color = Color(Config.COLOR_TEXT_MAIN),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        // ===== ② 证券账户栏（可切换） =====
+        AccountBar(
+            brokers = myBrokers,
+            current = currentBroker,
+            onSwitch = { currentBroker = it }
+        )
         tpDivider()
 
         // ===== ③ 两行两列统计 =====
@@ -254,6 +256,164 @@ private fun PlaceholderPage(name: String) {
             fontSize = 14.sp
         )
     }
+}
+
+
+/** ② 证券账户栏：左图标 +（上）券商名（下）资金账号 + 右 ∨；点击弹底部半屏列表 */
+@Composable
+private fun AccountBar(
+    brokers: List<MyBroker>,
+    current: MyBroker?,
+    onSwitch: (MyBroker) -> Unit
+) {
+    var showSheet by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val name = current?.broker ?: "证券账户"
+    val no = current?.account ?: ""
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (brokers.isNotEmpty()) showSheet = true
+            }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BrokerIcon(name, current?.key ?: "")
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = name,
+                color = Color(Config.COLOR_TEXT_MAIN),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = if (no.isNotEmpty()) no else "未添加账户",
+                color = TP_GRAY,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (brokers.isNotEmpty()) {
+            Text("∨", color = TP_GRAY, fontSize = 16.sp)
+        }
+    }
+
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            sheetState = sheetState
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 24.dp)
+            ) {
+                Text(
+                    text = "选择证券账户",
+                    color = Color(Config.COLOR_TEXT_MAIN),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                tpDivider()
+                brokers.forEach { b ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                onSwitch(b)
+                                showSheet = false
+                            }
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BrokerIcon(b.broker, b.key)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = b.broker,
+                                color = Color(Config.COLOR_TEXT_MAIN),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(Modifier.height(3.dp))
+                            Text(text = b.account, color = TP_GRAY, fontSize = 13.sp)
+                        }
+                        if (current != null && b.id == current.id) {
+                            Text(
+                                text = "✓",
+                                color = Color(Config.COLOR_PRIMARY),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    tpDivider()
+                }
+            }
+        }
+    }
+}
+
+/** 券商图标：有图读 broker_<key>.png（36dp 圆形），无图用「圆圈 + 首字」兜底 */
+@Composable
+private fun BrokerIcon(brokerName: String, key: String) {
+    if (key.isNotEmpty()) {
+        val ctx = LocalContext.current
+        val id = ctx.resources.getIdentifier("broker_$key", "drawable", ctx.packageName)
+        if (id != 0) {
+            Image(
+                painter = painterResource(id),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+            )
+            return
+        }
+    }
+    // 兜底：圆圈 + 券商名首字
+    val ch = if (brokerName.isNotEmpty()) brokerName.substring(0, 1) else "券"
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(fallbackColor(brokerName)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = ch,
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/** 兜底圆圈底色：按券商名 hash 稳定取色 */
+private fun fallbackColor(name: String): Color {
+    val palette = listOf(
+        Color(0xFFE23B3B), Color(0xFF2A7BFF), Color(0xFF00A870),
+        Color(0xFFF59A23), Color(0xFF8E44AD), Color(0xFF16A3B0)
+    )
+    var h = 0
+    for (c in name) h = h * 31 + c.code
+    val i = ((h % palette.size) + palette.size) % palette.size
+    return palette[i]
 }
 
 /** 浅灰分割线 */

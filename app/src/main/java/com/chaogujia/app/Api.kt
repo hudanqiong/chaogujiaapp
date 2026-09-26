@@ -98,18 +98,19 @@ data class InvitedUser(
     val time: String = ""
 )
 
-/** 券商 */
+/** 券商（key 用于映射 drawable/broker_<key>.png，无图时为 ""） */
 data class Broker(
     val id: String = "",
-    val name: String = ""
+    val name: String = "",
+    val key: String = ""
 )
-
-/** 我的券商账户 */
+/** 我的券商账户（多账户：id 为后端主键，key 用于映射 drawable/broker_<key>.png） */
 data class MyBroker(
+    val id: Int = 0,
     val broker: String = "",
-    val account: String = ""
+    val account: String = "",
+    val key: String = ""
 )
-
 /** 自选分组（watch_group.php） */
 data class WatchGroup(
     val id: Int = 0,
@@ -834,35 +835,110 @@ object Api {
         )
     }
 
-    /** 内置券商列表 */
-    val BROKERS = listOf(
-        Broker("htzq", "华泰证券"),
-        Broker("zszq", "招商证券"),
-        Broker("gjzq", "国泰君安"),
-        Broker("zxzq", "中信证券"),
-        Broker("gyzq", "国元证券"),
-        Broker("dfzq", "东方证券"),
-        Broker("xyzq", "兴业证券"),
-        Broker("gfzq", "广发证券"),
-        Broker("pa", "平安证券"),
-        Broker("cjzq", "长江证券")
+    /** 券商列表缓存（首次调用从 brokers.php 动态拉取，之后复用） */
+    @Volatile
+    private var brokerCache: List<Broker>? = null
+
+    /** 内置兜底券商列表（网络不可用时至少能选） */
+    private val BROKERS_FALLBACK = listOf(
+        Broker("htzq", "华泰证券", "htzq"),
+        Broker("zszq", "招商证券", "zszq"),
+        Broker("gjzq", "国泰君安", "gjzq"),
+        Broker("zxzq", "中信证券", "zxzq"),
+        Broker("gyzq", "国元证券", "gyzq"),
+        Broker("dfzq", "东方证券", "dfzq"),
+        Broker("xyzq", "兴业证券", "xyzq"),
+        Broker("gfzq", "广发证券", "gfzq"),
+        Broker("pa", "平安证券", "pa"),
+        Broker("cjzq", "长江证券", "cjzq")
     )
 
-    /** 拉取我的券商账户 */
-    fun myBroker(token: String?): MyBroker {
-        val raw = Net.get(base("broker.php"), token)
-        val d = dataOf(raw) ?: return MyBroker()
-        return MyBroker(
-            broker = d.optString("broker", ""),
-            account = d.optString("account", "")
-        )
+    /** 按券商名反查图标 key（未收录时返回空串，前端走「圆圈+首字」兜底） */
+    fun keyOfBroker(name: String): String {
+        if (name.isEmpty()) return ""
+        for (b in brokers()) {
+            if (b.name == name) return b.key
+        }
+        return ""
+    }
+    /** 拉取券商名单（brokers.php，99 家，带缓存） */
+    fun brokers(): List<Broker> {
+        brokerCache?.let { return it }
+        val list = try {
+            val raw = Net.get(base("brokers.php"))
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) emptyList()
+            else {
+                val arr = o.optJSONArray("data") ?: org.json.JSONArray()
+                val out = ArrayList<Broker>(arr.length())
+                for (i in 0 until arr.length()) {
+                    val j = arr.optJSONObject(i) ?: continue
+                    out.add(
+                        Broker(
+                            id = j.optString("id", ""),
+                            name = j.optString("name", ""),
+                            key = j.optString("key", "")
+                        )
+                    )
+                }
+                out
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val result = if (list.isNotEmpty()) list else BROKERS_FALLBACK
+        brokerCache = result
+        return result
     }
 
-    /** 保存券商账户 */
-    fun saveBroker(token: String?, broker: String, account: String): Res =
-        post("broker.php", token, "broker" to broker, "account" to account)
+    /** 兼容旧调用：内置券商列表（动态拉取） */
+    val BROKERS: List<Broker> get() = brokers()
 
-    /** 自选分组列表 */
+    /** 拉取我的全部券商账户（多账户，broker.php 默认 GET） */
+    fun brokerList(token: String?): List<MyBroker> {
+        return try {
+            val raw = Net.get(base("broker.php"), token)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val d = o.optJSONObject("data") ?: return emptyList()
+            val arr = d.optJSONArray("list") ?: return emptyList()
+            val out = ArrayList<MyBroker>(arr.length())
+            for (i in 0 until arr.length()) {
+                val j = arr.optJSONObject(i) ?: continue
+                val bname = j.optString("broker", "")
+                out.add(
+                    MyBroker(
+                        id = j.optInt("id", 0),
+                        broker = bname,
+                        account = j.optString("account_no", ""),
+                        key = keyOfBroker(bname)
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 新增券商账户（action=add） */
+    fun addBroker(token: String?, broker: String, account: String): Res =
+        post("broker.php", token, "action" to "add", "broker" to broker, "account_no" to account)
+
+    /** 删除券商账户（action=delete，按 id） */
+    fun delBroker(token: String?, id: Int): Res =
+        post("broker.php", token, "action" to "delete", "id" to id)
+
+    /** 兼容旧接口：拉取我的券商账户（返回第一个） */
+    fun myBroker(token: String?): MyBroker {
+        val l = brokerList(token)
+        return l.firstOrNull() ?: MyBroker()
+    }
+    /** 兼容旧接口：保存券商账户（旧版单账户语义，先清空再存） */
+    fun saveBroker(token: String?, broker: String, account: String): Res =
+        post("broker.php", token, "action" to "save", "broker" to broker, "account" to account)
+
+/** 自选分组列表 */
     fun watchGroups(token: String?): List<WatchGroup> {
         val raw = Net.postJson(base("watch_group.php"), jsonOf("action" to "list"), token)
         val d = dataOf(raw) ?: return emptyList()
