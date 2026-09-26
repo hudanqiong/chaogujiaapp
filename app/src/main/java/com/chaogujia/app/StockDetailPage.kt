@@ -6028,7 +6028,9 @@ private fun TradeOrderSheet(
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
     // H1 修复：0.62 过高（超出个股详情页下单弹窗原高度），回调至 0.52；表单已可滚动，按钮仍可达
     // H2：弹窗底边贴屏幕最底、盖住底部固定栏（zIndex 10 > BottomBar 2），关窗后 BottomBar 自然还原
-    val sheetH = if (side == "buy" || side == "sell") screenH * 0.52f else screenH * 0.36f
+    // H3：两个弹窗高度统一（买卖撤态与表单态同高）。买卖撤态要让"买/卖/撤"标签完整可见，
+    // 表单态原 0.52 过高，统一到 0.52（表单已可滚动，按钮仍可达）
+    val sheetH = screenH * 0.52f
 
     // 第十轮需求⑤(A2)：改为自定义底部覆盖层——上方完全不绘制，可点穿到分时页五档
     // H2：zIndex(10) 高于底部固定栏(2)，保证弹窗盖住底部那排固定按钮；关窗后 BottomBar 自然还原
@@ -6122,20 +6124,19 @@ private fun TradeOrderSheet(
                 }
             } else {
             Spacer(Modifier.weight(1f))
-            // ---------- 并排：买(红) / 卖(蓝) / 撤(灰) —— 圆圈 + 下方浅灰标签，均匀分布 ----------
-            // 两边各留一根牙签；标签之间一根牙签；三列等宽
+            // ---------- 并排：买 / 卖 / 撤 —— 图片圆按钮 + 下方浅灰标签，均匀分布 ----------
+            // H3：整体上提（底部留白），让"买/卖/撤"标签完整可见、不再被藏到屏幕下边
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // 屏幕两边各留一根牙签
-                    .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = 18.dp),
+                    .padding(start = TOOTHPICK, end = TOOTHPICK, bottom = 72.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OrderColumn("买", Color(0xFFE23B3B), "去交易下单", Modifier.weight(1f)) { onBuy() }
+                OrderColumn(R.drawable.ic_trade_buy, "去交易下单", Modifier.weight(1f)) { onBuy() }
                 Spacer(Modifier.width(TOOTHPICK))
-                OrderColumn("卖", Color(0xFF2A7BFF), "双向下单", Modifier.weight(1f)) { onSell() }
+                OrderColumn(R.drawable.ic_trade_sell, "双向下单", Modifier.weight(1f)) { onSell() }
                 Spacer(Modifier.width(TOOTHPICK))
-                OrderColumn("撤", Color(0xFF6B6B6B), "条件单", Modifier.weight(1f)) { onCancelOrder() }
+                OrderColumn(R.drawable.ic_trade_cancel, "条件单", Modifier.weight(1f)) { onCancelOrder() }
             }
             }
         }
@@ -6219,8 +6220,7 @@ private val TOOTHPICK = 6.dp
  */
 @Composable
 private fun OrderColumn(
-    circleText: String,
-    circleColor: Color,
+    iconRes: Int,
     labelText: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
@@ -6229,24 +6229,18 @@ private fun OrderColumn(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
+        // H3：圆形按钮改为图片资源（透明 PNG，保留了原圆内白字）
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = labelText,
             modifier = Modifier
                 .size(72.dp)
-                .clip(CircleShape)
-                .background(circleColor)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null
                 ) { onClick() },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = circleText,
-                color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+            contentScale = ContentScale.Fit
+        )
         // 圆圈与标签之间：四根牙签
         Spacer(Modifier.height(TOOTHPICK * 4))
         // 浅灰底 + 黑色文字标签（固定高度：比首版再高一半）
@@ -6536,31 +6530,25 @@ private fun OrderFormBlock(
                 )
             }
             Spacer(Modifier.width(10.dp))
-            // 红色买入按钮：任一为空则禁用
-            Box(
+            // H3：红色买入/卖出按钮改为图片资源（4=买入不可点 5=买入可点 6=卖出不可点 7=卖出可点）
+            // 可点 = 两个编辑框都有内容(canSubmit) 且非提交中(busy)
+            val submitIcon = when {
+                isBuy && busy -> R.drawable.ic_buy_off
+                isBuy && canSubmit -> R.drawable.ic_buy_on
+                isBuy -> R.drawable.ic_buy_off
+                busy -> R.drawable.ic_sell_off
+                canSubmit -> R.drawable.ic_sell_on
+                else -> R.drawable.ic_sell_off
+            }
+            Image(
+                painter = painterResource(submitIcon),
+                contentDescription = if (isBuy) "买入" else "卖出",
                 modifier = Modifier
                     .weight(1f)
                     .height(46.dp)
-                    .clip(RectangleShape)
-                    .background(if (busy) Color(0xFFBBBBBB) else sideColor)
                     .clickable(enabled = canSubmit && !busy) { submit() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (busy) "提交中..." else sideText,
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                // 禁用时盖一层半透明白
-                if (!canSubmit && !busy) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .background(Color.White.copy(alpha = 0.55f))
-                    )
-                }
-            }
+                contentScale = ContentScale.FillWidth
+            )
         }
     }
 }
