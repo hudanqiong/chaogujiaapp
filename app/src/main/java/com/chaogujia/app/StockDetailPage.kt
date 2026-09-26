@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.zIndex
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
@@ -245,73 +246,30 @@ fun StockDetailPage(
         if (nm.isNotEmpty()) onNameChange(nm)
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.White)
             // detail-overlay-swallow：吞掉自身空白区点击，阻止穿透到下层 IndexBar 触发「编辑表头」
             .pointerInput(Unit) { detectTapGestures { /* 空白区：无操作，仅拦截 */ } }
     ) {
-        // ================= 顶部红条（仅独立使用时自绘） =================
-        // 被 App 级红条托管时（showOwnHeader=false）跳过，避免出现第二条红条 / 图标重复。
-        if (showOwnHeader) {
-            DetailHeaderBar(
-                name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
-                code = current?.code ?: "",
-                canPrev = idx > 0,
-                canNext = idx < list.size - 1,
-                onBack = onClose,
-                onPrev = { setIdx(idx - 1) },
-                onNext = { setIdx(idx + 1) },
-                onOpenSearch = onOpenSearch
-            )
-        }
-
-        // ================= 头部数据区 =================
-        // selK：K线被选中的柱子下标（null=未选中，显示最新一天）
-        DetailHeadData(detail, selK)
-
-        // ================= 盘后固定价格交易（全 A 股）=================
-        // 全市场均适用；仅当该股当日有盘后成交时显示。默认收起，点击展开分时图+分钟明细。
-        AfterHoursBar(detail)
-
-        if (showMaSetting) {
-            MaSettingDialog(
-                initial = maPeriods,
-                onDismiss = { showMaSetting = false },
-                onConfirm = { maPeriods = it; showMaSetting = false },
-                auction = showAuction,
-                onAuctionChange = { v ->
-                    showAuction = v
-                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
-                        .edit().putBoolean("minute_auction", v).apply()
-                },
-                symmetric = symmetricAxis,
-                onSymmetricChange = { v ->
-                    symmetricAxis = v
-                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
-                        .edit().putBoolean("minute_symmetric", v).apply()
-                },
-                showOrderAmount = showOrderAmount,
-                onShowOrderAmountChange = { v ->
-                    showOrderAmount = v
-                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
-                        .edit().putBoolean("orderbook_show_amount", v).apply()
-                }
-            )
-        }
-
-        // ================= 内容区：图表固定高度 + 下方预留模块（可滚动），底部功能栏钉在屏幕底部 =================
-        Box(
+        // ================= 内容区：顶红条以下全部可上滑（内容从红条下方穿过被盖住）=================
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-            ) {
+            // ---- 顶部占位：避让浮在表层的顶红条 ----
+            Spacer(Modifier.height(D_BAR_HEIGHT).statusBarsPadding())
+
+            // ================= 头部数据区 =================
+            // selK：K线被选中的柱子下标（null=未选中，显示最新一天）
+            DetailHeadData(detail, selK)
+
+            // ================= 盘后固定价格交易（全 A 股）=================
+            // 全市场均适用；仅当该股当日有盘后成交时显示。默认收起，点击展开分时图+分钟明细。
+            AfterHoursBar(detail)
+
                 // ================= 标签栏（跟随上滑）=================
                 PeriodTabs(period, onPick = { period = it; selK = null; cursorMin = CURSOR_NONE }, onGear = { showMaSetting = true })
                 // 分时信息条：仅分时/五日视图显示（跟随上滑）
@@ -349,12 +307,52 @@ fun StockDetailPage(
                         }
                     }
                 }
-                // ---- 底部栏占位（防止滚动内容被钉底的底部栏遮挡）----
-                Spacer(Modifier.height(DETAIL_BAR_HEIGHT))
-                // TODO: 后续功能模块追加在此处下方
+                // ---- 底部栏占位（防止滚动内容被铉底的底部栏遮挡）----
+            Spacer(Modifier.height(DETAIL_BAR_HEIGHT))
+            // TODO: 后续功能模块追加在此处下方（自动跟随上滑）
+        }
+        if (showMaSetting) {
+            MaSettingDialog(
+                initial = maPeriods,
+                onDismiss = { showMaSetting = false },
+                onConfirm = { maPeriods = it; showMaSetting = false },
+                auction = showAuction,
+                onAuctionChange = { v ->
+                    showAuction = v
+                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+                        .edit().putBoolean("minute_auction", v).apply()
+                },
+                symmetric = symmetricAxis,
+                onSymmetricChange = { v ->
+                    symmetricAxis = v
+                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+                        .edit().putBoolean("minute_symmetric", v).apply()
+                },
+                showOrderAmount = showOrderAmount,
+                onShowOrderAmountChange = { v ->
+                    showOrderAmount = v
+                    ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
+                        .edit().putBoolean("orderbook_show_amount", v).apply()
+                }
+            )
+        }
+        // ================= 顶部红条（浮层，不跟随上滑）=================
+        if (showOwnHeader) {
+            Box(Modifier.align(Alignment.TopCenter).zIndex(2f)) {
+                DetailHeaderBar(
+                    name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
+                    code = current?.code ?: "",
+                    canPrev = idx > 0,
+                    canNext = idx < list.size - 1,
+                    onBack = onClose,
+                    onPrev = { setIdx(idx - 1) },
+                    onNext = { setIdx(idx + 1) },
+                    onOpenSearch = onOpenSearch
+                )
             }
-            // ---- 底部功能栏：钉在屏幕最底 ----
-            DetailBottomBar(
+        }
+        // ---- 底部功能栏：钉在屏幕最底，不跟随上滑 ----
+        DetailBottomBar(
                 concept = concept,
                 watched = watched,
                 onOrder = { /* TODO 下单 */ },
@@ -370,11 +368,12 @@ fun StockDetailPage(
                     }
                 },
                 onMore = { /* TODO 功能菜单 */ },
-                modifier = Modifier.align(Alignment.BottomCenter)
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(2f)
             )
-        }
     }
-}
+    }
 
 // ============================================================
 // 顶部红条：[←] ◀ 名称/代码 ▶ [放大镜][机器人]
