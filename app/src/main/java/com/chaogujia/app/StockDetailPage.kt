@@ -271,8 +271,8 @@ fun StockDetailPage(
         // selK：K线被选中的柱子下标（null=未选中，显示最新一天）
         DetailHeadData(detail, selK)
 
-        // ================= 盘后固定价格交易（科创板/创业板）=================
-        // 仅 688/689/300/301 且当日有盘后成交时显示；默认收起，点击展开分时图+分钟明细。
+        // ================= 盘后固定价格交易（全 A 股）=================
+        // 全市场均适用；仅当该股当日有盘后成交时显示。默认收起，点击展开分时图+分钟明细。
         AfterHoursBar(detail)
 
         // ================= 标签栏 =================
@@ -5306,14 +5306,15 @@ private fun AfterHoursBar(detail: StockDetail?) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 10.dp)
+            // 与分时页 MinuteChart 左右边界一致（start=4 / end=4），保证盘后分时区与分时页左右齐。
+            .padding(start = 4.dp, end = 4.dp)
     ) {
         // ---------------- 标题横条 ----------------
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { expanded = !expanded }
-                .padding(vertical = 6.dp),
+                .padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -5352,11 +5353,11 @@ private fun AfterHoursBar(detail: StockDetail?) {
             )
         }
 
-        // ---------------- 展开态分时区 ----------------
+        // ---------------- 展开态：左=盘后分时（价/轴/量），右=交易明细 ----------------
+        // 布局规格对标分时页 MinuteChart：左侧区域 weight=1-ORDERBOOK_RATIO（与分时页左右齐），
+        // 右侧区域 weight=ORDERBOOK_RATIO；左右 padding 与分时页一致(start=4,end=4)。
         if (expanded) {
-            AhMinuteChart(d)
-            Spacer(Modifier.height(4.dp))
-            AhDealList(d)
+            AhExpanded(d)
             Spacer(Modifier.height(6.dp))
         }
         HorDottedLine()
@@ -5396,115 +5397,159 @@ private fun ahSlotOf(hhmm: String): Int {
     return (h * 60 + m) - (15 * 60 + 6)
 }
 
-/**
- * 盘后分时图（自绘）：价图（固定价水平线+成交分钟点）+ 时间轴 + 量柱 + 十字光标。
- */
+// ---- 盘后分时：价图（自绘 + 十字手势）----
 @Composable
-private fun AhMinuteChart(d: AfterHours) {
-    val minutes = d.minutes
-    val price = d.price
+private fun AhPriceChart(
+    minutes: List<AfterMinute>,
+    price: Double,
+    cursorMin: Float,
+    onCursor: (Float) -> Unit
+) {
+    val cursorIdx = if (cursorMin >= CURSOR_ACTIVE_MIN) cursorMin.toInt() else -1
     val spanPad = if (price > 0) price * 0.01 else 0.5
     val maxP = price + spanPad
     val minP = (price - spanPad).coerceAtLeast(0.0)
-    val tm = rememberTextMeasurer()
-
-    var cursorMin by remember(d) { mutableStateOf(CURSOR_NONE) }
-    val cursorIdx = if (cursorMin >= CURSOR_ACTIVE_MIN) cursorMin.toInt() else -1
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // ---------- 价图 ----------
-        Box(modifier = Modifier.fillMaxWidth().height(AH_PRICE_H)) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = size.width
-                val h = size.height
-                val slots = 25f
-                fun xOfSlot(s: Float): Float = (s.coerceIn(0f, slots) / slots) * w
-                fun yOf(p: Double): Float = (h - ((p - minP) / (maxP - minP)) * h).toFloat()
-                for (k in 1..3) {
-                    val y = h * k / 4f
-                    drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
-                }
-                for (s in 0..25 step 5) {
-                    val x = xOfSlot(s.toFloat())
-                    drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
-                }
-                val yPrice = yOf(price)
-                drawLine(RED_UP, Offset(0f, yPrice), Offset(w, yPrice), strokeWidth = 1.2f)
-                for (m in minutes) {
-                    val s = ahSlotOf(m.time).toFloat()
-                    if (s < 0f || s > slots) continue
-                    drawCircle(RED_UP, radius = 2.2f, center = Offset(xOfSlot(s), yPrice))
-                }
-                if (cursorIdx in minutes.indices) {
-                    val s = ahSlotOf(minutes[cursorIdx].time).toFloat()
-                    drawLine(CURSOR_LINE_COLOR, Offset(xOfSlot(s), 0f), Offset(xOfSlot(s), h), strokeWidth = 1f)
-                }
-            }
-            AhCursorGesture(
-                slots = 25,
-                onSlot = { s ->
-                    var best = -1
-                    var bestD = Int.MAX_VALUE
-                    minutes.forEachIndexed { i, m ->
-                        val dd = abs(ahSlotOf(m.time) - s)
-                        if (dd < bestD) { bestD = dd; best = i }
-                    }
-                    cursorMin = if (best >= 0) best.toFloat() else CURSOR_NONE
-                },
-                onClear = { cursorMin = CURSOR_NONE },
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        // ---------- 时间轴 ----------
-        Canvas(modifier = Modifier.fillMaxWidth().height(AH_TIME_H)) {
+    Box(modifier = Modifier.fillMaxWidth().height(AH_PRICE_H)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            drawRect(TA_BG, size = Size(w, h))
-            drawLine(TIME_AXIS_LINE, Offset(0f, 0f), Offset(w, 0f), strokeWidth = 1f)
-            val labels = listOf(0 to "15:06", 5 to "15:11", 10 to "15:16", 15 to "15:21", 20 to "15:26", 24 to "15:30")
-            for ((s, txt) in labels) {
-                val x = (s / 25f) * w
-                drawLine(TIME_AXIS_LINE, Offset(x, 0f), Offset(x, 4f), strokeWidth = 1f)
-                val tl = tm.measure(androidx.compose.ui.text.AnnotatedString(txt), TextStyle(color = TEXT_SUB, fontSize = 9.sp, fontFamily = DSpNumFont))
-                val tx = (x - tl.size.width / 2f).coerceIn(0f, (w - tl.size.width).coerceAtLeast(0f))
-                drawText(tl, topLeft = Offset(tx, 4f))
+            val slots = 25f
+            fun xOfSlot(s: Float): Float = (s.coerceIn(0f, slots) / slots) * w
+            fun yOf(p: Double): Float = (h - ((p - minP) / (maxP - minP)) * h).toFloat()
+            for (k in 1..3) {
+                val y = h * k / 4f
+                drawLine(LINE_GRID, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+            }
+            for (s in 0..25 step 5) {
+                val x = xOfSlot(s.toFloat())
+                drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
+            val yPrice = yOf(price)
+            drawLine(RED_UP, Offset(0f, yPrice), Offset(w, yPrice), strokeWidth = 1.2f)
+            for (m in minutes) {
+                val s = ahSlotOf(m.time).toFloat()
+                if (s < 0f || s > slots) continue
+                drawCircle(RED_UP, radius = 2.2f, center = Offset(xOfSlot(s), yPrice))
+            }
+            if (cursorIdx in minutes.indices) {
+                val s = ahSlotOf(minutes[cursorIdx].time).toFloat()
+                drawLine(CURSOR_LINE_COLOR, Offset(xOfSlot(s), 0f), Offset(xOfSlot(s), h), strokeWidth = 1f)
             }
         }
-        // ---------- 量图 ----------
-        Box(modifier = Modifier.fillMaxWidth().height(AH_VOL_H)) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = size.width
-                val h = size.height
-                val slots = 25f
-                val maxV = (minutes.maxOfOrNull { it.vol } ?: 1.0).coerceAtLeast(1.0)
-                val bw = (w / slots) * 0.7f
-                drawLine(LINE_GRID, Offset(0f, h / 2f), Offset(w, h / 2f), strokeWidth = 1f)
-                for (s in 0..25 step 5) {
-                    val x = (s / slots) * w
-                    drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+        AhCursorGesture(
+            slots = 25,
+            onSlot = { s ->
+                var best = -1
+                var bestD = Int.MAX_VALUE
+                minutes.forEachIndexed { i, m ->
+                    val dd = abs(ahSlotOf(m.time) - s)
+                    if (dd < bestD) { bestD = dd; best = i }
                 }
-                for (m in minutes) {
-                    val s = ahSlotOf(m.time).toFloat()
-                    if (s < 0f || s > slots) continue
-                    val x = (s / slots) * w
-                    val bh = (m.vol / maxV * h).toFloat().coerceAtLeast(1f)
-                    drawRect(color = Color(0xFFB0B0B0), topLeft = Offset(x - bw / 2f, h - bh), size = Size(bw, bh))
-                }
-                if (cursorIdx in minutes.indices) {
-                    val x = (ahSlotOf(minutes[cursorIdx].time) / slots) * w
-                    drawLine(CURSOR_LINE_COLOR, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
-                }
+                onCursor(if (best >= 0) best.toFloat() else CURSOR_NONE)
+            },
+            onClear = { onCursor(CURSOR_NONE) },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+// ---- 盘后分时：时间轴 ----
+@Composable
+private fun AhTimeAxis() {
+    val tm = rememberTextMeasurer()
+    Canvas(modifier = Modifier.fillMaxWidth().height(AH_TIME_H)) {
+        val w = size.width
+        val h = size.height
+        drawRect(TA_BG, size = Size(w, h))
+        drawLine(TIME_AXIS_LINE, Offset(0f, 0f), Offset(w, 0f), strokeWidth = 1f)
+        val labels = listOf(0 to "15:06", 5 to "15:11", 10 to "15:16", 15 to "15:21", 20 to "15:26", 24 to "15:30")
+        for ((s, txt) in labels) {
+            val x = (s / 25f) * w
+            drawLine(TIME_AXIS_LINE, Offset(x, 0f), Offset(x, 4f), strokeWidth = 1f)
+            val tl = tm.measure(androidx.compose.ui.text.AnnotatedString(txt), TextStyle(color = TEXT_SUB, fontSize = 9.sp, fontFamily = DSpNumFont))
+            val tx = (x - tl.size.width / 2f).coerceIn(0f, (w - tl.size.width).coerceAtLeast(0f))
+            drawText(tl, topLeft = Offset(tx, 4f))
+        }
+    }
+}
+
+// ---- 盘后分时：量图（自绘 + 十字手势）----
+@Composable
+private fun AhVolChart(
+    minutes: List<AfterMinute>,
+    cursorMin: Float,
+    onCursor: (Float) -> Unit
+) {
+    val cursorIdx = if (cursorMin >= CURSOR_ACTIVE_MIN) cursorMin.toInt() else -1
+    Box(modifier = Modifier.fillMaxWidth().height(AH_VOL_H)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val slots = 25f
+            val maxV = (minutes.maxOfOrNull { it.vol } ?: 1.0).coerceAtLeast(1.0)
+            val bw = (w / slots) * 0.7f
+            drawLine(LINE_GRID, Offset(0f, h / 2f), Offset(w, h / 2f), strokeWidth = 1f)
+            for (s in 0..25 step 5) {
+                val x = (s / slots) * w
+                drawLine(LINE_GRID, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
+            }
+            for (m in minutes) {
+                val s = ahSlotOf(m.time).toFloat()
+                if (s < 0f || s > slots) continue
+                val x = (s / slots) * w
+                val bh = (m.vol / maxV * h).toFloat().coerceAtLeast(1f)
+                drawRect(color = Color(0xFFB0B0B0), topLeft = Offset(x - bw / 2f, h - bh), size = Size(bw, bh))
+            }
+            if (cursorIdx in minutes.indices) {
+                val x = (ahSlotOf(minutes[cursorIdx].time) / slots) * w
+                drawLine(CURSOR_LINE_COLOR, Offset(x, 0f), Offset(x, h), strokeWidth = 1f)
             }
         }
-        // ---------- 光标数值行 ----------
-        val hover = if (cursorIdx in minutes.indices) minutes[cursorIdx] else null
-        Text(
-            if (hover != null) hover.time.substring(0, 2) + ":" + hover.time.substring(2) + "   价 " + fmtAhPrice(hover.price) + "   量 " + fmtAhVol(hover.vol) + "手"
-            else "拖动查看盘后每分钟成交",
-            color = if (hover != null) TEXT_MAIN else TEXT_SUB,
-            fontSize = 10.sp,
-            fontFamily = DSpNumFont,
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+        AhCursorGesture(
+            slots = 25,
+            onSlot = { s ->
+                var best = -1
+                var bestD = Int.MAX_VALUE
+                minutes.forEachIndexed { i, m ->
+                    val dd = abs(ahSlotOf(m.time) - s)
+                    if (dd < bestD) { bestD = dd; best = i }
+                }
+                onCursor(if (best >= 0) best.toFloat() else CURSOR_NONE)
+            },
+            onClear = { onCursor(CURSOR_NONE) },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
+// ---- 盘后展开态：左=盘后分时（价/轴/量），右=交易明细 ----
+// 布局规格对标分时页 MinuteChart：左侧 weight=1-ORDERBOOK_RATIO（与分时页左右齐），
+// 右侧 weight=ORDERBOOK_RATIO（交易明细），时间轴/量图与分时页同规格。
+@Composable
+private fun AhExpanded(d: AfterHours) {
+    val minutes = d.minutes
+    var cursorMin by remember(d) { mutableStateOf(CURSOR_NONE) }
+    val cursorIdx = if (cursorMin >= CURSOR_ACTIVE_MIN) cursorMin.toInt() else -1
+    Row(modifier = Modifier.fillMaxWidth()) {
+        // 左侧：盘后分时（价图 + 时间轴 + 量图 + 光标数值行），与分时页左侧同宽
+        Column(modifier = Modifier.weight(1f - ORDERBOOK_RATIO)) {
+            AhPriceChart(minutes, d.price, cursorMin, { cursorMin = it })
+            AhTimeAxis()
+            AhVolChart(minutes, cursorMin, { cursorMin = it })
+            val hover = if (cursorIdx in minutes.indices) minutes[cursorIdx] else null
+            Text(
+                if (hover != null) hover.time.substring(0, 2) + ":" + hover.time.substring(2) + "   价 " + fmtAhPrice(hover.price) + "   量 " + fmtAhVol(hover.vol) + "手"
+                else "拖动查看盘后每分钟成交",
+                color = if (hover != null) TEXT_MAIN else TEXT_SUB,
+                fontSize = 10.sp,
+                fontFamily = DSpNumFont,
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+            )
+        }
+        // 右侧：交易明细，与分时页右侧盘口栏同宽
+        AhDealList(
+            d,
+            modifier = Modifier.weight(ORDERBOOK_RATIO).padding(start = 4.dp)
         )
     }
 }
@@ -5537,20 +5582,20 @@ private fun AhCursorGesture(
 
 // ---- 盘后分钟明细列表 ----
 @Composable
-private fun AhDealList(d: AfterHours) {
+private fun AhDealList(d: AfterHours, modifier: Modifier = Modifier) {
     val rows = d.minutes.sortedByDescending { it.time }
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+    Column(modifier = modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
             Text("时间", color = TEXT_SUB, fontSize = 10.sp, modifier = Modifier.weight(1f))
             Text("价格", color = TEXT_SUB, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-            Text("成交量", color = TEXT_SUB, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+            Text("量", color = TEXT_SUB, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
         HorDottedLine()
         rows.forEach { m ->
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                 Text(m.time.substring(0, 2) + ":" + m.time.substring(2), color = TEXT_MAIN, fontSize = 11.sp, fontFamily = DSpNumFont, modifier = Modifier.weight(1f))
                 Text(fmtAhPrice(m.price), color = RED_UP, fontSize = 11.sp, fontFamily = DSpNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                Text(fmtAhVol(m.vol) + "手", color = TEXT_MAIN, fontSize = 11.sp, fontFamily = DSpNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                Text(fmtAhVol(m.vol), color = TEXT_MAIN, fontSize = 11.sp, fontFamily = DSpNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
             }
         }
     }

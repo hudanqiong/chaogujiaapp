@@ -290,7 +290,7 @@ data class AfterMinute(
  *   minutes  : 盘后逐分钟点（时间升序，1506..1530，仅含有成交的分钟）
  *   supported: 该标的当日是否有盘后固定价交易（无成交时为 false，UI 不显示）
  *
- * 仅科创板(688/689)、创业板(300/301) 存在此机制；接口对无盘后数据的标的返回空列表。
+ * 盘后固定价格交易现覆盖全部 A 股；接口对当日无盘后成交的标的返回空列表。
  */
 data class AfterHours(
     val price: Double = 0.0,
@@ -1258,12 +1258,8 @@ object Api {
             else -> "sz"
         }
         val sym = prefix + pure
-
-        // ---- 仅支持有盘后固定价机制的板块：688/689（科创）、300/301（创业）----
-        val hasAfter = pure.startsWith("688") || pure.startsWith("689") ||
-            pure.startsWith("300") || pure.startsWith("301")
-        if (!hasAfter) return AfterHours()
-
+        // 盘后固定价格交易已扩展至全部 A 股（沪深主板/科创/创业均可参与），
+        // 不再按板块限制；是否有盘后成交完全以接口返回的分钟数据为准（无成交则 minutes 为空 → 不支持）。
         try {
             val url = "https://web.ifzq.gtimg.cn/appstock/app/minute/query?code=$sym"
             val raw = Net.getRaw(url, referer = "https://gu.qq.com/") ?: return AfterHours()
