@@ -351,28 +351,28 @@ private val TRADE_TABS = listOf("A股", "基金", "期货", "黄金", "模拟")
 @Composable
 private fun TradeHeaderRow(cur: String, onSelect: (String) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp),          // ★ 整排下移，靠近红条底部
+        horizontalArrangement = Arrangement.Center,   // ★ 整排水平居中
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TRADE_TABS.forEach { t ->
+        TRADE_TABS.forEachIndexed { i, t ->
             val selected = t == cur
-            Box(
+            if (i > 0) Spacer(Modifier.width(8.dp))   // ★ 按钮之间的小间距
+            Text(
+                text = t,
+                color = if (selected) Color.White else Color.White.copy(alpha = 0.9f),
+                fontSize = 16.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                maxLines = 1,
                 modifier = Modifier
-                    .weight(1f)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { onSelect(t) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = t,
-                    color = if (selected) Color.White else Color.White.copy(alpha = 0.9f),
-                    fontSize = 16.sp,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1
-                )
-            }
+                    ) { onSelect(t) }
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            )
         }
     }
 }

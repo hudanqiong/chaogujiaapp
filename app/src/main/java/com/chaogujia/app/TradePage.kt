@@ -11,6 +11,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -31,16 +33,23 @@ import java.util.Locale
  *
  * 本轮只实现 A股 子页；基金/期货/黄金/模拟 先占位。
  */
-private val TP_RED = Color(0xFFE23B3B)     // 涨
-private val TP_GREEN = Color(0xFF12A05C)   // 跌
+private val TP_RED = Color(0xFFE23B3B)     // 涨/盈利（红）
+private val TP_BLUE = Color(0xFF2A7BFF)    // 跌/亏损（蓝）
 private val TP_GRAY = Color(0xFF888888)
+private val TP_BLACK = Color(0xFF222222)   // 总资产/总市值 数值色
+/** 数值字体：与股价/详情页一致（同花顺金融体） */
+private val TPNumFont = FontFamily(Font(R.font.ths_regular))
 private fun tpMoney(v: Double): String =
     String.format(Locale.CHINA, "%,.2f", v)
+/** 盈亏金额：带正负号，盈利 + ，亏损 - */
+private fun tpSigned(v: Double): String =
+    String.format(Locale.CHINA, "%+,.2f", v)
 private fun tpPct(v: Double): String =
     String.format(Locale.CHINA, "%+.2f%%", v)
-private fun tpColor(v: Double): Color = when {
+/** 盈亏颜色：盈利红、亏损蓝、零灰 */
+private fun tpPnColor(v: Double): Color = when {
     v > 1e-9 -> TP_RED
-    v < -1e-9 -> TP_GREEN
+    v < -1e-9 -> TP_BLUE
     else -> TP_GRAY
 }
 
@@ -121,12 +130,13 @@ private fun ASharePage(
                 StatCell(
                     label = "总资产",
                     value = if (loading) "加载中…" else tpMoney(account.total),
+                    valueColor = TP_BLACK,
                     modifier = Modifier.weight(1f)
                 )
                 StatCell(
                     label = "浮动盈亏",
-                    value = tpMoney(account.floatPn),
-                    valueColor = tpColor(account.floatPn),
+                    value = tpSigned(account.floatPn),
+                    valueColor = tpPnColor(account.floatPn),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -135,11 +145,13 @@ private fun ASharePage(
                 StatCell(
                     label = "总市值",
                     value = tpMoney(account.marketValue),
+                    valueColor = TP_BLACK,
                     modifier = Modifier.weight(1f)
                 )
                 StatCell(
                     label = "当日参考盈亏",
                     value = "—",
+                    valueColor = TP_BLACK,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -174,6 +186,7 @@ private fun StatCell(
             color = valueColor,
             fontSize = 17.sp,
             fontWeight = FontWeight.Medium,
+            fontFamily = TPNumFont,
             maxLines = 1
         )
     }
