@@ -196,6 +196,8 @@ fun StockDetailPage(
     var orderBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
     var orderBroker by remember { mutableStateOf<MyBroker?>(null) }
     var orderSide by remember { mutableStateOf("") }
+    // 第十轮需求⑤：用户在弹窗上方点五档价格 → 暂存，传给表单回填
+    var orderPickPrice by remember { mutableStateOf(0.0) }
     var showAuction by remember {
         mutableStateOf(ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE)
             .getBoolean("minute_auction", false))
@@ -221,7 +223,25 @@ fun StockDetailPage(
     var loading by remember { mutableStateOf(false) }
     // 十字光标分钟（-1 = 无）：由本页持有，传给 MinuteChart，并驱动顶部「分时信息条」联动
     var cursorMin by remember { mutableStateOf(-1f) }
+    // 五档盘口（第十轮：给下单弹窗透出买卖盘，可点击填价；同时取真实涨跌停价）
+    var orderBook by remember { mutableStateOf<OrderBook?>(null) }
     val scope = rememberCoroutineScope()
+    // 第十轮需求⑤⑦：行情页每 3 秒轮询五档；用于弹窗上方透出的买卖盘 + 实时股价
+    LaunchedEffect(current?.code) {
+        val code = current?.code ?: return@LaunchedEffect
+        while (true) {
+            val ob = withContext(Dispatchers.IO) {
+                try { Api.orderbook(code, 1, 20) } catch (e: Exception) { null }
+            }
+            if (ob != null) orderBook = ob
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+    // 实时股价：优先用 detail 当前价，退回五档买一价
+    val livePrice = detail?.base?.price?.takeIf { it > 0.0 }
+        ?: orderBook?.price?.takeIf { it > 0.0 }
+        ?: orderBook?.bids?.firstOrNull()?.price
+        ?: 0.0
 
     // 切换股票 或 切换周期 → 拉数据
     // 注意：分时是同一份数据（trends），K线按周期取
@@ -409,6 +429,12 @@ fun StockDetailPage(
                 brokerAccountId = orderBroker?.id ?: 0,
                 availableCash = orderBroker?.available ?: 0.0,
                 sellableQty = 0,
+                livePrice = livePrice,
+                limitUp = orderBook?.limitUp ?: 0.0,
+                limitDown = orderBook?.limitDown ?: 0.0,
+                asks = orderBook?.asks ?: emptyList(),
+                bids = orderBook?.bids ?: emptyList(),
+                onPickPrice = { p -> orderPickPrice = p },
                 onBack = { orderSide = "" },
                 onSwitch = { orderBroker = it },
                 onBuy = { orderSide = "buy" },
@@ -5963,18 +5989,32 @@ private fun TradeOrderSheet(
     brokerAccountId: Int = 0,
     availableCash: Double = 0.0,
     sellableQty: Int = 0,
+    livePrice: Double = 0.0,
+    limitUp: Double = 0.0,
+    limitDown: Double = 0.0,
+    asks: List<OrderLevel> = emptyList(),
+    bids: List<OrderLevel> = emptyList(),
+    onPickPrice: (Double) -> Unit = {},
     onBack: () -> Unit = {},
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // 第十轮需求④：只能靠右上角 ✕ 关闭（禁掉下拉/点背景关闭）
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { false }
+    )
     var showSwitch by remember { mutableStateOf(false) }
-    // 约 1/4 屏高：用系统屏幕高度 * 0.28 作为内容区高度
+    // 第十轮需求(5)：弹窗内部点选买卖盘价格 -> 透传给表单回填
+    var orderPickPriceLocal by remember { mutableStateOf(0.0) }
+    // 第十轮需求(5)：上方要透出五档买卖盘并可点选，弹窗高度相应增大（约半屏）
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    val sheetH = if (side == "buy" || side == "sell") screenH * 0.28f else screenH * 0.28f
+    val sheetH = if (side == "buy" || side == "sell") screenH * 0.52f else screenH * 0.28f
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        // 第十轮需求④：点背景/下拖都不关，只有 ✕ 才能关
+        onDismissRequest = { },
         sheetState = sheetState,
-        containerColor = Color.White,
+        // 第十轮需求⑤：上方容器透明，透出下层行情买卖盘
+        containerColor = Color.Transparent,
         shape = RoundedCornerShape(8.dp),   // 小圆角：肉眼可辨即可
         dragHandle = null                   // 不要拖拽条
     ) {
@@ -5990,6 +6030,16 @@ private fun TradeOrderSheet(
                     .padding(start = 16.dp, end = 16.dp, top = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 第十轮需求⑧：证券名称前加返回图标（返回上一页）
+                Image(
+                    painter = painterResource(R.drawable.ic_order_back),
+                    contentDescription = "返回",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { onBack() },
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(Modifier.width(6.dp))
                 // 券商名
                 Text(
                     text = current?.broker ?: "证券账户",
@@ -6028,6 +6078,48 @@ private fun TradeOrderSheet(
                     modifier = Modifier.clickable { onDismiss() }
                 )
             }
+            // 第十轮需求(5)：弹窗上方透明区，渲染五档买卖盘（卖5->卖1 / 买1->买5）
+            // 点击任一行价格 -> 回填到下方价格编辑框（不穿透，属弹窗自身内容）
+            if (side == "buy" || side == "sell") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
+                ) {
+                    val askRows = (4 downTo 0).map { asks.getOrNull(it) }
+                    val bidRows = (0 until 5).map { bids.getOrNull(it) }
+                    (askRows + bidRows).forEachIndexed { idx, lv ->
+                        val isAsk = idx < 5
+                        val label = if (isAsk) ("卖" + (5 - idx)) else ("买" + (idx - 4))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val pp = lv?.price ?: 0.0
+                                    if (pp > 0.0) {
+                                        orderPickPriceLocal = pp
+                                        onPickPrice(pp)
+                                    }
+                                }
+                                .padding(vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(label, color = TEXT_SUB, fontSize = 11.sp, modifier = Modifier.width(28.dp))
+                            Text(
+                                if ((lv?.price ?: 0.0) > 0.0) String.format(java.util.Locale.CHINA, "%.2f", lv!!.price) else "--",
+                                color = if (isAsk) Color(0xFF1AAE5A) else Color(0xFFE23B3B),
+                                fontSize = 11.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                if ((lv?.vol ?: 0.0) > 0.0) String.format(java.util.Locale.CHINA, "%.0f", lv!!.vol) else "--",
+                                color = TEXT_SUB,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
             if (side == "buy" || side == "sell") {
                 Column(modifier = Modifier.weight(1f)) {
                     OrderFormBlock(
@@ -6038,6 +6130,11 @@ private fun TradeOrderSheet(
                         token = token,
                         availableCash = availableCash,
                         sellableQty = sellableQty,
+                        livePrice = livePrice,
+                        limitUp = limitUp,
+                        limitDown = limitDown,
+                        pickPrice = orderPickPriceLocal,
+                        onPickPrice = onPickPrice,
                         onBack = onBack,
                         onDone = { r -> onBack() }
                     )
@@ -6196,6 +6293,14 @@ private fun OrderColumn(
 //   快捷仓位：全仓 1/2仓 1/3仓 1/4仓 2/3仓，浅灰边框
 //   底部：齿轮（浅灰正方形边框，与红按钮等高）在红按钮外侧；红按钮空值禁用
 // ============================================================
+// ============================================================
+// 下单表单块（买/卖共用）—— 第十轮修正版
+//   顶部：仅保留「返回图标 + 券商名 + 账户 + 切换 + ✕」由外层 TradeOrderSheet 负责
+//   两个连体编辑框（价格 / 手数）：直角、淡红填充更淡、减号右/加号左加竖线、整体正方形
+//   跌停/涨停后面接「可买多少股」；行最右「按金额买入」与第二个编辑框加号右对齐
+//   快捷仓位：全仓 1/2仓 1/3仓 1/4仓 2/3仓，浅灰边框
+//   底部：齿轮（浅灰正方形边框，与红按钮等高）在红按钮外侧；红按钮空值禁用
+// ============================================================
 @Composable
 private fun OrderFormBlock(
     side: String,
@@ -6205,14 +6310,19 @@ private fun OrderFormBlock(
     token: String,
     availableCash: Double,
     sellableQty: Int,
+    livePrice: Double,
+    limitUp: Double = 0.0,
+    limitDown: Double = 0.0,
+    pickPrice: Double = 0.0,
+    onPickPrice: (Double) -> Unit = {},
     onBack: () -> Unit,
     onDone: (TradeResult) -> Unit
 ) {
     val isBuy = side == "buy"
     val sideColor = if (isBuy) Color(0xFFE23B3B) else Color(0xFF2A7BFF)
     val sideText = if (isBuy) "买入" else "卖出"
-    // 更淡的红色填充（加减按钮底色）
-    val redFill = Color(0x14E23B3B)
+    // 更淡的红色填充（加减按钮底色）——第十轮再调淡
+    val redFill = Color(0x0DE23B3B)
     // 纯红（按下瞬时反馈底色）
     val redSolid = Color(0xFFE23B3B)
     // 浅灰边框
@@ -6222,6 +6332,12 @@ private fun OrderFormBlock(
     val amberText = Color(0xFFE8A33D)
     var qtyText by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
+    // 第十轮需求(5)：点击上方买卖盘价格后，回填到价格编辑框
+    LaunchedEffect(pickPrice) {
+        if (pickPrice > 0.0) {
+            priceText = String.format(java.util.Locale.CHINA, "%.2f", pickPrice)
+        }
+    }
     var mode by remember { mutableStateOf("quick") }
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
@@ -6229,8 +6345,9 @@ private fun OrderFormBlock(
     val price = priceText.trim().toDoubleOrNull() ?: 0.0
     // 两个编辑框都有内容才可点击（且数量合法）
     val canSubmit = qtyText.trim().isNotEmpty() and priceText.trim().isNotEmpty() and (qty > 0) and (price > 0.0)
-    // 可买多少股 = 可用金额 ÷ 输入股价
-    val canBuyQty = if (price > 0.0) ((availableCash / price / 100.0).toInt() * 100) else 0
+    // 第十轮需求⑦：未输入价格时，默认按左上方实时股价计算「可买多少股」
+    val calcPrice = if (price > 0.0) price else livePrice
+    val canBuyQty = if (calcPrice > 0.0) ((availableCash / calcPrice / 100.0).toInt() * 100) else 0
     fun submit() {
         if (busy) return
         if (!canSubmit) return
@@ -6297,8 +6414,7 @@ private fun OrderFormBlock(
             )
         }
         Spacer(Modifier.height(10.dp))
-        // 跌停 / 涨停 / 可买多少股 / 按金额买入 —— 四个一行水平对齐
-        // 仅「可买多少股」无边框；其余浅灰边框 + 纯白底
+        // 第十轮需求① ②：跌停 / 涨停 / 可买多少股 一行；行最右「按金额买入」与第二个编辑框加号右对齐
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -6316,7 +6432,10 @@ private fun OrderFormBlock(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("跌停", color = TEXT_MAIN, fontSize = 12.sp)
                     Spacer(Modifier.width(4.dp))
-                    Text("--", color = greenText, fontSize = 12.sp)
+                    Text(
+                        if (limitDown > 0.0) String.format(java.util.Locale.CHINA, "%.2f", limitDown) else "--",
+                        color = greenText, fontSize = 12.sp
+                    )
                 }
             }
             Spacer(Modifier.width(8.dp))
@@ -6331,25 +6450,21 @@ private fun OrderFormBlock(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("涨停", color = TEXT_MAIN, fontSize = 12.sp)
                     Spacer(Modifier.width(4.dp))
-                    Text("--", color = sideColor, fontSize = 12.sp)
+                    Text(
+                        if (limitUp > 0.0) String.format(java.util.Locale.CHINA, "%.2f", limitUp) else "--",
+                        color = sideColor, fontSize = 12.sp
+                    )
                 }
             }
-            Spacer(Modifier.weight(1f))
-            // 可买多少股：无边框、无背景；「可买」「股」灰字，数字黄橙
+            Spacer(Modifier.width(8.dp))
+            // 可买多少股：无边框、无背景；「可买」「股」灰字，数字黄橙（跟在涨跌停后面）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("可买", color = TEXT_SUB, fontSize = 12.sp)
                 Text(canBuyQty.toString(), color = amberText, fontSize = 12.sp)
                 Text("股", color = TEXT_SUB, fontSize = 12.sp)
             }
-        }
-        Spacer(Modifier.height(8.dp))
-        // 按金额买入：红色边框 + 红字 + 白底（单独一行靠左）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+            Spacer(Modifier.weight(1f))
+            // 按金额买入：红色边框 + 红字 + 白底（行最右，与第二个编辑框加号右对齐）
             Box(
                 modifier = Modifier
                     .clip(RectangleShape)
@@ -6357,8 +6472,9 @@ private fun OrderFormBlock(
                     .border(1.dp, sideColor, RectangleShape)
                     .clickable {
                         val p = priceText.trim().toDoubleOrNull() ?: 0.0
-                        if (p > 0.0) {
-                            val maxQty = (availableCash / p / 100.0).toInt() * 100
+                        val p2 = if (p > 0.0) p else livePrice
+                        if (p2 > 0.0) {
+                            val maxQty = (availableCash / p2 / 100.0).toInt() * 100
                             if (maxQty > 0) qtyText = maxQty.toString()
                         }
                     }
@@ -6387,8 +6503,9 @@ private fun OrderFormBlock(
                         else -> 0.0
                     }
                     val p0 = priceText.trim().toDoubleOrNull() ?: 0.0
-                    if (p0 > 0.0 && frac > 0.0) {
-                        val maxQty = (availableCash * frac / p0 / 100.0).toInt() * 100
+                    val pp = if (p0 > 0.0) p0 else livePrice
+                    if (pp > 0.0 && frac > 0.0) {
+                        val maxQty = (availableCash * frac / pp / 100.0).toInt() * 100
                         if (maxQty > 0) qtyText = maxQty.toString()
                     }
                 }
@@ -6460,10 +6577,10 @@ private fun OrderFormBlock(
         }
     }
 }
-
 /**
  * 连体步进框：减号方块 + 中间编辑区 + 加号方块，三者连成一体。
  * 直角（无圆角）、边框红色；加减方块淡红填充、符号红色；
+ * 减号右 / 加号左各一条竖线，整体呈正方形包围加减号；
  * 按下瞬红、松手立刻恢复（pointerInput 监听松手复位）。
  */
 @Composable
@@ -6479,6 +6596,7 @@ private fun ConnectStepper(
     modifier: Modifier = Modifier
 ) {
     val borderColor = redSolid
+    val dividerColor = Color(0xFFF0C9C9)
     var minusPressed by remember { mutableStateOf(false) }
     var plusPressed by remember { mutableStateOf(false) }
     Row(
@@ -6489,7 +6607,7 @@ private fun ConnectStepper(
             .border(1.dp, borderColor, RectangleShape),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 减号方块：按下瞬红，松手恢复
+        // 减号方块：按下瞬红，松手恢复；外沿宽 = 高（40dp），保证正方形
         Box(
             modifier = Modifier
                 .width(40.dp)
@@ -6514,6 +6632,13 @@ private fun ConnectStepper(
                 fontWeight = FontWeight.Bold
             )
         }
+        // 竖线（减号右）
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(dividerColor)
+        )
         // 中间编辑区（背景保持原样）
         Box(
             modifier = Modifier
@@ -6549,7 +6674,14 @@ private fun ConnectStepper(
                 }
             )
         }
-        // 加号方块：按下瞬红，松手恢复
+        // 竖线（加号左）
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(dividerColor)
+        )
+        // 加号方块：按下瞬红，松手恢复；外沿宽 = 高（40dp），保证正方形
         Box(
             modifier = Modifier
                 .width(40.dp)
@@ -6576,7 +6708,6 @@ private fun ConnectStepper(
         }
     }
 }
-
 /** 快捷仓位小按钮：白底 + 浅灰边框 + 灰字/黑字，按下短暂变红填充 */
 @Composable
 private fun QuickPosButton(
