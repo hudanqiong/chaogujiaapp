@@ -6026,17 +6026,17 @@ private fun TradeOrderSheet(
     var showSwitch by remember { mutableStateOf(false) }
     // 第十轮需求(5)：上方要透出五档买卖盘并可点选，弹窗高度相应增大（约半屏）
     val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp
-    // H1 修复：0.62 过高（超出个股详情页下单弹窗原高度），回调至 0.52；表单已可滚动，按钮仍可达；并坐在系统导航栏之上
-    val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // H1 修复：0.62 过高（超出个股详情页下单弹窗原高度），回调至 0.52；表单已可滚动，按钮仍可达
+    // H2：弹窗底边贴屏幕最底、盖住底部固定栏（zIndex 10 > BottomBar 2），关窗后 BottomBar 自然还原
     val sheetH = if (side == "buy" || side == "sell") screenH * 0.52f else screenH * 0.36f
 
     // 第十轮需求⑤(A2)：改为自定义底部覆盖层——上方完全不绘制，可点穿到分时页五档
-    Box(modifier = Modifier.fillMaxSize()) {
+    // H2：zIndex(10) 高于底部固定栏(2)，保证弹窗盖住底部那排固定按钮；关窗后 BottomBar 自然还原
+    Box(modifier = Modifier.fillMaxSize().zIndex(10f)) {
     Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
-            .padding(bottom = navInset)
             .height(sheetH)
             .clip(RoundedCornerShape(8.dp))
             .background(Color.White)
