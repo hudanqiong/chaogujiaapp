@@ -259,15 +259,7 @@ fun StockDetailPage(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            // ---- 顶部占位：避让浮在表层的顶红条 ----
-            // 顶部占位：与浮层红条【完全相同的两层结构】，保证占位高度逐像素相等
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-            ) {
-                Spacer(Modifier.fillMaxWidth().height(D_BAR_HEIGHT))
-            }
+            Spacer(Modifier.height(0.dp))
 
             // ================= 头部数据区 =================
             // selK：K线被选中的柱子下标（null=未选中，显示最新一天）
