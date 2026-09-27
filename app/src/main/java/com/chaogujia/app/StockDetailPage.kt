@@ -341,7 +341,9 @@ fun StockDetailPage(
         }
         watched = w
     }
-    LaunchedEffect(current?.code, period) {
+    // ★ 交易数据版本号：一键模拟/下单/改单成功后 Config.bumpTradeData()，这里重拉 detail 刷新 marks
+    val tradeVer = Config.tradeDataVersion
+    LaunchedEffect(current?.code, period, tradeVer) {
         val code = current?.code ?: return@LaunchedEffect
         loading = true
         // 分时用 day 数据（同一份 trends）；五日分时 → k=fiveday；其余照原周期
@@ -3782,6 +3784,23 @@ private fun KLineChart(
     }
 
 
+    // ★ 当 marks 变化（一键模拟生成后）时，把视窗右端滚到「最新一条 marks」所在的那根 K 线，
+    //   解决「生成的标记在更右侧、视窗没滚过去就看不到」的问题。
+    LaunchedEffect(d?.code, d?.marks) {
+        val ms = d?.marks
+        if (!ms.isNullOrEmpty()) {
+            val latest = ms.maxByOrNull { normDateKey(it.date) }
+            if (latest != null) {
+                val key = normDateKey(latest.date)
+                val idx = line.indexOfLast { normDateKey(it.date) == key }
+                if (idx >= 0) {
+                    val vis = K_DEFAULT_VISIBLE.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
+                    // 把最新标记放在窗口偏右位置（留 3 根余量），保证可见
+                    rightIndex = (idx + 3).coerceIn((vis - 1).coerceAtMost(line.lastIndex), line.lastIndex)
+                }
+            }
+        }
+    }
     // 取当前窗口数据
     val n = visible.coerceIn(K_MIN_VISIBLE, K_MAX_VISIBLE).coerceAtMost(line.size)
     val end = rightIndex.coerceIn((n - 1).coerceAtMost(line.lastIndex), line.lastIndex)

@@ -909,9 +909,9 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
                 Spacer(Modifier.height(14.dp))
                 Text("日期范围（YYYY-MM-DD）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
-                InputBox(dateStart, "开始日期，如 2026-08-01", { dateStart = it })
+                InputBox(dateStart, "开始日期（近期），如 2025-08-01", { dateStart = it })
                 Spacer(Modifier.height(8.dp))
-                InputBox(dateEnd, "结束日期，如 2026-09-20", { dateEnd = it })
+                InputBox(dateEnd, "结束日期（近期），如 2025-09-20", { dateEnd = it })
 
                 Spacer(Modifier.height(14.dp))
                 Text("规模模式", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
@@ -939,10 +939,14 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
                     else {
                         msg = ""
                         running = true
+                        // code 前端先归一化：剥离 sh/sz/bj 前缀，只保留 6 位数字（后端虽有归一化，前端统一更稳）
+                        val pureCode = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
                         Thread {
-                            val r = Api.simulate(token, brokerAccountId, code, dateStart, dateEnd, mode, tv)
+                            val r = Api.simulate(token, brokerAccountId, pureCode, dateStart, dateEnd, mode, tv)
                             msg = if (r.ok) {
-                                "生成成功：${r.quantity} 笔，现金余额 ¥${r.settle}"
+                                // ★ 通知全局：交易数据已变更 → K 线详情页会自动重拉 detail，刷新 BST 标记
+                                Config.bumpTradeData()
+                                "生成成功：${r.quantity} 笔，现金余额 ¥${r.settle}\n已自动刷新K线标记，请到「日K」查看（如未看到请把K线拖到最右端）"
                             } else "失败：${r.msg}"
                             running = false
                         }.start()
