@@ -423,8 +423,9 @@ fun StockDetailPage(
                         val selMark = remember(selK, detail?.marks) {
                             val ln = detail?.line
                             val ms = detail?.marks
-                            if (selK != null && ln != null && selK in ln.indices && !ms.isNullOrEmpty()) {
-                                val key = normDateKey(ln[selK].date)
+                            val sk = selK
+                            if (sk != null && ln != null && sk in ln.indices && !ms.isNullOrEmpty()) {
+                                val key = normDateKey(ln[sk].date)
                                 ms.firstOrNull { normDateKey(it.date) == key }
                             } else null
                         }
