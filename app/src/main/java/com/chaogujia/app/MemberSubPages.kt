@@ -673,7 +673,11 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
     var editId by remember { mutableStateOf(0) }
     var ePrice by remember { mutableStateOf("") }
     var eDate by remember { mutableStateOf("") }
-
+    // 当前编辑股票可选的「有柱子的日期」及其当日高低价：date -> [high, low]
+    var barDates by remember { mutableStateOf<List<String>>(emptyList()) }
+    var barHL by remember { mutableStateOf<Map<String, Pair<Double, Double>>>(emptyMap()) }
+    var barLoading by remember { mutableStateOf(false) }
+    var showPicker by remember { mutableStateOf(false) }
     fun reload() {
         loading = true
         Thread {
@@ -682,15 +686,35 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
             loading = false
         }.start()
     }
+    // 拉取某股票的 K线，得到「有柱子的日期」+ 当日最高/最低价
+    fun loadBars(code: String) {
+        barLoading = true
+        barDates = emptyList()
+        barHL = emptyMap()
+        Thread {
+            val d = Api.detail(code, "day", 320)
+            val points = d?.line ?: emptyList()
+            val dates = ArrayList<String>()
+            val hl = HashMap<String, Pair<Double, Double>>()
+            for (p in points) {
+                if (p.date.isNullOrEmpty()) continue
+                dates.add(p.date)
+                hl[p.date] = Pair(p.high, p.low)
+            }
+            // 后端按日期升序返回，选择器从新到旧展示
+            dates.reverse()
+            barDates = dates
+            barHL = hl
+            barLoading = false
+        }.start()
+    }
     LaunchedEffect(brokerAccountId) { reload() }
-
     SubShell("交易记录管理", onBack) {
         Text(
-            "仅可修改「成交日期」与「成交价」，数量/方向不可改；保存后资金与持仓会自动重算。",
+            "仅可修改「成交日期」与「成交价」，数量/方向不可改；保存后资金与持仓会自动重算。日期只能选择该股票有K线柱子的交易日。",
             color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp
         )
         Spacer(Modifier.height(10.dp))
-
         if (loading) {
             Text("加载中…", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
         } else if (list.isEmpty()) {
@@ -723,11 +747,69 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                         Spacer(Modifier.height(4.dp))
                         Text("成交时间 ${t.time}", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                         Spacer(Modifier.height(8.dp))
-
                         if (editId == t.id) {
                             InputBox(ePrice, "成交价（如 8.500）", { ePrice = it })
                             Spacer(Modifier.height(8.dp))
-                            InputBox(eDate, "成交日期（如 2026-09-19）", { eDate = it })
+                            // ===== 成交日期：选择器（只能选有柱子的交易日） =====
+                            Text("成交日期", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0xFFF2F2F2))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        if (barDates.isNotEmpty()) showPicker = !showPicker
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Text(
+                                    if (barLoading) "加载可交易日…"
+                                    else if (eDate.isNotEmpty()) eDate
+                                    else "点击选择日期",
+                                    color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp
+                                )
+                            }
+                            // 选完日期后的提示：当日最高/最低价
+                            val hl = barHL[eDate]
+                            if (hl != null) {
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "当日最高 ${hl.first}　最低 ${hl.second}",
+                                    color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp
+                                )
+                            }
+                            // 可选日期列表（从新到旧）
+                            if (showPicker && barDates.isNotEmpty()) {
+                                Spacer(Modifier.height(6.dp))
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 200.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFFAFAFA))
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    for (d in barDates) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                                    eDate = d
+                                                    showPicker = false
+                                                }
+                                                .padding(horizontal = 12.dp, vertical = 9.dp)
+                                        ) {
+                                            Text(
+                                                d,
+                                                color = if (d == eDate) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN),
+                                                fontSize = 13.sp,
+                                                fontWeight = if (d == eDate) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(10.dp))
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 Box(
@@ -735,7 +817,7 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(Color(0xFFEEEEEE))
-                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { editId = 0 }
+                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { editId = 0; showPicker = false }
                                         .padding(vertical = 10.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -750,13 +832,14 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                             val pv = ePrice.toDoubleOrNull()
                                             if (pv == null || pv <= 0) { msg = "请输入正确的成交价" }
-                                            else if (!Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(eDate)) { msg = "日期格式应为 YYYY-MM-DD" }
+                                            else if (eDate.isEmpty()) { msg = "请选择成交日期" }
+                                            else if (barDates.isNotEmpty() && !barDates.contains(eDate)) { msg = "该日期没有K线柱子，请从列表中选择" }
                                             else {
                                                 msg = ""
                                                 Thread {
                                                     val r = Api.tradeUpdate(token, brokerAccountId, t.id, pv, eDate)
-                                                    msg = if (r.ok) "修改成功，资金已重算（现金 ¥${r.settle}）" else "失败：${r.msg}"
-                                                    if (r.ok) editId = 0
+                                                    msg = if (r.ok) "修改成功，资金与持仓已重算（现金 ¥${r.settle}）" else "失败：${r.msg}"
+                                                    if (r.ok) { editId = 0; showPicker = false }
                                                     reload()
                                                 }.start()
                                             }
@@ -777,20 +860,23 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                                         ePrice = t.price.toString()
                                         eDate = t.time.take(10)
                                         msg = ""
+                                        showPicker = false
+                                        loadBars(t.code)
                                     }
                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                             ) {
                                 Text("修改", color = Color.White, fontSize = 13.sp)
                             }
+                        }
                     }
                 }
             }
         }
-    }
-    Spacer(Modifier.height(10.dp))
-    if (msg.isNotEmpty()) {
-        Spacer(Modifier.height(2.dp))
-        Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
+        Spacer(Modifier.height(10.dp))
+        if (msg.isNotEmpty()) {
+            Spacer(Modifier.height(2.dp))
+            Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
+        }
     }
 }
 }
