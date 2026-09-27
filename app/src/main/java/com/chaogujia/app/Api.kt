@@ -1429,15 +1429,17 @@ object Api {
             // ===== BST 买卖标记（marks）：每交易日至多一条，共用一个聚合函数 =====
             // 注意：detail.php 的 marks.dayClose 可能为 0（其内部日期口径与内部 line 不一致）；
             // 若 dayClose<=0，用同日 line 的 close 兜底，保证画柱定位正确。
+            // 注意：line 的 date 与 marks 的 date 口径可能不同（同花顺 "20260924" vs 后端 "2026-09-24"），
+            // 必须归一化后再做同日期查表，否则兜底永远取不到值。
             val closeByDate = HashMap<String, Double>()
-            for (p in line) if (p.date.isNotEmpty()) closeByDate[p.date] = p.close
+            for (p in line) if (p.date.isNotEmpty()) closeByDate[normDateKey(p.date)] = p.close
             val marks = ArrayList<TradeMark>()
             o.optJSONArray("marks")?.let { ma ->
                 for (i in 0 until ma.length()) {
                     val m = ma.optJSONObject(i) ?: continue
                     val d = m.optString("date", "")
                     var dc = m.optDouble("dayClose", 0.0)
-                    if (dc <= 0.0) dc = closeByDate[d] ?: 0.0
+                    if (dc <= 0.0) dc = closeByDate[normDateKey(d)] ?: 0.0
                     val trs = ArrayList<MarkTrade>()
                     m.optJSONArray("trades")?.let { ta ->
                         for (j in 0 until ta.length()) {

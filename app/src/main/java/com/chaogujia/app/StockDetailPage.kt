@@ -109,6 +109,30 @@ internal fun tradeMarkColor(code: String): Color = when (code) {
     else -> BST_GREY_B
 }
 
+/**
+ * 日期归一化：把各种来源的日期统一成 "YYYY-MM-DD"（带横线）。
+ *
+ * 关键背景：本工程 K 线与 marks 的日期「口径不一致」——
+ *   - K线(line) 主源为同花顺 d.10jqka.com.cn，date 形如 "20260924"（8 位纯数字，无横线）；
+ *     回退源腾讯 fqkline 形如 "2026-09-24"。
+ *   - marks 来自后端 _marks.php 的 date('Y-m-d')，形如 "2026-09-24"（带横线）。
+ * 若直接用原始字符串比较（如 markByDate[k.date]），同花顺源必然全量失配，
+ * 导致 BST 徽标一条都画不出来。所有「按日期对齐」的比较必须先用本函数归一化。
+ * 解析失败则原样返回（避免越界崩溃）。
+ */
+internal fun normDateKey(raw: String): String {
+    if (raw.isEmpty()) return raw
+    val digits = raw.filter { it.isDigit() }
+    if (digits.length >= 8) {
+        return digits.substring(0, 4) + "-" + digits.substring(4, 6) + "-" + digits.substring(6, 8)
+    }
+    val parts = raw.split("-", "/", ".")
+    if (parts.size == 3) {
+        return parts[0].padStart(4, '0') + "-" + parts[1].padStart(2, '0') + "-" + parts[2].padStart(2, '0')
+    }
+    return raw
+}
+
 /** 徽标字母绘制用的 Paint（白字、居中、随 density 缩放的字号）。 */
 internal fun tradeMarkPaint(): android.graphics.Paint = android.graphics.Paint().apply {
     isAntiAlias = true
@@ -1378,8 +1402,11 @@ private fun MinuteChart(
                         // 逐笔买卖打点（仅当日）：覆盖在价格曲线上，与分时同坐标系
                         val todayMarks = remember(d?.marks) {
                             val ls = d?.line ?: emptyList()
-                            val lastDate = ls.lastOrNull()?.date ?: ""
-                            (d?.marks ?: emptyList()).filter { it.date == lastDate && it.trades.isNotEmpty() }
+                            // 归一化后再比较：K线日期（同花顺"20260924"）vs marks日期（后端"2026-09-24"）
+                            val lastDate = normDateKey(ls.lastOrNull()?.date ?: "")
+                            (d?.marks ?: emptyList()).filter {
+                                normDateKey(it.date) == lastDate && it.trades.isNotEmpty()
+                            }
                         }
                         MinuteTickOverlay(
                             marks = todayMarks,
@@ -3758,9 +3785,11 @@ private fun KLineChart(
     val show = line.subList(start, end + 1)
 
     // BST 标记：窗口内可见日期集合，仅把落在当前可视窗口的标记传给画布（避免无用绘制）
-    val showDateSet = remember(show) { show.mapTo(HashSet()) { it.date } }
+    // 注意：必须用 normDateKey 归一化后再比较——K线日期来自同花顺（"20260924"），
+    // marks 日期来自后端（"2026-09-24"），原始字符串直接比较会全量失配、徽标恒为空。
+    val showDateSet = remember(show) { show.mapTo(HashSet()) { normDateKey(it.date) } }
     val showMarks = remember(d?.marks, showDateSet) {
-        (d?.marks ?: emptyList()).filter { it.date in showDateSet }
+        (d?.marks ?: emptyList()).filter { normDateKey(it.date) in showDateSet }
     }
 
     // ===== 筹码峰：数据固定按最近120根推演一次（方案A：绘制时随价格轴缩放）=====
@@ -4318,8 +4347,9 @@ private fun KLineCanvas(
     onPan: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    // date -> BST 标记（每交易日至多一条）；按日期对齐到具体柱子
-    val markByDate = remember(marks) { marks.associateBy { it.date } }
+    // date -> BST 标记（每交易日至多一条）；按日期对齐到具体柱子。
+    // 注意：key 必须用 normDateKey 归一化——marks 日期来自后端（"2026-09-24"）。
+    val markByDate = remember(marks) { marks.associateBy { normDateKey(it.date) } }
     val markLabel = remember(marks) { tradeMarkPaint() }
     var lastSlot by remember { mutableFloatStateOf(0f) }
     val curPick by rememberUpdatedState(onPick)
@@ -4442,7 +4472,8 @@ private fun KLineCanvas(
         if (!tooNarrow && markByDate.isNotEmpty()) {
             val r = min(max(slot * 0.34f, 3.6f), 8f)   // 徽标半径
             line.forEachIndexed { i, k ->
-                val m = markByDate[k.date] ?: return@forEachIndexed
+                // k.date 为 K 线源日期（同花顺 "20260924"），必须归一化后再查
+                val m = markByDate[normDateKey(k.date)] ?: return@forEachIndexed
                 val cx = i * slot + slot / 2
                 val c = tradeMarkColor(m.color)
                 // 柱顶/柱底像素，再向外偏移一个徽标直径，避免压住蜡烛
@@ -4499,24 +4530,9 @@ private fun KLineTimeAxis(
     // 左侧固定区宽度（与底部按钮行左侧预留对齐）
     val fixedW = 78.dp
 
-    // ---- 日期归一化：兼容 "2019-11-26" / "20191126" / "2019/11/26" 等格式 ----
+    // ---- 日期归一化：复用全局 normDateKey（兼容 "2019-11-26" / "20191126" / "2019/11/26"）----
     // 统一成带横线的 "YYYY-MM-DD"；解析失败则原样返回（避免越界崩溃）。
-    fun normDate(raw: String): String {
-        if (raw.isEmpty()) return raw
-        val digits = raw.filter { it.isDigit() }
-        if (digits.length >= 8) {
-            return digits.substring(0, 4) + "-" + digits.substring(4, 6) + "-" + digits.substring(6, 8)
-        }
-        // 已是带分隔符格式，直接把分隔符统一成 "-"
-        val parts = raw.split("-", "/", ".")
-        if (parts.size == 3) {
-            val y = parts[0].padStart(4, '0')
-            val m = parts[1].padStart(2, '0')
-            val d = parts[2].padStart(2, '0')
-            return y + "-" + m + "-" + d
-        }
-        return raw
-    }
+    fun normDate(raw: String): String = normDateKey(raw)
     // 取 MM-DD（从归一化结果截取尾部 5 位）
     fun mdOf(raw: String): String {
         val nd = normDate(raw)
