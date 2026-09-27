@@ -4472,7 +4472,9 @@ private fun KLineCanvas(
         // 规则（后端 _marks.php 已定稿）：每交易日至多一条；above=true 画柱上方、false 画下方；
         // color: redB/greyB/blueS/greyS/T → 前端映射；字母取 kind（B/S/T）。
         if (!tooNarrow && markByDate.isNotEmpty()) {
-            val r = min(max(slot * 0.34f, 3.6f), 8f)   // 徽标半径
+            // 徽标半径：随槽宽自适应，但抬高下限/上限，保证高分屏上肉眼可辨（原 3.6~8px 偏小）。
+            // 一屏 60 根时 slot≈18.5px → r≈9.2px（直径≈18.5px），下限 6px、上限 12px。
+            val r = min(max(slot * 0.5f, 6f), 12f)   // 徽标半径
             line.forEachIndexed { i, k ->
                 // k.date 为 K 线源日期（同花顺 "20260924"），必须归一化后再查
                 val m = markByDate[normDateKey(k.date)] ?: return@forEachIndexed
@@ -4484,10 +4486,13 @@ private fun KLineCanvas(
                 val cy = if (m.above) (yTopBar - r - 2f) else (yBotBar + r + 2f)
                 // 越界（超出画布）时不画，避免半截徽标
                 if (cy - r < 0f || cy + r > h) return@forEachIndexed
+                // 白色描边：让徽标在红绿柱/网格背景上更醒目（先画略大的白圈打底）
+                drawCircle(color = Color.White, radius = r + 1.5f, center = Offset(cx, cy))
                 drawCircle(color = c, radius = r, center = Offset(cx, cy))
                 val label = when (m.kind) { "B" -> "B"; "S" -> "S"; "T" -> "T"; else -> "" }
                 if (label.isNotEmpty()) {
-                    markLabel.textSize = r * 1.5f
+                    markLabel.textSize = r * 1.3f
+                    markLabel.isFakeBoldText = true
                     drawContext.canvas.nativeCanvas.drawText(
                         label,
                         cx,
