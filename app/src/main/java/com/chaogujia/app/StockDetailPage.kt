@@ -418,6 +418,20 @@ fun StockDetailPage(
                         "fiveday" -> FiveDayChart(detail)
                         else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
                     }
+                    // ---- T/B/S 明细提示框：叠加在图表区左上角（均线按钮那行正下方）----
+                    if (period == "day" || period == "week" || period == "month") {
+                        val selMark = remember(selK, detail?.marks) {
+                            val ln = detail?.line
+                            val ms = detail?.marks
+                            if (selK != null && ln != null && selK in ln.indices && !ms.isNullOrEmpty()) {
+                                val key = normDateKey(ln[selK].date)
+                                ms.firstOrNull { normDateKey(it.date) == key }
+                            } else null
+                        }
+                        if (selMark != null) {
+                            MarkDetailOverlay(selMark)
+                        }
+                    }
                     if (loading && detail == null) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("加载中…", color = TEXT_SUB, fontSize = 14.sp)
@@ -971,6 +985,45 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
 // 标签栏：分时 | 日K | 周K | 月K
 // ============================================================
 /** 均线图例：一行窄间距小字，每条用其自身颜色（M5 黑 / M10 橙 …） */
+/**
+ * T/B/S 明细提示框：显示在 K 线图左上角。
+ *  - T：显示总买入股数与总卖出股数（多笔按方向汇总）
+ *  - B：只显示买入总股数
+ *  - S：只显示卖出总股数
+ * 背景 #FED9BC（稍透明）+ 黑字。
+ */
+@Composable
+private fun MarkDetailOverlay(mark: TradeMark) {
+    var buyQty = 0.0
+    var sellQty = 0.0
+    for (t in mark.trades) {
+        when (t.dir) {
+            "B" -> buyQty += t.qty
+            "S" -> sellQty += t.qty
+        }
+    }
+    val text = when (mark.kind) {
+        "T" -> "买 " + fmtQty(buyQty) + " 股   卖 " + fmtQty(sellQty) + " 股"
+        "B" -> "买 " + fmtQty(buyQty) + " 股"
+        "S" -> "卖 " + fmtQty(sellQty) + " 股"
+        else -> ""
+    }
+    if (text.isEmpty()) return
+    Box(
+        modifier = Modifier
+            .padding(start = 6.dp, top = 2.dp)
+            .background(Color(0xE6FED9BC), RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(text = text, color = Color.Black, fontSize = 11.sp)
+    }
+}
+
+/** 股数格式化：去掉多余小数（整百股直接显示整数）。 */
+private fun fmtQty(v: Double): String {
+    return if (v % 1.0 == 0.0) v.toLong().toString() else String.format("%.2f", v)
+}
+
 @Composable
 private fun MaLegend(
     periods: List<Int>,
@@ -3776,6 +3829,8 @@ private fun KLineChart(
     // rightIndex：窗口右端在 line 中的下标（指向最新一根则为 line.lastIndex）
     var visible by remember(d?.code) { mutableIntStateOf(K_DEFAULT_VISIBLE.coerceIn(K_MIN_VISIBLE, line.size.coerceAtLeast(1))) }
     var rightIndex by remember(d?.code) { mutableIntStateOf(line.lastIndex) }
+    // 日K十字光标：当前光标所在窗口内的局部下标，-1 表示未激活。
+    var kdayCursorLocal by remember(d?.code) { mutableIntStateOf(-1) }
 
     // 数据变化（切股票/换周期）时重置窗口
     LaunchedEffect(d?.code, line.size) {
@@ -3862,6 +3917,8 @@ private fun KLineChart(
                 maList = maPeriods.map { p -> computeMA(line, p).copyOfRange(start, end + 1) }.toTypedArray(),
                 maPeriods = maPeriods,
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices },
+                cursorLocal = if (kdayCursorLocal in show.indices) kdayCursorLocal else -1,
+                onCursorDrag = { local -> kdayCursorLocal = local },
                 onPick = { local ->
                     // 点同一根 → 取消选中；否则选中该根（映射回全局下标）
                     val g = start + local
@@ -4365,7 +4422,9 @@ private fun KLineCanvas(
     maList: Array<DoubleArray> = emptyArray(),
     maPeriods: List<Int> = MA_DEFAULT_PERIODS,
     selLocal: Int? = null,
+    cursorLocal: Int = -1,
     onPick: (Int) -> Unit = {},
+    onCursorDrag: (Int) -> Unit = {},
     onZoom: (Float) -> Unit = {},
     onPan: (Int) -> Unit = {},
     modifier: Modifier = Modifier
@@ -4376,6 +4435,7 @@ private fun KLineCanvas(
     val markLabel = remember(marks) { tradeMarkPaint() }
     var lastSlot by remember { mutableFloatStateOf(0f) }
     val curPick by rememberUpdatedState(onPick)
+    val curCursor by rememberUpdatedState(onCursorDrag)
     val curZoom by rememberUpdatedState(onZoom)
     val curPan by rememberUpdatedState(onPan)
     Canvas(
@@ -4392,16 +4452,40 @@ private fun KLineCanvas(
                     }
                 )
             }
-            .pointerInput(Unit) {
-                // 点选柱子（单击）
-                detectTapGestures(
-                    onTap = { off ->
+            .pointerInput(line.size) {
+                // 日K光标：长按按住 0.5s 激活十字光标，随后左右拖动连续移动；
+                // 轻点（未达长按）仍然保持原有“选中该根 K 线”的行为。
+                // 注意：key 只放 line.size，绝不能放光标状态，否则长按激活时会重启协程、拖动循环被杀。
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val longPress = awaitLongPressOrCancellation(down.id)
+                    if (longPress == null) {
+                        // 轻点：选柱
                         if (lastSlot > 0f && line.isNotEmpty()) {
-                            val i = (off.x / lastSlot).toInt().coerceIn(0, line.size - 1)
+                            val i = (down.position.x / lastSlot).toInt().coerceIn(0, line.size - 1)
                             curPick(i)
                         }
+                    } else {
+                        // 长按激活光标，并进入拖动跟随
+                        if (lastSlot > 0f && line.isNotEmpty()) {
+                            val i0 = (longPress.position.x / lastSlot).toInt().coerceIn(0, line.size - 1)
+                            curCursor(i0)
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!ch.pressed) {
+                                    ch.consume()
+                                    break
+                                }
+                                if (ch.positionChanged()) {
+                                    val i = (ch.position.x / lastSlot).toInt().coerceIn(0, line.size - 1)
+                                    curCursor(i)
+                                }
+                                ch.consume()
+                            }
+                        }
                     }
-                )
+                }
             }
     ) {
         val w = size.width
@@ -4517,7 +4601,13 @@ private fun KLineCanvas(
                 // 但若该朝向的空间不足（上标记顶出画布 / 下标记底部超出画布），
                 // 则自动"翻面"到另一侧，使标记尽量留在可见区内。
                 // 例：标记本在下方，把 K 线拖到最右、下方不够时就搬到上面去。
-                var above = m.above
+                // 同花顺式：按当前 K 线的高低价区间给定上下。
+                // T 类（成交日）用买卖两笔均价；其余用 avgPrice，缺失回退 close。
+                // high/low 取自 K 线；无法成出区间时，默认放下方。
+                val refPx = if (m.avgPrice > 0.0) m.avgPrice else k.close
+                val spanP = k.high - k.low
+                val frac = if (spanP > 1e-9) ((refPx - k.low) / spanP) else 1.0
+                var above = frac >= 0.5
                 var boxCyRaw = if (above) (yHigh - half - gap) else (yLow + half + gap)
                 val fits = if (above) (boxCyRaw - half >= 0f) else (boxCyRaw + half <= h)
                 if (!fits) {
@@ -4596,6 +4686,22 @@ private fun KLineCanvas(
                 start = Offset(cx, 0f),
                 end = Offset(cx, h),
                 strokeWidth = 1.5f
+            )
+        }
+        // ===== 长按拖动十字光标（贯穿竖线 + 顶部短横线）=====
+        if (cursorLocal >= 0 && cursorLocal in line.indices) {
+            val ccx = cursorLocal * slot + slot / 2
+            drawLine(
+                color = K_CROSS_COLOR,
+                start = Offset(ccx, 0f),
+                end = Offset(ccx, h),
+                strokeWidth = 1.2f
+            )
+            drawLine(
+                color = K_CROSS_COLOR,
+                start = Offset(0f, 0f),
+                end = Offset(w, 0f),
+                strokeWidth = 1.2f
             )
         }
         } // end clipRect
