@@ -662,6 +662,7 @@ private fun PagePwd(token: String?, onBack: () -> Unit) {
             }
         }
     }
+}
 
 // ===== 9. 交易记录管理（修改持仓记录：只改日期+价格，改后整账户重放） =====
 @Composable
@@ -781,17 +782,15 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                             ) {
                                 Text("修改", color = Color.White, fontSize = 13.sp)
                             }
-                        }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-            }
-
-            if (msg.isNotEmpty()) {
-                Spacer(Modifier.height(2.dp))
-                Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
             }
         }
+    }
+    Spacer(Modifier.height(10.dp))
+    if (msg.isNotEmpty()) {
+        Spacer(Modifier.height(2.dp))
+        Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
     }
 }
 }
