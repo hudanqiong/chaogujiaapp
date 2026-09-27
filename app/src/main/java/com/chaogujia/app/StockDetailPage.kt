@@ -90,6 +90,33 @@ private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一�
 // 缩放到最小（一屏约1400+根）时：蜡烛/量柱/均线全部转黑，整体成一条黑波浪线
 private const val K_NARROW_VISIBLE = 1500
 
+// ===== BST 买卖标记颜色（后端 _marks.php 定稿的 5 种 color 码）=====
+// redB=加仓(红) / greyB=首次建仓(灰) / blueS=减仓(蓝) / greyS=清仓(灰) / T=当日买卖(橙)
+private val BST_RED_B  = Color(0xFFF06E6E)
+private val BST_GREY_B = Color(0xFF949494)
+private val BST_BLUE_S = Color(0xFF7DB2F3)
+private val BST_GREY_S = Color(0xFF949494)
+private val BST_T      = Color(0xFFFEA65E)
+
+/** 后端 color 码 → 前端颜色；未知码回退灰色。 */
+internal fun tradeMarkColor(code: String): Color = when (code) {
+    "redB" -> BST_RED_B
+    "greyB" -> BST_GREY_B
+    "blueS" -> BST_BLUE_S
+    "greyS" -> BST_GREY_S
+    "T" -> BST_T
+    else -> BST_GREY_B
+}
+
+/** 徽标字母绘制用的 Paint（白字、居中、随 density 缩放的字号）。 */
+internal fun tradeMarkPaint(): android.graphics.Paint = android.graphics.Paint().apply {
+    isAntiAlias = true
+    color = android.graphics.Color.WHITE
+    textAlign = android.graphics.Paint.Align.CENTER
+    textSize = 22f
+    isFakeBoldText = true
+}
+
 /**
  * 十字光标「无光标」哨兵值。
  *
@@ -1179,6 +1206,72 @@ private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
     return seen.values.sortedBy { it.min }
 }
 
+/**
+ * 分时图「逐笔买卖打点」覆盖层（方案：当日标记的 trades 用 'HH:mm' → 分钟序号定位）。
+ *
+ * 坐标完全复用 MinutePriceCanvas：
+ *  - X：xMinuteAt(min, w, showAuction)
+ *  - Y：yOf(p) = h - ((p - minP)/(maxP-minP))*h
+ * 每个买/卖点画一个小圆点（买=红、卖=蓝，取该笔 dir），点大小随画布宽度自适应。
+ * 只画「当日」标记（mark.date 与 detail 最新一根 line 的日期一致）。
+ */
+@Composable
+private fun MinuteTickOverlay(
+    marks: List<TradeMark>,
+    maxP: Double,
+    minP: Double,
+    showAuction: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val span = (maxP - minP).coerceAtLeast(1e-6)
+    val ticks = remember(marks) {
+        // 展平为 (分钟序号, dir, price)；time "HH:mm" → 分钟序号（09:30=0，午休跳过）
+        val out = ArrayList<Triple<Int, String, Double>>()
+        for (m in marks) for (t in m.trades) {
+            val mins = hhmmToMin(t.time) ?: continue
+            out.add(Triple(mins, t.dir, t.price))
+        }
+        out
+    }
+    if (ticks.isEmpty()) return
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) return@Canvas
+        val r = 2.6f
+        fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
+        for ((min, dir, price) in ticks) {
+            // 分时主轴：min<0 为早盘竞价，>240 为尾盘竞价，均参与映射
+            val x = xMinuteAt(min.toFloat(), w, showAuction)
+            val y = yOf(price)
+            if (y < -r || y > h + r) continue
+            val c = if (dir == "B") RED_UP else GREEN_DOWN
+            drawCircle(color = c, radius = r, center = Offset(x, y))
+            drawCircle(color = Color.White, radius = r * 0.42f, center = Offset(x, y))
+        }
+    }
+}
+
+/** "HH:mm" → 分钟序号（09:30=0；11:30=120；13:00=121；15:00=240）。非法返回 null。 */
+private fun hhmmToMin(t: String): Int? {
+    val s = t.trim()
+    val i = s.indexOf(':')
+    if (i <= 0) return null
+    val hh = s.substring(0, i).toIntOrNull() ?: return null
+    val mm = s.substring(i + 1).toIntOrNull() ?: return null
+    val total = hh * 60 + mm
+    // 上午 09:30-11:30 → 0..120
+    val amOpen = 9 * 60 + 30
+    val amClose = 11 * 60 + 30
+    val pmOpen = 13 * 60
+    val pmClose = 15 * 60
+    return when {
+        total in amOpen..amClose -> total - amOpen
+        total in pmOpen..pmClose -> 120 + (total - pmOpen)   // 13:00 → 121
+        else -> null
+    }
+}
+
 @Composable
 private fun MinuteChart(
     d: StockDetail?,
@@ -1279,6 +1372,19 @@ private fun MinuteChart(
                             cursorMin = cursorMin,
                             cursorY = cursorPriceY,
                             cursorZone = cursorZone,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // 逐笔买卖打点（仅当日）：覆盖在价格曲线上，与分时同坐标系
+                        val todayMarks = remember(d?.marks) {
+                            val ls = d?.line ?: emptyList()
+                            val lastDate = ls.lastOrNull()?.date ?: ""
+                            (d?.marks ?: emptyList()).filter { it.date == lastDate && it.trades.isNotEmpty() }
+                        }
+                        MinuteTickOverlay(
+                            marks = todayMarks,
+                            maxP = range.first,
+                            minP = range.second,
+                            showAuction = showAuction,
                             modifier = Modifier.fillMaxSize()
                         )
                         // 十字光标手势层（价图）：拖动吸附分钟 + 横线自由上下、松手保留、轻点清除
@@ -3650,6 +3756,12 @@ private fun KLineChart(
     val start = (end - n + 1).coerceAtLeast(0)
     val show = line.subList(start, end + 1)
 
+    // BST 标记：窗口内可见日期集合，仅把落在当前可视窗口的标记传给画布（避免无用绘制）
+    val showDateSet = remember(show) { show.mapTo(HashSet()) { it.date } }
+    val showMarks = remember(d?.marks, showDateSet) {
+        (d?.marks ?: emptyList()).filter { it.date in showDateSet }
+    }
+
     // ===== 筹码峰：数据固定按最近120根推演一次（方案A：绘制时随价格轴缩放）=====
     val chip = remember(d?.code, line.size) { computeChipDist(line, d?.base) }
     val chipW = if (showChip && chip != null) 72.dp else 0.dp
@@ -3693,6 +3805,7 @@ private fun KLineChart(
         ) {
             KLineCanvas(
                 line = show,
+                marks = showMarks,
                 maList = maPeriods.map { p -> computeMA(line, p).copyOfRange(start, end + 1) }.toTypedArray(),
                 maPeriods = maPeriods,
                 selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices },
@@ -4195,6 +4308,7 @@ private fun MaSettingDialog(
 @Composable
 private fun KLineCanvas(
     line: List<KLinePoint>,
+    marks: List<TradeMark> = emptyList(),
     maList: Array<DoubleArray> = emptyArray(),
     maPeriods: List<Int> = MA_DEFAULT_PERIODS,
     selLocal: Int? = null,
@@ -4203,6 +4317,9 @@ private fun KLineCanvas(
     onPan: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // date -> BST 标记（每交易日至多一条）；按日期对齐到具体柱子
+    val markByDate = remember(marks) { marks.associateBy { it.date } }
+    val markLabel = remember(marks) { tradeMarkPaint() }
     var lastSlot by remember { mutableFloatStateOf(0f) }
     val curPick by rememberUpdatedState(onPick)
     val curZoom by rememberUpdatedState(onZoom)
@@ -4316,6 +4433,35 @@ private fun KLineCanvas(
                 if (!started) { pathMA.moveTo(x, y); started = true } else pathMA.lineTo(x, y)
             }
             if (started) drawPath(pathMA, color, style = Stroke(width = 2.2f))
+        }
+
+        // ===== BST 买卖标记徽标：每根有交易的柱子画上/下偏移的小徽标 =====
+        // 规则（后端 _marks.php 已定稿）：每交易日至多一条；above=true 画柱上方、false 画下方；
+        // color: redB/greyB/blueS/greyS/T → 前端映射；字母取 kind（B/S/T）。
+        if (!tooNarrow && markByDate.isNotEmpty()) {
+            val r = min(max(slot * 0.34f, 3.6f), 8f)   // 徽标半径
+            line.forEachIndexed { i, k ->
+                val m = markByDate[k.date] ?: return@forEachIndexed
+                val cx = i * slot + slot / 2
+                val c = tradeMarkColor(m.color)
+                // 柱顶/柱底像素，再向外偏移一个徽标直径，避免压住蜡烛
+                val yTopBar = yOf(max(k.open, k.close))
+                val yBotBar = yOf(min(k.open, k.close))
+                val cy = if (m.above) (yTopBar - r - 2f) else (yBotBar + r + 2f)
+                // 越界（超出画布）时不画，避免半截徽标
+                if (cy - r < 0f || cy + r > h) return@forEachIndexed
+                drawCircle(color = c, radius = r, center = Offset(cx, cy))
+                val label = when (m.kind) { "B" -> "B"; "S" -> "S"; "T" -> "T"; else -> "" }
+                if (label.isNotEmpty()) {
+                    markLabel.textSize = r * 1.5f
+                    drawContext.canvas.nativeCanvas.drawText(
+                        label,
+                        cx,
+                        cy + markLabel.textSize * 0.36f,
+                        markLabel
+                    )
+                }
+            }
         }
 
         // ===== 选中竖线（深灰、贯穿） =====

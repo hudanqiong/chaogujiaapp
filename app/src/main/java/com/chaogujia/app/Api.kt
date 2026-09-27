@@ -288,6 +288,33 @@ data class DetailDay(
     val points: List<DetailTrend> = emptyList()
 )
 
+/** BST 买卖标记中的一笔成交（marks[].trades[] 元素） */
+data class MarkTrade(
+    val time: String = "",      // "HH:mm"
+    val dir: String = "",       // B=买 S=卖
+    val price: Double = 0.0,
+    val qty: Double = 0.0       // 股数
+)
+
+/**
+ * 某交易日的 BST 买卖标记（后端 _marks.php 的 compute_marks 输出）。
+ *  - kind : B=只买 / S=只卖 / T=当日既买又卖
+ *  - color: redB/greyB/blueS/greyS/T —— 前端按源码映射成颜色
+ *  - above: true=画在该日K柱上方 / false=画在下方
+ *  - avgPrice : 当日买卖均价
+ *  - dayClose : 该日收盘价（kline.php 有真值；detail.php 可能为 0）
+ *  - trades   : 当日逐笔明细（原始成交，用于分时打点/详情）
+ */
+data class TradeMark(
+    val date: String = "",
+    val kind: String = "",
+    val color: String = "",
+    val above: Boolean = false,
+    val avgPrice: Double = 0.0,
+    val dayClose: Double = 0.0,
+    val trades: List<MarkTrade> = emptyList()
+)
+
 /** 个股详情（detail.php） */
 data class StockDetail(
     val code: String = "",
@@ -299,7 +326,9 @@ data class StockDetail(
     val trends5: List<DetailDay> = emptyList(),
     val line: List<KLinePoint> = emptyList(),
     /** 分时逐笔聚合，key = 分钟序号（0 起，午休已跳过）；来自 detail.php 的 deals 对象 */
-    val minuteDeals: Map<Int, MinuteDeal> = emptyMap()
+    val minuteDeals: Map<Int, MinuteDeal> = emptyMap(),
+    /** BST 买卖标记（每个交易日至多一条）；来自 detail.php / kline.php 的 marks */
+    val marks: List<TradeMark> = emptyList()
 )
 
 /** 五档中的一档：[价格, 数量(手)] */
@@ -1397,6 +1426,45 @@ object Api {
                     line = fetchKlineFallback(market, pure, k)
                 }
             }
+            // ===== BST 买卖标记（marks）：每交易日至多一条，共用一个聚合函数 =====
+            // 注意：detail.php 的 marks.dayClose 可能为 0（其内部日期口径与内部 line 不一致）；
+            // 若 dayClose<=0，用同日 line 的 close 兜底，保证画柱定位正确。
+            val closeByDate = HashMap<String, Double>()
+            for (p in line) if (p.date.isNotEmpty()) closeByDate[p.date] = p.close
+            val marks = ArrayList<TradeMark>()
+            o.optJSONArray("marks")?.let { ma ->
+                for (i in 0 until ma.length()) {
+                    val m = ma.optJSONObject(i) ?: continue
+                    val d = m.optString("date", "")
+                    var dc = m.optDouble("dayClose", 0.0)
+                    if (dc <= 0.0) dc = closeByDate[d] ?: 0.0
+                    val trs = ArrayList<MarkTrade>()
+                    m.optJSONArray("trades")?.let { ta ->
+                        for (j in 0 until ta.length()) {
+                            val t = ta.optJSONObject(j) ?: continue
+                            trs.add(
+                                MarkTrade(
+                                    time = t.optString("time", ""),
+                                    dir = t.optString("dir", ""),
+                                    price = t.optDouble("price", 0.0),
+                                    qty = t.optDouble("qty", 0.0)
+                                )
+                            )
+                        }
+                    }
+                    marks.add(
+                        TradeMark(
+                            date = d,
+                            kind = m.optString("kind", ""),
+                            color = m.optString("color", ""),
+                            above = m.optBoolean("above", false),
+                            avgPrice = m.optDouble("avgPrice", 0.0),
+                            dayClose = dc,
+                            trades = trs
+                        )
+                    )
+                }
+            }
             StockDetail(
                 code = o.optString("code", code),
                 name = o.optString("name", ""),
@@ -1406,7 +1474,8 @@ object Api {
                 trends = trends,
                 trends5 = days5,
                 line = line,
-                minuteDeals = minuteDeals
+                minuteDeals = minuteDeals,
+                marks = marks
             )
         } catch (e: Exception) {
             null
