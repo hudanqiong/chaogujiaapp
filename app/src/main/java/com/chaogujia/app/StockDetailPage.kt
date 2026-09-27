@@ -4481,7 +4481,7 @@ private fun KLineCanvas(
             val half = side / 2f
             val corner = side * 0.28f              // 圆角："半个圆点"观感
             val dotR = side * 0.11f                // 虚线两端小圆点半径
-            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5f.dp.toPx()), 0f)
+            // 断线由每段手绘短划实现，无需 dashEffect
             val wireW = 1.4.dp.toPx()              // 虚线宽
             line.forEachIndexed { i, k ->
                 // k.date 为 K 线源日期（同花顺 "20260924"），必须归一化后再查
@@ -4491,7 +4491,9 @@ private fun KLineCanvas(
                 // 影线尖端（连接终点）与方框中心
                 val yHigh = yOf(k.high)            // 上影线尖端
                 val yLow = yOf(k.low)              // 下影线尖端
-                val boxCy = if (m.above) (yHigh - half - 2f) else (yLow + half + 2f)
+                // 框与影线尖端之间留出可见间隙，供 3 段虚线连接（间隙过小则虚线无从画起）
+                val gap = 9.dp.toPx()
+                val boxCy = if (m.above) (yHigh - half - gap) else (yLow + half + gap)
                 // 越界（超出画布）时不画，避免半截标记
                 if (boxCy - half < 0f || boxCy + half > h) return@forEachIndexed
                 // 方框朝向影线的那一边（上标记→框底；下标记→框顶）
@@ -4503,15 +4505,21 @@ private fun KLineCanvas(
                 val span = y1 - y0
                 if (span > 4f) {
                     val seg = span / 3f
+                    // 每段内画 2 个小短划（不依赖 dashEffect 周期，保证短距离下仍可见）
                     for (s in 0 until 3) {
-                        val sy = y0 + s * seg + seg * 0.15f
-                        val ey = y0 + s * seg + seg * 0.85f
+                        val segTop = y0 + s * seg
+                        val dashLen = seg * 0.28f
                         drawLine(
                             color = c,
-                            start = Offset(cx, sy),
-                            end = Offset(cx, ey),
-                            strokeWidth = wireW,
-                            pathEffect = dashEffect
+                            start = Offset(cx, segTop + seg * 0.16f),
+                            end = Offset(cx, segTop + seg * 0.16f + dashLen),
+                            strokeWidth = wireW
+                        )
+                        drawLine(
+                            color = c,
+                            start = Offset(cx, segTop + seg * 0.58f),
+                            end = Offset(cx, segTop + seg * 0.58f + dashLen),
+                            strokeWidth = wireW
                         )
                     }
                 }
