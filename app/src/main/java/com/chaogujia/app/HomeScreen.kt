@@ -215,6 +215,8 @@ private fun HomeMenuCard(onNav: (String) -> Unit) {
             HDivider()
             MenuRow("添加自选股", "输入代码加入自选") { onNav("addstock") }
             HDivider()
+            MenuRow("交易记录管理", "修改持仓记录日期与价格") { onNav("tradeedit") }
+            HDivider()
             MenuRow("修改密码", "修改登录密码") { onNav("pwd") }
         }
     }

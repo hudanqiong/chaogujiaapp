@@ -44,6 +44,7 @@ fun SubPage(
         "groups" -> PageGroups(token, onBack)
         "addstock" -> PageAddStock(token, onBack)
         "pwd" -> PagePwd(token, onBack)
+        "tradeedit" -> PageTradeEdit(token, brokerAccountId, onBack)
     }
 }
 
@@ -661,4 +662,136 @@ private fun PagePwd(token: String?, onBack: () -> Unit) {
             }
         }
     }
+
+// ===== 9. 交易记录管理（修改持仓记录：只改日期+价格，改后整账户重放） =====
+@Composable
+private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Unit) {
+    var list by remember { mutableStateOf<List<TradeRecord>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var msg by remember { mutableStateOf("") }
+    var editId by remember { mutableStateOf(0) }
+    var ePrice by remember { mutableStateOf("") }
+    var eDate by remember { mutableStateOf("") }
+
+    fun reload() {
+        loading = true
+        Thread {
+            val l = Api.tradeEditList(token, brokerAccountId)
+            list = l
+            loading = false
+        }.start()
+    }
+    LaunchedEffect(brokerAccountId) { reload() }
+
+    SubShell("交易记录管理", onBack) {
+        Text(
+            "仅可修改「成交日期」与「成交价」，数量/方向不可改；保存后资金与持仓会自动重算。",
+            color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp
+        )
+        Spacer(Modifier.height(10.dp))
+
+        if (loading) {
+            Text("加载中…", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+        } else if (list.isEmpty()) {
+            CardBox {
+                Column {
+                    Text("暂无交易记录", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                }
+            }
+        } else {
+            for (t in list) {
+                CardBox {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (t.direction == 1) "买入" else "卖出",
+                                color = if (t.direction == 1) Color(0xFFE53935) else Color(0xFF43A047),
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("${t.code} ${t.name}", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "价 ${t.price} × ${t.quantity} 股　金额 ¥${t.amount}　费 ¥${t.commission}",
+                            color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text("成交时间 ${t.time}", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                        Spacer(Modifier.height(8.dp))
+
+                        if (editId == t.id) {
+                            InputBox(ePrice, "成交价（如 8.500）", { ePrice = it })
+                            Spacer(Modifier.height(8.dp))
+                            InputBox(eDate, "成交日期（如 2026-09-19）", { eDate = it })
+                            Spacer(Modifier.height(10.dp))
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0xFFEEEEEE))
+                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { editId = 0 }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("取消", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp)
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(Config.COLOR_PRIMARY))
+                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                            val pv = ePrice.toDoubleOrNull()
+                                            if (pv == null || pv <= 0) { msg = "请输入正确的成交价" }
+                                            else if (!Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(eDate)) { msg = "日期格式应为 YYYY-MM-DD" }
+                                            else {
+                                                msg = ""
+                                                Thread {
+                                                    val r = Api.tradeUpdate(token, brokerAccountId, t.id, pv, eDate)
+                                                    msg = if (r.ok) "修改成功，资金已重算（现金 ¥${r.settle}）" else "失败：${r.msg}"
+                                                    if (r.ok) editId = 0
+                                                    reload()
+                                                }.start()
+                                            }
+                                        }
+                                        .padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("保存", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(Color(Config.COLOR_PRIMARY))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        editId = t.id
+                                        ePrice = t.price.toString()
+                                        eDate = t.time.take(10)
+                                        msg = ""
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text("修改", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            if (msg.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
+            }
+        }
+    }
+}
 }

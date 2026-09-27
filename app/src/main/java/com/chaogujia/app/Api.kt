@@ -55,6 +55,7 @@ data class TradeResult(
 )
 /** 交易记录（trades.php 的 data[]） */
 data class TradeRecord(
+    val id: Int = 0,
     val code: String = "",
     val name: String = "",
     /** 1=买入 2=卖出 */
@@ -794,6 +795,7 @@ object Api {
                 val p = arr.optJSONObject(i) ?: continue
                 list.add(
                     TradeRecord(
+                        id = p.optInt("id", 0),
                         code = p.optString("code", ""),
                         name = p.optString("name", ""),
                         direction = p.optInt("direction", 0),
@@ -808,6 +810,75 @@ object Api {
             list
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+    /** 交易记录管理-列表（trade_edit.php action=list，POST JSON body） */
+    fun tradeEditList(token: String?, brokerAccountId: Int): List<TradeRecord> {
+        return try {
+            val raw = Net.postJson(
+                base("trade_edit.php"),
+                jsonOf(
+                    "action" to "list",
+                    "broker_account_id" to brokerAccountId,
+                    "token" to (token ?: "")
+                ),
+                token
+            )
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return emptyList()
+            val arr = o.optJSONArray("data") ?: return emptyList()
+            val list = ArrayList<TradeRecord>()
+            for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                list.add(
+                    TradeRecord(
+                        id = p.optInt("id", 0),
+                        code = p.optString("code", ""),
+                        name = p.optString("name", ""),
+                        direction = p.optInt("direction", 0),
+                        price = p.optDouble("price", 0.0),
+                        quantity = p.optInt("quantity", 0),
+                        amount = p.optDouble("amount", 0.0),
+                        commission = p.optDouble("fee", 0.0),
+                        time = p.optString("time", "")
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+    /** 交易记录管理-修改（trade_edit.php action=update，改日期+价格后整账户重放） */
+    fun tradeUpdate(
+        token: String?,
+        brokerAccountId: Int,
+        id: Int,
+        price: Double,
+        date: String
+    ): TradeResult {
+        return try {
+            val raw = Net.postJson(
+                base("trade_edit.php"),
+                jsonOf(
+                    "action" to "update",
+                    "broker_account_id" to brokerAccountId,
+                    "id" to id,
+                    "price" to price,
+                    "date" to date,
+                    "token" to (token ?: "")
+                ),
+                token
+            )
+            val o = JSONObject(raw)
+            val d = o.optJSONObject("data")
+            TradeResult(
+                ok = o.optInt("code", -1) == 0,
+                msg = o.optString("msg", ""),
+                settle = d?.optDouble("cash", 0.0) ?: 0.0
+            )
+        } catch (e: Exception) {
+            TradeResult(false, e.message ?: "网络异常")
         }
     }
     /** 拉取账户信息（account.php ?broker_account_id=） */
