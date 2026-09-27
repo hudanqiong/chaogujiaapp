@@ -4493,9 +4493,12 @@ private fun KLineCanvas(
                 val yLow = yOf(k.low)              // 下影线尖端
                 // 框与影线尖端之间留出可见间隙，供 3 段虚线连接（间隙过小则虚线无从画起）
                 val gap = 9.dp.toPx()
-                val boxCy = if (m.above) (yHigh - half - gap) else (yLow + half + gap)
-                // 越界（超出画布）时不画，避免半截标记
-                if (boxCy - half < 0f || boxCy + half > h) return@forEachIndexed
+                val boxCyRaw = if (m.above) (yHigh - half - gap) else (yLow + half + gap)
+                // 方案A（对齐同花顺）：越界时不丢弃，而是把框夹取回画布内边缘，
+                // 保证极端高/低柱的标记也始终可见（贴边显示），而不是被挤没。
+                val loB = half + 1f
+                val hiB = (h - half - 1f).coerceAtLeast(loB)   // 极端窄画布保护
+                val boxCy = boxCyRaw.coerceIn(loB, hiB)
                 // 方框朝向影线的那一边（上标记→框底；下标记→框顶）
                 val boxEdgeY = if (m.above) (boxCy + half) else (boxCy - half)
                 val wireEndY = if (m.above) yHigh else yLow   // 影线端
