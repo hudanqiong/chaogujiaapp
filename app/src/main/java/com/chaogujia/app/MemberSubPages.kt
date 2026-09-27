@@ -879,4 +879,3 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
         }
     }
 }
-}
