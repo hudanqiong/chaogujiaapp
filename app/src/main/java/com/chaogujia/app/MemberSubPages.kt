@@ -45,6 +45,7 @@ fun SubPage(
         "addstock" -> PageAddStock(token, onBack)
         "pwd" -> PagePwd(token, onBack)
         "tradeedit" -> PageTradeEdit(token, brokerAccountId, onBack)
+        "simulate" -> PageSimulate(token, brokerAccountId, onBack)
     }
 }
 
@@ -877,5 +878,107 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
             Spacer(Modifier.height(2.dp))
             Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
         }
+    }
+}
+
+// ===== 10. 一键模拟（批量生成买卖T记录）=====
+@Composable
+private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Unit) {
+    var code by remember { mutableStateOf("") }
+    var dateStart by remember { mutableStateOf("") }
+    var dateEnd by remember { mutableStateOf("") }
+    // mode: qty=总股数, amount=总金额
+    var mode by remember { mutableStateOf("qty") }
+    var totalTxt by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf("") }
+    var running by remember { mutableStateOf(false) }
+
+    SubShell("一键模拟", onBack) {
+        Text(
+            "按区间随机生成 买/卖/做T 交易记录，并自动重算资金与持仓（含浮盈浮亏）。生成前会校验账户可用资金，超出则自动缩减规模。",
+            color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 17.sp
+        )
+        Spacer(Modifier.height(12.dp))
+
+        CardBox {
+            Column {
+                Text("股票代码", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                InputBox(code, "如 600519 / sh600519", { code = it })
+
+                Spacer(Modifier.height(14.dp))
+                Text("日期范围（YYYY-MM-DD）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                InputBox(dateStart, "开始日期，如 2026-08-01", { dateStart = it })
+                Spacer(Modifier.height(8.dp))
+                InputBox(dateEnd, "结束日期，如 2026-09-20", { dateEnd = it })
+
+                Spacer(Modifier.height(14.dp))
+                Text("规模模式", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    ModeChip("按总股数", mode == "qty") { mode = "qty" }
+                    Spacer(Modifier.width(10.dp))
+                    ModeChip("按总金额", mode == "amount") { mode = "amount" }
+                }
+                Spacer(Modifier.height(10.dp))
+                InputBox(
+                    totalTxt,
+                    if (mode == "qty") "总股数，如 5000" else "总金额，如 50000",
+                    { totalTxt = it }
+                )
+
+                Spacer(Modifier.height(16.dp))
+                BigBtn(if (running) "生成中…" else "开始生成") {
+                    if (running) return@BigBtn
+                    val tv = totalTxt.toDoubleOrNull()
+                    if (code.isEmpty()) { msg = "请输入股票代码" }
+                    else if (dateStart.isEmpty() || dateEnd.isEmpty()) { msg = "请填写完整日期范围" }
+                    else if (dateStart > dateEnd) { msg = "开始日期不能晚于结束日期" }
+                    else if (tv == null || tv <= 0) { msg = "请输入正确的总股数/总金额" }
+                    else {
+                        msg = ""
+                        running = true
+                        Thread {
+                            val r = Api.simulate(token, brokerAccountId, code, dateStart, dateEnd, mode, tv)
+                            msg = if (r.ok) {
+                                "生成成功：${r.quantity} 笔，现金余额 ¥${r.settle}"
+                            } else "失败：${r.msg}"
+                            running = false
+                        }.start()
+                    }
+                }
+                if (msg.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        CardBox {
+            Column {
+                Text("说明", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("• 买卖节奏与做T随机生成，不遵循 T+1", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
+                Text("• 生成后会真实写入持仓记录，浮盈浮亏自动计算", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
+                Text("• 会校验账户可用金额，不足时自动缩减规模", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
+                Text("• 生成后的记录可在「交易记录管理」中逐条修改", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
+            }
+        }
+    }
+}
+
+/** 模式选择小胶囊 */
+@Composable
+private fun ModeChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Color(Config.COLOR_PRIMARY) else Color(0xFFF0F0F0))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 7.dp)
+    ) {
+        Text(text, color = if (selected) Color.White else Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
     }
 }

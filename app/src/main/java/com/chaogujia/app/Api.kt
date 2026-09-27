@@ -910,6 +910,42 @@ object Api {
             TradeResult(false, e.message ?: "网络异常")
         }
     }
+    /** 一键模拟：批量生成买卖T记录（simulate.php） */
+    fun simulate(
+        token: String?,
+        brokerAccountId: Int,
+        code: String,
+        dateStart: String,
+        dateEnd: String,
+        mode: String,
+        total: Double
+    ): TradeResult {
+        return try {
+            val raw = Net.postJson(
+                base("simulate.php"),
+                jsonOf(
+                    "broker_account_id" to brokerAccountId,
+                    "code" to code,
+                    "date_start" to dateStart,
+                    "date_end" to dateEnd,
+                    "mode" to mode,
+                    "total" to total,
+                    "token" to (token ?: "")
+                ),
+                token
+            )
+            val o = JSONObject(raw)
+            val d = o.optJSONObject("data")
+            TradeResult(
+                ok = o.optInt("code", -1) == 0,
+                msg = o.optString("msg", ""),
+                quantity = d?.optInt("generated", 0) ?: 0,
+                settle = d?.optDouble("cash", 0.0) ?: 0.0
+            )
+        } catch (e: Exception) {
+            TradeResult(false, e.message ?: "网络异常")
+        }
+    }
     /** 拉取账户信息（account.php ?broker_account_id=） */
     fun account(token: String?, brokerAccountId: Int): AccountInfo {
         val raw = Net.get(base("account.php?broker_account_id=$brokerAccountId"), token)

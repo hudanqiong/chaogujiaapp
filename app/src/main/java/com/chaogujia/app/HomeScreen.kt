@@ -217,6 +217,8 @@ private fun HomeMenuCard(onNav: (String) -> Unit) {
             HDivider()
             MenuRow("交易记录管理", "修改持仓记录日期与价格") { onNav("tradeedit") }
             HDivider()
+            MenuRow("一键模拟", "批量生成买卖T记录") { onNav("simulate") }
+            HDivider()
             MenuRow("修改密码", "修改登录密码") { onNav("pwd") }
         }
     }
