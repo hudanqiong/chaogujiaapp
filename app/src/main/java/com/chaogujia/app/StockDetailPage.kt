@@ -1013,7 +1013,7 @@ private fun MarkDetailOverlay(mark: TradeMark) {
     Box(
         modifier = Modifier
             .padding(start = 6.dp, top = 2.dp)
-            .background(Color(0xE6FED9BC), RoundedCornerShape(4.dp))
+            .background(Color(0xB3FED9BC))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Text(text = text, color = Color.Black, fontSize = 11.sp)
@@ -4458,7 +4458,7 @@ private fun KLineCanvas(
                 // 轻点（未达长按）仍然保持原有“选中该根 K 线”的行为。
                 // 注意：key 只放 line.size，绝不能放光标状态，否则长按激活时会重启协程、拖动循环被杀。
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                     val longPress = awaitLongPressOrCancellation(down.id)
                     if (longPress == null) {
                         // 轻点：选柱
@@ -4467,12 +4467,13 @@ private fun KLineCanvas(
                             curPick(i)
                         }
                     } else {
-                        // 长按激活光标，并进入拖动跟随
+                        // 长按激活光标，并进入拖动跟随。
+                        // 关键：用 Initial pass 抢事件并 consume，阻止外层 detectTransformGestures 把它当 pan。
                         if (lastSlot > 0f && line.isNotEmpty()) {
                             val i0 = (longPress.position.x / lastSlot).toInt().coerceIn(0, line.size - 1)
                             curCursor(i0)
                             while (true) {
-                                val ev = awaitPointerEvent()
+                                val ev = awaitPointerEvent(PointerEventPass.Initial)
                                 val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                                 if (!ch.pressed) {
                                     ch.consume()
