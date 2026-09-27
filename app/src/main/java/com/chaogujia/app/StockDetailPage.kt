@@ -4493,15 +4493,26 @@ private fun KLineCanvas(
                 val yLow = yOf(k.low)              // 下影线尖端
                 // 框与影线尖端之间留出可见间隙，供 3 段虚线连接（间隙过小则虚线无从画起）
                 val gap = 9.dp.toPx()
-                val boxCyRaw = if (m.above) (yHigh - half - gap) else (yLow + half + gap)
-                // 方案A（对齐同花顺）：越界时不丢弃，而是把框夹取回画布内边缘，
-                // 保证极端高/低柱的标记也始终可见（贴边显示），而不是被挤没。
+                // 首层保底（对齐同花顺）：
+                // 标记默认按后端给定的朝向（above=true 画柱上方 / false 画柱下方）放置；
+                // 但若该朝向的空间不足（上标记顶出画布 / 下标记底部超出画布），
+                // 则自动"翻面"到另一侧，使标记尽量留在可见区内。
+                // 例：标记本在下方，把 K 线拖到最右、下方不够时就搬到上面去。
+                var above = m.above
+                var boxCyRaw = if (above) (yHigh - half - gap) else (yLow + half + gap)
+                val fits = if (above) (boxCyRaw - half >= 0f) else (boxCyRaw + half <= h)
+                if (!fits) {
+                    above = !above
+                    boxCyRaw = if (above) (yHigh - half - gap) else (yLow + half + gap)
+                }
+                // 第二层保底（方案A）：翻面后仍越界（例如上下都极窄）时不丢弃，
+                // 而是把框夹取回画布内边缘，保证极端高/低柱的标记也始终可见（贴边显示）。
                 val loB = half + 1f
                 val hiB = (h - half - 1f).coerceAtLeast(loB)   // 极端窄画布保护
                 val boxCy = boxCyRaw.coerceIn(loB, hiB)
                 // 方框朝向影线的那一边（上标记→框底；下标记→框顶）
-                val boxEdgeY = if (m.above) (boxCy + half) else (boxCy - half)
-                val wireEndY = if (m.above) yHigh else yLow   // 影线端
+                val boxEdgeY = if (above) (boxCy + half) else (boxCy - half)
+                val wireEndY = if (above) yHigh else yLow   // 影线端
                 // ===== 连接虚线：影线端↔方框边，三等分画 3 段竖直虚线（Q3：方案A） =====
                 val y0 = min(wireEndY, boxEdgeY)
                 val y1 = max(wireEndY, boxEdgeY)
