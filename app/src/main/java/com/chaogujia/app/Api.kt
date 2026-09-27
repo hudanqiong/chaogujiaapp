@@ -1294,12 +1294,14 @@ object Api {
      * @param code 6 位股票代码，如 "000980"
      * @param k    周期：day / week / month
      * @param kn   K线条数，默认 320
-     * 无需登录。失败返回 null。
+     * @param token 登录 token（可选）。★ 必须带上：detail.php 的 marks（BST 买卖标记）
+     *              依赖 current_user() 解析用户，不带 token 时 marks 恒为空 → K 线不画徽标。
+     * 行情本身免登录，失败返回 null。
      */
-    fun detail(code: String, k: String = "day", kn: Int = 320): StockDetail? {
+    fun detail(code: String, k: String = "day", kn: Int = 320, token: String? = null): StockDetail? {
         return try {
             val url = base("detail.php?code=") + code + "&k=" + k + "&kn=" + kn
-            val raw = Net.get(url)
+            val raw = Net.get(url, token)
             val o = JSONObject(raw)
             if (!o.optBoolean("ok", false)) return null
             val b = o.optJSONObject("base") ?: JSONObject()
