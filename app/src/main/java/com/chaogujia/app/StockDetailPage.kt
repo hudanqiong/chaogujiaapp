@@ -34,8 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -4472,31 +4474,72 @@ private fun KLineCanvas(
         // 规则（后端 _marks.php 已定稿）：每交易日至多一条；above=true 画柱上方、false 画下方；
         // color: redB/greyB/blueS/greyS/T → 前端映射；字母取 kind（B/S/T）。
         if (!tooNarrow && markByDate.isNotEmpty()) {
-            // 徽标半径：随槽宽自适应，但抬高下限/上限，保证高分屏上肉眼可辨（原 3.6~8px 偏小）。
-            // 一屏 60 根时 slot≈18.5px → r≈9.2px（直径≈18.5px），下限 6px、上限 12px。
-            val r = min(max(slot * 0.5f, 6f), 12f)   // 徽标半径
+            // 标记方框：边长固定 = 2.5 根牙签（TOOTHPICK=6dp）→ 15dp；不随 K 线缩放变化（Q1：允许与相邻柱重叠）。
+            // 缩到最小（n>=K_NARROW_VISIBLE=1500，即"变成一条线"）时整段隐藏（见上方 tooNarrow 门控）
+            // （Q2：沿用之前设定的"缩成一条线"阈值）。
+            val side = 2.5f * TOOTHPICK.toPx()     // 方框边长固定 = 2.5 根牙签（固定）
+            val half = side / 2f
+            val corner = side * 0.28f              // 圆角："半个圆点"观感
+            val dotR = side * 0.11f                // 虚线两端小圆点半径
+            val dashEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5f.dp.toPx()), 0f)
+            val wireW = 1.4.dp.toPx()              // 虚线宽
             line.forEachIndexed { i, k ->
                 // k.date 为 K 线源日期（同花顺 "20260924"），必须归一化后再查
                 val m = markByDate[normDateKey(k.date)] ?: return@forEachIndexed
                 val cx = i * slot + slot / 2
                 val c = tradeMarkColor(m.color)
-                // 柱顶/柱底像素，再向外偏移一个徽标直径，避免压住蜡烛
-                val yTopBar = yOf(max(k.open, k.close))
-                val yBotBar = yOf(min(k.open, k.close))
-                val cy = if (m.above) (yTopBar - r - 2f) else (yBotBar + r + 2f)
-                // 越界（超出画布）时不画，避免半截徽标
-                if (cy - r < 0f || cy + r > h) return@forEachIndexed
-                // 白色描边：让徽标在红绿柱/网格背景上更醒目（先画略大的白圈打底）
-                drawCircle(color = Color.White, radius = r + 1.5f, center = Offset(cx, cy))
-                drawCircle(color = c, radius = r, center = Offset(cx, cy))
+                // 影线尖端（连接终点）与方框中心
+                val yHigh = yOf(k.high)            // 上影线尖端
+                val yLow = yOf(k.low)              // 下影线尖端
+                val boxCy = if (m.above) (yHigh - half - 2f) else (yLow + half + 2f)
+                // 越界（超出画布）时不画，避免半截标记
+                if (boxCy - half < 0f || boxCy + half > h) return@forEachIndexed
+                // 方框朝向影线的那一边（上标记→框底；下标记→框顶）
+                val boxEdgeY = if (m.above) (boxCy + half) else (boxCy - half)
+                val wireEndY = if (m.above) yHigh else yLow   // 影线端
+                // ===== 连接虚线：影线端↔方框边，三等分画 3 段竖直虚线（Q3：方案A） =====
+                val y0 = min(wireEndY, boxEdgeY)
+                val y1 = max(wireEndY, boxEdgeY)
+                val span = y1 - y0
+                if (span > 4f) {
+                    val seg = span / 3f
+                    for (s in 0 until 3) {
+                        val sy = y0 + s * seg + seg * 0.15f
+                        val ey = y0 + s * seg + seg * 0.85f
+                        drawLine(
+                            color = c,
+                            start = Offset(cx, sy),
+                            end = Offset(cx, ey),
+                            strokeWidth = wireW,
+                            pathEffect = dashEffect
+                        )
+                    }
+                }
+                // ===== 两端小圆点（颜色同方框） =====
+                drawCircle(color = c, radius = dotR, center = Offset(cx, wireEndY))  // 连影线一端
+                drawCircle(color = c, radius = dotR, center = Offset(cx, boxEdgeY))  // 连方框一端
+                // ===== 标记方框（圆角方，白色描边打底 + 字母） =====
+                val boxTopLeft = Offset(cx - half, boxCy - half)
+                drawRoundRect(
+                    color = Color.White,
+                    topLeft = Offset(boxTopLeft.x - 1.5f, boxTopLeft.y - 1.5f),
+                    size = Size(side + 3f, side + 3f),
+                    cornerRadius = CornerRadius(corner + 1.5f, corner + 1.5f)
+                )
+                drawRoundRect(
+                    color = c,
+                    topLeft = boxTopLeft,
+                    size = Size(side, side),
+                    cornerRadius = CornerRadius(corner, corner)
+                )
                 val label = when (m.kind) { "B" -> "B"; "S" -> "S"; "T" -> "T"; else -> "" }
                 if (label.isNotEmpty()) {
-                    markLabel.textSize = r * 1.3f
+                    markLabel.textSize = side * 0.62f
                     markLabel.isFakeBoldText = true
                     drawContext.canvas.nativeCanvas.drawText(
                         label,
                         cx,
-                        cy + markLabel.textSize * 0.36f,
+                        boxCy + markLabel.textSize * 0.36f,
                         markLabel
                     )
                 }
