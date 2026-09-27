@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -4456,24 +4457,39 @@ private fun KLineCanvas(
             .pointerInput(line.size) {
                 // 日K光标：长按按住 0.5s 激活十字光标，随后左右拖动连续移动；
                 // 轻点（未达长按）仍然保持原有“选中该根 K 线”的行为。
+                // 关键点：不使用 awaitLongPressOrCancellation —— 它在手指位移超过 touch slop 时
+                // 会直接判为“取消/轻点”，导致长按后根本无法拖动。这里手写计时：
+                //   500ms 内若没松手（无论是否移动）→ 判定长按成立并进入拖动跟随；
+                //   500ms 内松手 → 判定轻点选柱。
                 // 注意：key 只放 line.size，绝不能放光标状态，否则长按激活时会重启协程、拖动循环被杀。
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                    val longPress = awaitLongPressOrCancellation(down.id)
-                    if (longPress == null) {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var lastX = down.position.x
+                    var upBeforeLong = false
+                    withTimeoutOrNull(500L) {
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!ch.pressed) {
+                                upBeforeLong = true
+                                break
+                            }
+                            lastX = ch.position.x
+                        }
+                    }
+                    if (upBeforeLong) {
                         // 轻点：选柱
                         if (lastSlot > 0f && line.isNotEmpty()) {
                             val i = (down.position.x / lastSlot).toInt().coerceIn(0, line.size - 1)
                             curPick(i)
                         }
                     } else {
-                        // 长按激活光标，并进入拖动跟随。
-                        // 关键：用 Initial pass 抢事件并 consume，阻止外层 detectTransformGestures 把它当 pan。
+                        // 长按成立：激活光标并进入拖动跟随；期间 consume 事件，阻止外层 pan/zoom 抢占。
                         if (lastSlot > 0f && line.isNotEmpty()) {
-                            val i0 = (longPress.position.x / lastSlot).toInt().coerceIn(0, line.size - 1)
+                            val i0 = (lastX / lastSlot).toInt().coerceIn(0, line.size - 1)
                             curCursor(i0)
                             while (true) {
-                                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                                val ev = awaitPointerEvent()
                                 val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                                 if (!ch.pressed) {
                                     ch.consume()
@@ -4484,6 +4500,14 @@ private fun KLineCanvas(
                                     curCursor(i)
                                 }
                                 ch.consume()
+                            }
+                        } else {
+                            // 不足一屏柱宽时也要把手势消费掉，避免误触外层平移
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                                ch.consume()
+                                if (!ch.pressed) break
                             }
                         }
                     }
