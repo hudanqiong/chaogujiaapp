@@ -2,3 +2,6 @@ sdp_bak*.kt
 _s*.py
 apk*/
 *.zip
+*.pre_*
+*.pre*
+*.bak*
