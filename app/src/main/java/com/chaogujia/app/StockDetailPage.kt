@@ -3918,9 +3918,16 @@ private fun KLineChart(
                 marks = showMarks,
                 maList = maPeriods.map { p -> computeMA(line, p).copyOfRange(start, end + 1) }.toTypedArray(),
                 maPeriods = maPeriods,
-                selLocal = selIdx?.let { it - start }?.takeIf { it in show.indices },
+                selLocal = null, // fix3: 去掉点击竖线，只保留滑动光标线
                 cursorLocal = if (kdayCursorLocal in show.indices) kdayCursorLocal else -1,
-                onCursorDrag = { local -> kdayCursorLocal = local },
+                onCursorDrag = { local ->
+                    kdayCursorLocal = local
+                    // fix3: 拖动光标同步选中，让头部价格与 T/B/S 明细实时跟随
+                    if (local in show.indices) {
+                        val g = start + local
+                        if (selIdx != g) onSelect(g)
+                    }
+                },
                 onPick = { local ->
                     // 点同一根 → 取消选中；否则选中该根（映射回全局下标）
                     val g = start + local
