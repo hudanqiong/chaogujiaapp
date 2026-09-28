@@ -1378,30 +1378,37 @@ private fun MinuteTickOverlay(
                 drawCircle(color = Color.White, radius = dotR * 0.42f, center = Offset(x, y))
                 continue
             }
-            // ===== 字母徽标：置于成交点上方，短线连回成交点 =====
+            // ===== 字母徽标：置于成交点上方/下方，短线必须连回成交点 =====
             val gap = 9.dp.toPx()
-            // 上方放置；若顶出画布则翻到下方
-            var above = true
-            var boxCyRaw = y - half - gap
-            if (boxCyRaw - half < 0f) {
-                above = false
-                boxCyRaw = y + half + gap
+            // 上下各需要的半高（含间隙）
+            val needAbove = half + gap        // 放上方时：从 y 到框顶需要的高度
+            val needBelow = half + gap        // 放下方时：从 y 到框底需要的高度
+            // 优先放上方；上方空间不足则放下方；两侧都不足时选空间更大的一侧
+            val roomAbove = y                 // 点上方可用高度
+            val roomBelow = h - y             // 点下方可用高度
+            val above = if (roomAbove >= needAbove) true
+                        else if (roomBelow >= needBelow) false
+                        else (roomAbove >= roomBelow)
+            // 框中心：保证框整体在画布内（留 1px 边），且与点保持净间距
+            val boxCy = if (above) {
+                (y - half - gap).coerceAtLeast(1f + half)
+            } else {
+                (y + half + gap).coerceAtMost(h - 1f - half)
             }
-            val loB = half + 1f
-            val hiB = (h - half - 1f).coerceAtLeast(loB)
-            val boxCy = boxCyRaw.coerceIn(loB, hiB)
+            // 框朝向成交点的那条边
             val boxEdgeY = if (above) (boxCy + half) else (boxCy - half)
-            // 连接短线：成交点 ↔ 方框边
-            val y0 = min(y, boxEdgeY)
-            val y1 = max(y, boxEdgeY)
-            val sp = y1 - y0
-            if (sp > 4f) {
-                val seg = sp / 3f
-                for (s in 0 until 3) {
-                    val segTop = y0 + s * seg
-                    val dashLen = seg * 0.28f
-                    drawLine(c, Offset(x, segTop + seg * 0.16f), Offset(x, segTop + seg * 0.16f + dashLen), wireW)
-                    drawLine(c, Offset(x, segTop + seg * 0.58f), Offset(x, segTop + seg * 0.58f + dashLen), wireW)
+            // 连接短线：成交点 ↔ 方框边，覆盖整段净间距（密虚线）
+            val yTop = min(y, boxEdgeY)
+            val yBot = max(y, boxEdgeY)
+            val sp = yBot - yTop
+            if (sp > 1f) {
+                val dashLen = 4f
+                val dashGap = 3f
+                var yy = yTop
+                while (yy < yBot) {
+                    val ye = min(yy + dashLen, yBot)
+                    drawLine(c, Offset(x, yy), Offset(x, ye), wireW)
+                    yy += dashLen + dashGap
                 }
             }
             drawCircle(color = c, radius = side * 0.11f, center = Offset(x, y))
