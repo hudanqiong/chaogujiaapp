@@ -22,12 +22,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 注入全局 Context，供 DetailCache（detail.php 本地磁盘缓存）使用
+        Net.appContext = applicationContext
         setContent {
             ChaoGuJiaApp()
         }
@@ -105,6 +110,38 @@ fun ChaoGuJiaApp() {
     var detailIdx by remember { mutableStateOf(0) }
     // 详情页当前显示的名称（由 StockDetailPage 回吐，供红条显示）
     var detailName by remember { mutableStateOf("") }
+
+    // ============ ★ App 启动全局预热（方案 3） ============
+    // 目的：detail.php 冷请求约 4.5s（后端等上游的固定延迟），App 一启动就在后台
+    // 并发拉「自选 + 持仓」全部个股的 detail，把服务端缓存与本地磁盘缓存一并捂热。
+    // 这样用户第一次点进自选列表/个股详情页时，detail 已是热的（0.2~0.5s 或直接命中本地缓存），
+    // 达到"零点几秒打开"的体感。预热失败静默忽略，不影响任何主流程。
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            try {
+                val tk = token
+                if (tk.isNullOrEmpty()) return@withContext
+                // 1) 收集自选 + 持仓的全部代码
+                val codes = LinkedHashSet<String>()
+                runCatching { Api.stockList(tk, -1).forEach { if (it.code.isNotBlank()) codes.add(it.code) } }
+                runCatching {
+                    val brokers = Api.brokerList(tk)
+                    for (b in brokers) {
+                        runCatching {
+                            Api.positions(tk, b.id).forEach { p -> if (p.quantity > 0 && p.code.isNotBlank()) codes.add(p.code) }
+                        }
+                    }
+                }
+                if (codes.isEmpty()) return@withContext
+                val t0 = System.currentTimeMillis()
+                // 2) 并发预热全部 detail（同时写本地磁盘缓存）
+                codes.map { c -> async(Dispatchers.IO) { runCatching { Api.detail(c, token = tk) } } }.awaitAll()
+                Log.e("CGJ_WARM", "startup warm done codes=" + codes.size + " costMs=" + (System.currentTimeMillis() - t0))
+            } catch (e: Exception) {
+                Log.e("CGJ_WARM", "startup warm failed: " + e.message)
+            }
+        }
+    }
 
     // ★ 返回键处理：
     //   1) 详情页打开 → 关详情（回到来源页）

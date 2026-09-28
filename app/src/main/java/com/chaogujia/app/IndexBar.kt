@@ -386,7 +386,8 @@ fun IndexBar(
                         codes.map { code ->
                             async {
                                 try {
-                                    val d = Api.detail(code)
+                                    // ★ 3 秒实时刷新：强制绕过本地缓存，保证分时走势持续更新
+                                    val d = Api.detail(code, forceRefresh = true)
                                     if (d != null && d.trends.isNotEmpty())
                                         code to (d.trends to d.base.preClose)
                                     else null

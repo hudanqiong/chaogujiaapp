@@ -8,6 +8,13 @@ import java.util.concurrent.TimeUnit
 
 /** 简单的网络请求封装：GET / POST(JSON)，返回字符串（在子线程调用） */
 object Net {
+    /**
+     * 全局 Application Context（由 MainActivity.onCreate 注入一次）。
+     * 供 DetailCache 等本地缓存层使用，避免各处重复传递 Context。
+     */
+    @Volatile
+    var appContext: android.content.Context? = null
+
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
     private val client = OkHttpClient.Builder()

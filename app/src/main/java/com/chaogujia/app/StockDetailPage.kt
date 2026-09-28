@@ -371,11 +371,24 @@ fun StockDetailPage(
         val k = if (period == "minute") "day" else period
         // ★ 带上 token：detail.php 的 marks（BST 买卖标记）依赖 current_user()，
         //   不带 token 时 marks 恒为空 → K线/分时徽标一个都不画。
+        // ★ 秒出策略：优先命中本地磁盘缓存（命中即"零点几秒"出画面）。
+        //   若命中缓存，则之后在后台用 forceRefresh 静默拉一次最新数据覆盖刷新；
+        //   若未命中（首次访问），第一次请求本身就是"最新"，无需再打第二次。
+        val hitCache = withContext(Dispatchers.IO) {
+            DetailCache.load(Net.appContext, code, k, 1) != null
+        }
         val d = withContext(Dispatchers.IO) { Api.detail(code, k, 1, token) }
         if (d != null) detail = d
         selK = null   // 换股票/换周期 → 取消 K 线选中
         cursorMin = CURSOR_NONE   // 换股票/换周期 → 复位十字光标（信息条恢复显示最新值）
         loading = false
+        if (hitCache) {
+            // 后台静默刷新：强制绕过缓存拉最新一次，成功后覆盖展示（失败忽略，保留缓存画面）
+            try {
+                val fresh = withContext(Dispatchers.IO) { Api.detail(code, k, 1, token, forceRefresh = true) }
+                if (fresh != null) detail = fresh
+            } catch (e: Exception) { /* 静默刷新失败：保留已展示的缓存数据 */ }
+        }
     }
 
     // 名称/代码变化 → 回吐给外部（红条显示用）

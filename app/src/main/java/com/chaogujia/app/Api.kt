@@ -1334,10 +1334,25 @@ object Api {
      *              依赖 current_user() 解析用户，不带 token 时 marks 恒为空 → K 线不画徽标。
      * 行情本身免登录，失败返回 null。
      */
-    fun detail(code: String, k: String = "day", kn: Int = 1, token: String? = null): StockDetail? {
+    fun detail(code: String, k: String = "day", kn: Int = 1, token: String? = null, forceRefresh: Boolean = false): StockDetail? {
         return try {
-            val url = base("detail.php?code=") + code + "&k=" + k + "&kn=" + kn
-            val raw = Net.get(url, token)
+            // 1) 先查本地磁盘缓存：命中的是「原始 JSON 字符串」，直接走同一套解析。
+            //    这样 detail.php 冷请求 ~4.5s 的开销，在缓存有效期内（默认 5 分钟）被完全省掉。
+            //    forceRefresh=true 时跳过缓存（用于"秒出缓存后后台静默刷新"）。
+            val cachedRaw = if (forceRefresh) null else DetailCache.load(Net.appContext, code, k, kn)
+            val raw: String
+            if (cachedRaw != null) {
+                raw = cachedRaw
+            } else {
+                val url = base("detail.php?code=") + code + "&k=" + k + "&kn=" + kn
+                raw = Net.get(url, token)
+                // 2) 请求成功（含 ok=true）才写缓存，避免把错误响应缓存下来。
+                try {
+                    if (JSONObject(raw).optBoolean("ok", false)) {
+                        DetailCache.save(Net.appContext, code, k, kn, raw)
+                    }
+                } catch (_: Exception) { /* 解析失败则不缓存 */ }
+            }
             val o = JSONObject(raw)
             if (!o.optBoolean("ok", false)) return null
             val b = o.optJSONObject("base") ?: JSONObject()
