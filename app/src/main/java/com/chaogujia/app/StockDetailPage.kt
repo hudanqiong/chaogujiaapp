@@ -371,7 +371,7 @@ fun StockDetailPage(
         val k = if (period == "minute") "day" else period
         // ★ 带上 token：detail.php 的 marks（BST 买卖标记）依赖 current_user()，
         //   不带 token 时 marks 恒为空 → K线/分时徽标一个都不画。
-        val d = withContext(Dispatchers.IO) { Api.detail(code, k, 320, token) }
+        val d = withContext(Dispatchers.IO) { Api.detail(code, k, 1, token) }
         if (d != null) detail = d
         selK = null   // 换股票/换周期 → 取消 K 线选中
         cursorMin = CURSOR_NONE   // 换股票/换周期 → 复位十字光标（信息条恢复显示最新值）

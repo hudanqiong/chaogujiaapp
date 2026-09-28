@@ -1334,7 +1334,7 @@ object Api {
      *              依赖 current_user() 解析用户，不带 token 时 marks 恒为空 → K 线不画徽标。
      * 行情本身免登录，失败返回 null。
      */
-    fun detail(code: String, k: String = "day", kn: Int = 320, token: String? = null): StockDetail? {
+    fun detail(code: String, k: String = "day", kn: Int = 1, token: String? = null): StockDetail? {
         return try {
             val url = base("detail.php?code=") + code + "&k=" + k + "&kn=" + kn
             val raw = Net.get(url, token)

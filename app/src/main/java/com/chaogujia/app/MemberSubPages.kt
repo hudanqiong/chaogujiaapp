@@ -693,7 +693,7 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
         barDates = emptyList()
         barHL = emptyMap()
         Thread {
-            val d = Api.detail(code, "day", 320)
+            val d = Api.detail(code, "day", 1)
             val points = d?.line ?: emptyList()
             val dates = ArrayList<String>()
             val hl = HashMap<String, Pair<Double, Double>>()

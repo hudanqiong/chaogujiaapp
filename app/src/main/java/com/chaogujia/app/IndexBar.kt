@@ -259,12 +259,14 @@ fun IndexBar(
                         try {
                             val ps = Api.positions(token, b.id)
                             Log.e("CGJ_POS", "broker=" + b.id + " positions.size=" + ps.size + " codes=" + ps.map { it.code + ":" + it.quantity })
-                            for (p in ps) {
-                                if (p.quantity <= 0 || p.code.isBlank()) continue
-                                var d: StockDetail? = null
-                                try {
-                                    d = Api.detail(p.code, token = token)
-                                } catch (e: Exception) { /* 忽略 */ }
+                            val valid = ps.filter { it.quantity > 0 && it.code.isNotBlank() }
+                            val dets = valid.map { p ->
+                                async(Dispatchers.IO) {
+                                    try { Api.detail(p.code, token = token) } catch (e: Exception) { null }
+                                }
+                            }.awaitAll()
+                            valid.forEachIndexed { idx, p ->
+                                val d = dets.getOrNull(idx)
                                 val bp = d?.base?.price ?: 0.0
                                 val pre = d?.base?.preClose ?: 0.0
                                 val price = if (bp > 0.0) bp else p.price
