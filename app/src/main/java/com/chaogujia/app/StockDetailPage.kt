@@ -297,6 +297,10 @@ fun StockDetailPage(
     var loading by remember { mutableStateOf(false) }
     // 十字光标分钟（-1 = 无）：由本页持有，传给 MinuteChart，并驱动顶部「分时信息条」联动
     var cursorMin by remember { mutableStateOf(-1f) }
+    // 当日真实成交流水（来自 trades.php，含盘中今日）：驱动分时图 B/S 标
+    // 说明：后端 marks 对「今日进行中交易日」不产出，故分时 B/S 不能依赖 marks 的当日条目，
+    //       改用用户真实成交流水（direction 1=买/2=卖）。每日至多一次拉取 + 3 秒增量刷新。
+    var todayTrades by remember { mutableStateOf<List<TradeRecord>>(emptyList()) }
     // 五档盘口（第十轮：给下单弹窗透出买卖盘，可点击填价；同时取真实涨跌停价）
     var orderBook by remember { mutableStateOf<OrderBook?>(null) }
     val scope = rememberCoroutineScope()
@@ -320,6 +324,21 @@ fun StockDetailPage(
                 try { Api.orderbook(code, 1, 20) } catch (e: Exception) { null }
             }
             if (ob != null) orderBook = ob
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+    // 当日成交流水轮询：每 3 秒拉一次 trades.php，过滤「当前股票 + 今日」，供分时图 B/S 标
+    LaunchedEffect(current?.code, orderBroker?.id) {
+        val code = current?.code ?: return@LaunchedEffect
+        while (true) {
+            val bid = orderBroker?.id ?: 0
+            if (bid > 0) {
+                val all = withContext(Dispatchers.IO) {
+                    try { Api.trades(token, bid) } catch (e: Exception) { emptyList<TradeRecord>() }
+                }
+                val todayKey = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+                todayTrades = all.filter { it.code == code && it.time.trim().startsWith(todayKey) }
+            }
             kotlinx.coroutines.delay(3000)
         }
     }
@@ -414,6 +433,7 @@ fun StockDetailPage(
                             symmetric = symmetricAxis,
                             cursorMin = cursorMin,
                             showAmount = showOrderAmount,
+                            todayTrades = todayTrades,
                             onCursorChange = { cursorMin = it },
                             onPickPrice = { orderPickPrice = it }
                         )
@@ -1442,6 +1462,8 @@ private fun MinuteChart(
     symmetric: Boolean = true,
     // 盘口五档末列是否显示委托金额（万/亿）而非手数（父层开关透传）
     showAmount: Boolean = false,
+    // 当日真实成交流水（trades.php，含盘中今日）：用于分时图 B/S 标（marks 今日不产出）
+    todayTrades: List<TradeRecord> = emptyList(),
     // 十字光标分钟（-1 = 无）：由父层持有并传入，便于顶部「分时信息条」与光标联动
     cursorMin: Float = CURSOR_NONE,
     onCursorChange: (Float) -> Unit = {},
@@ -1538,12 +1560,46 @@ private fun MinuteChart(
                             modifier = Modifier.fillMaxSize()
                         )
                         // 逐笔买卖打点（仅当日）：覆盖在价格曲线上，与分时同坐标系
-                        val todayMarks = remember(d?.marks) {
-                            val ls = d?.line ?: emptyList()
-                            // 归一化后再比较：K线日期（同花顺"20260924"）vs marks日期（后端"2026-09-24"）
-                            val lastDate = normDateKey(ls.lastOrNull()?.date ?: "")
-                            (d?.marks ?: emptyList()).filter {
-                                normDateKey(it.date) == lastDate && it.trades.isNotEmpty()
+                        // 数据源优先级：① 当日真实成交流水 todayTrades（含盘中今日，首选）
+                        //              ② 后端 marks 当日条目（收盘后 / 历史回看时兜底）
+                        val todayMarks = remember(todayTrades, d?.marks, d?.line) {
+                            if (todayTrades.isNotEmpty()) {
+                                // 真实成交流水 → marks 形态：每笔一条 mark（kind 由 direction 决定）
+                                val ticks = ArrayList<TradeMark>()
+                                for (t in todayTrades) {
+                                    val d1 = t.direction
+                                    if (d1 != 1 && d1 != 2) continue
+                                    val kind = if (d1 == 1) "B" else "S"
+                                    val color = if (kind == "B") "redB" else "blueS"
+                                    val hm = t.time.trim().split(" ").lastOrNull() ?: continue
+                                    if (hm.length < 5) continue
+                                    ticks.add(
+                                        TradeMark(
+                                            date = "",
+                                            kind = kind,
+                                            color = color,
+                                            above = false,
+                                            avgPrice = t.price,
+                                            dayClose = 0.0,
+                                            trades = listOf(
+                                                MarkTrade(
+                                                    time = hm.substring(0, 5),
+                                                    dir = kind,
+                                                    price = t.price,
+                                                    qty = t.quantity.toDouble()
+                                                )
+                                            )
+                                        )
+                                    )
+                                }
+                                ticks
+                            } else {
+                                val ls = d?.line ?: emptyList()
+                                // 归一化后再比较：K线日期（同花顺"20260924"）vs marks日期（后端"2026-09-24"）
+                                val lastDate = normDateKey(ls.lastOrNull()?.date ?: "")
+                                (d?.marks ?: emptyList()).filter {
+                                    normDateKey(it.date) == lastDate && it.trades.isNotEmpty()
+                                }
                             }
                         }
                         MinuteTickOverlay(
