@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -104,6 +105,38 @@ fun ChaoGuJiaApp() {
     var detailIdx by remember { mutableStateOf(0) }
     // 详情页当前显示的名称（由 StockDetailPage 回吐，供红条显示）
     var detailName by remember { mutableStateOf("") }
+
+    // ★ 返回键处理：
+    //   1) 详情页打开 → 关详情（回到来源页）
+    //   2) 搜索页打开 → 关搜索
+    //   3) 登录页打开 → 关登录
+    //   4) 其余（Tab 页）→ 连按两下才退出（2 秒内）
+    var lastBackAt by remember { mutableStateOf(0L) }
+    BackHandler(enabled = true) {
+        when {
+            detail != null -> {
+                val from = detail?.from
+                detail = null
+                detailName = ""
+                if (from != null) current = from
+            }
+            showSearch -> showSearch = false
+            showLogin -> showLogin = false
+            else -> {
+                val now = System.currentTimeMillis()
+                if (now - lastBackAt < 2000L) {
+                    (ctx as? android.app.Activity)?.finish()
+                } else {
+                    lastBackAt = now
+                    android.widget.Toast.makeText(
+                        ctx,
+                        "再按一次退出应用",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
 
     // 打开详情页：记录来源页 + 列表 + 下标，形成"栈帧"
     fun openDetail(from: String, list: List<StockItem>, index: Int) {
