@@ -176,6 +176,8 @@ fun IndexBar(
     var watchTrendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
     // 持仓代码集合：用于给「属于持仓」的股票名统一上紫色（与当前分组无关）
     var holdingCodes by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 记录上一次已预热的持仓代码集合，仅在集合变化时触发一次 detail 预热（避免每 3 秒重复打）
+    var lastWarmCodes by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // 时间滴答：每 20 秒触发一次重组，保证「08:45–09:15 重置时段」到点自动切换
     // （服务器时间偏移会在每次网络请求后更新，这里只需推动重组即可）
@@ -223,6 +225,8 @@ fun IndexBar(
         } catch (e: Exception) { /* 忽略 */ }
     }
     // 持仓代码集合：每 3 秒刷新一次（进入持仓股分组时也复用同一集合）
+    // 同时在后台对持仓股明细做「预热」：detail.php 冷缓存约 4.3s、热缓存 0.2~0.5s，
+    // 这里提前并发打一遍 detail，把后端缓存捂热，用户点持仓分组/进详情页时即为热数据。
     LaunchedEffect(token) {
         while (true) {
             try {
@@ -239,6 +243,16 @@ fun IndexBar(
                     s
                 }
                 holdingCodes = sets
+                // 后台预热：仅在持仓代码集合发生变化时并发请求一遍 detail，
+                // 不阻塞本循环、不影响 UI，失败静默忽略（结果丢弃，只为捂热后端缓存）。
+                if (sets.isNotEmpty() && sets != lastWarmCodes) {
+                    lastWarmCodes = sets
+                    sets.forEach { code ->
+                        launch(Dispatchers.IO) {
+                            try { Api.detail(code, token = token) } catch (e: Exception) { /* 预热失败忽略 */ }
+                        }
+                    }
+                }
             } catch (e: Exception) { /* 忽略 */ }
             kotlinx.coroutines.delay(3000)
         }
