@@ -264,39 +264,68 @@ fun IndexBar(
         try {
             val gid = if (selectedGroup >= 0) selectedGroup else -1
             if (selectedGroup == -2) {
-                // 持仓股分组：券商账户 -> 持仓 -> 转 StockItem（用 detail.preClose 算涨跌）
+                // 持仓股分组：券商账户 -> 持仓 -> 转 StockItem。
+                // ★ 性能根治：watchlist(list) 一次请求即带回全部股票的完整实时行情
+                //   （price/change/changePct），且与 detail 数据一致。
+                //   故先并发拉 watchlist 建 code->行情 映射，命中即用（快），
+                //   未命中才 fallback detail（慢，冷缓存 ~4.3s）。避免逐只调 detail。
                 val list = withContext(Dispatchers.IO) {
                     val out = ArrayList<StockItem>()
+                    // 1) 建批量行情映射（一次请求，~1.4s）
+                    val quoteMap = HashMap<String, StockItem>()
+                    try {
+                        for (it in Api.stockList(token, -1)) {
+                            if (it.code.isNotBlank()) quoteMap[it.code] = it
+                        }
+                    } catch (e: Exception) { /* 忽略，全部走 detail fallback */ }
                     val brokers = Api.brokerList(token)
-                    Log.e("CGJ_POS", "token=" + (token?.length ?: -1) + " brokers.size=" + brokers.size + " ids=" + brokers.map { it.id })
+                    Log.e("CGJ_POS", "token=" + (token?.length ?: -1) + " brokers.size=" + brokers.size + " ids=" + brokers.map { it.id } + " quoteMap.size=" + quoteMap.size)
                     for (b in brokers) {
                         try {
                             val ps = Api.positions(token, b.id)
                             Log.e("CGJ_POS", "broker=" + b.id + " positions.size=" + ps.size + " codes=" + ps.map { it.code + ":" + it.quantity })
                             val valid = ps.filter { it.quantity > 0 && it.code.isNotBlank() }
-                            val dets = valid.map { p ->
-                                async(Dispatchers.IO) {
-                                    try { Api.detail(p.code, token = token) } catch (e: Exception) { null }
-                                }
-                            }.awaitAll()
-                            valid.forEachIndexed { idx, p ->
-                                val d = dets.getOrNull(idx)
-                                val bp = d?.base?.price ?: 0.0
-                                val pre = d?.base?.preClose ?: 0.0
-                                val price = if (bp > 0.0) bp else p.price
-                                val chg = if (bp > 0.0) (d?.base?.change ?: 0.0)
-                                          else if (pre > 0.0) price - pre else 0.0
-                                val pct = if (bp > 0.0) (d?.base?.changePct ?: 0.0)
-                                          else if (pre > 0.0) (price - pre) / pre * 100.0 else 0.0
-                                out.add(
-                                    StockItem(
-                                        code = p.code,
-                                        name = p.name,
-                                        price = price,
-                                        change = chg,
-                                        changePct = pct
+                            // 2) 未命中批量行情的才需要 fallback detail，仅对它们并发请求
+                            val missCodes = valid.filter { quoteMap[it.code] == null }.map { it.code }
+                            val dets: Map<String, StockDetail?> = if (missCodes.isEmpty()) emptyMap() else
+                                missCodes.map { code ->
+                                    async(Dispatchers.IO) {
+                                        code to (try { Api.detail(code, token = token) } catch (e: Exception) { null })
+                                    }
+                                }.awaitAll().toMap()
+                            valid.forEach { p ->
+                                val q = quoteMap[p.code]
+                                if (q != null) {
+                                    // 命中：直接用 watchlist 的实时行情
+                                    out.add(
+                                        StockItem(
+                                            code = p.code,
+                                            name = p.name.ifBlank { q.name },
+                                            price = q.price,
+                                            change = q.change,
+                                            changePct = q.changePct
+                                        )
                                     )
-                                )
+                                } else {
+                                    // 未命中：fallback detail
+                                    val d = dets[p.code]
+                                    val bp = d?.base?.price ?: 0.0
+                                    val pre = d?.base?.preClose ?: 0.0
+                                    val price = if (bp > 0.0) bp else p.price
+                                    val chg = if (bp > 0.0) (d?.base?.change ?: 0.0)
+                                              else if (pre > 0.0) price - pre else 0.0
+                                    val pct = if (bp > 0.0) (d?.base?.changePct ?: 0.0)
+                                              else if (pre > 0.0) (price - pre) / pre * 100.0 else 0.0
+                                    out.add(
+                                        StockItem(
+                                            code = p.code,
+                                            name = p.name,
+                                            price = price,
+                                            change = chg,
+                                            changePct = pct
+                                        )
+                                    )
+                                }
                             }
                         } catch (e: Exception) { /* 忽略该券商 */ }
                     }
