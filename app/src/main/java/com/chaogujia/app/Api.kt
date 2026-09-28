@@ -1773,6 +1773,71 @@ object Api {
     }
 
     /**
+     * 逐笔成交 —— 单页拉取（orderbook.php 的 deals 数组）。
+     *
+     * 后端分页规则（实测）：p 从 1 开始，p=1 为当天最早一页，p 越大越新；
+     * 每页最多 70 条；越界（无数据）返回空数组。
+     */
+    fun orderbookDeals(code: String, p: Int, n: Int = 70): List<DealItem> {
+        return try {
+            val url = base("orderbook.php?code=") + code + "&p=" + p + "&n=" + n
+            val raw = Net.get(url)
+            val d = JSONObject(raw).optJSONObject("data") ?: return emptyList()
+            val out = ArrayList<DealItem>()
+            d.optJSONArray("deals")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val j = arr.optJSONObject(i) ?: continue
+                    out.add(
+                        DealItem(
+                            no = j.optInt("no", 0),
+                            time = j.optString("time", ""),
+                            price = j.optDouble("price", 0.0),
+                            change = j.optDouble("change", 0.0),
+                            vol = j.optDouble("vol", 0.0),
+                            amount = j.optDouble("amount", 0.0),
+                            dir = j.optString("dir", "M")
+                        )
+                    )
+                }
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * 探测当天逐笔的「最后一页」页码（= 最新一页）。
+     *
+     * p=1 最早；页号越大越新；越界返回空。
+     * 先用指数探测（1,2,4,8,…）找到第一个空页，再在 (last, firstEmpty) 间二分，
+     * 定位最后一个非空页。无任何成交时返回 0。
+     */
+    fun orderbookDealsLastPage(code: String): Int {
+        if (orderbookDeals(code, 1, 1).isEmpty()) return 0
+        var last = 1
+        var step = 1
+        var firstEmpty = 0
+        while (step <= 64) {
+            val p = last + step
+            if (orderbookDeals(code, p, 1).isEmpty()) {
+                firstEmpty = p
+                break
+            }
+            last = p
+            step *= 2
+        }
+        if (firstEmpty == 0) firstEmpty = last + 1
+        var lo = last
+        var hi = firstEmpty
+        while (hi - lo > 1) {
+            val mid = (lo + hi) / 2
+            if (orderbookDeals(code, mid, 1).isEmpty()) hi = mid else lo = mid
+        }
+        return lo
+    }
+
+    /**
      * 盘后固定价格交易（科创板 688/689、创业板 300/301，15:05–15:30）。
      *
      * 数据源：腾讯分时 minute/query —— 其返回的「当日分时」尾部自带 15:00 之后

@@ -26,6 +26,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.zIndex
 import android.content.Context
@@ -2080,6 +2081,57 @@ private val ORDERBOOK_ROW_MAX = 23.dp          // 五档行高上限（对齐参
 private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean = false, modifier: Modifier = Modifier, onPickPrice: ((Double) -> Unit)? = null) {
     // 明细是否展开：展开时上面五档收缩为「卖1 + 买1」两行，把空间让给明细
     var dealsExpanded by remember { mutableStateOf(false) }
+    // ===== 全天逐笔（方案 A2）：独立分页状态，默认加载最近 5 页，往上滚加载更早页 =====
+    // dealPages: 页号 -> 该页逐笔（页号越大越新；p=1 为当天最早页）
+    val dealPages = remember(ob?.code) { mutableStateMapOf<Int, List<DealItem>>() }
+    var lastDealPage by remember(ob?.code) { mutableStateOf(0) }   // 当天最新页号（0=未探测）
+    var dealBaseReady by remember(ob?.code) { mutableStateOf(false) }
+    // 上滑加载更早页（方案 A2）：滚到顶部时按需加载 minPage-1
+    var dealLoadingEarlier by remember(ob?.code) { mutableStateOf(false) }
+    // 首拉：探测最后一页，加载最近 5 页（[last-4, last]）
+    LaunchedEffect(ob?.code) {
+        val code = ob?.code ?: return@LaunchedEffect
+        while (true) {
+            try {
+                if (!dealBaseReady) {
+                    val lp = withContext(Dispatchers.IO) { Api.orderbookDealsLastPage(code) }
+                    if (lp > 0) {
+                        lastDealPage = lp
+                        val from = (lp - 4).coerceAtLeast(1)
+                        for (p in from..lp) {
+                            val ds = withContext(Dispatchers.IO) { Api.orderbookDeals(code, p) }
+                            if (ds.isNotEmpty()) dealPages[p] = ds
+                        }
+                        dealBaseReady = true
+                    }
+                } else {
+                    // 增量：只拉 latest 与 latest+1，把新成交补进来
+                    for (p in intArrayOf(lastDealPage, lastDealPage + 1)) {
+                        val ds = withContext(Dispatchers.IO) { Api.orderbookDeals(code, p) }
+                        if (ds.isNotEmpty()) {
+                            dealPages[p] = ds
+                            if (p > lastDealPage) lastDealPage = p
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+                // 忽略单次失败，保持已有数据
+            }
+            delay(3000)
+        }
+    }
+    // 展平已加载页 -> 倒序（最新在上）。每页内部原始顺序为「早->晚」，故整体按页号降序拼接
+    // 直接读 SnapshotStateMap 的 keys/values：同页增量更新（较新页追加新成交）也会触发重组。
+    // 用 run{} 包住读取以显式建立对 dealPages 的快照读取依赖（不用 remember 缓存）。
+    val allDealsLoaded: List<DealItem> = run {
+        val ps = dealPages.keys.sortedDescending()
+        val out = ArrayList<DealItem>()
+        for (p in ps) {
+            val lst = dealPages[p] ?: continue
+            for (i in lst.indices.reversed()) out.add(lst[i])
+        }
+        out
+    }
     Column(modifier = modifier) {
         // ---------- 五档盘口（自适应铺满：行高 = 可用高/10 并封顶，避免行距过疏） ----------
         // 收起态：卖5→卖1 + 买1→买5（10 行）；展开态：仅卖1 + 买1（2 行）
@@ -2092,7 +2144,8 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
         ) {
             // 卖出/买入分界间隙：与一行同高，让买1与卖1之间有明显豁口
             val gapH = 12.dp
-            val allDeals = ob?.deals ?: emptyList()
+            // 大单判定：用「最新页」逐笔（此前误用 ob.deals = p=1 开盘页，判定依据错误）
+            val allDeals = dealPages[lastDealPage] ?: ob?.deals ?: emptyList()
             val bigAsk = pickBigOrder(allDeals, true)
             val bigBid = pickBigOrder(allDeals, false)
             // 涨停 / 跌停判定：用后端 limitUp/limitDown 容差比较（0.001 防浮点误差）
@@ -2202,7 +2255,8 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
         // 分隔线
         Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
         // ---------- 逐笔成交明细（可折叠：默认收起只显示 4 条，点击标题行展开/收起） ----------
-        val deals = ob?.deals ?: emptyList()
+        // 明细数据：全天已加载逐笔（最新在上）；若分页尚未就绪，退回 ob.deals 兜底
+        val deals = if (allDealsLoaded.isNotEmpty()) allDealsLoaded else (ob?.deals ?: emptyList())
         val pcD = if ((ob?.prevClose ?: 0.0) > 0) ob!!.prevClose else preClose
         // 标题行：「明细 + 三角」。收起时三角朝上(▲)，展开时朝下(▼)
         Row(
@@ -2233,12 +2287,34 @@ private fun OrderBookPanel(ob: OrderBook?, preClose: Double, showAmount: Boolean
         Box(Modifier.fillMaxWidth().height(1.dp).background(LINE_AXIS))
         // 明细列表：收起=占面板下 30%（与左侧量图 weight(0.3f) 同权，行高自适应）；
         //           展开=撑满剩余空间可滚动
+        val dealScroll = rememberScrollState()
+        // 上滑加载更早页：接近顶部且存在更早页时加载 minPage-1
+        LaunchedEffect(dealScroll, dealBaseReady, ob?.code) {
+            val code = ob?.code ?: return@LaunchedEffect
+            snapshotFlow { dealScroll.value }
+                .collect { v ->
+                    if (v <= 40 && dealBaseReady && !dealLoadingEarlier) {
+                        val minP = dealPages.keys.minOrNull() ?: return@collect
+                        if (minP > 1) {
+                            dealLoadingEarlier = true
+                            try {
+                                val p = minP - 1
+                                val ds = withContext(Dispatchers.IO) { Api.orderbookDeals(code, p) }
+                                if (ds.isNotEmpty()) dealPages[p] = ds
+                            } catch (_: Exception) {
+                            } finally {
+                                dealLoadingEarlier = false
+                            }
+                        }
+                    }
+                }
+        }
         if (dealsExpanded) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(dealScroll)
             ) {
                 deals.forEach { d -> DealRow(d, pc = pcD, rowHeight = ORDERBOOK_ROW_MAX) }
             }
