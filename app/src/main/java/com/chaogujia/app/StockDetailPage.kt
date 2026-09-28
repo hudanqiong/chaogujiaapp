@@ -1325,6 +1325,7 @@ private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
 @Composable
 private fun MinuteTickOverlay(
     marks: List<TradeMark>,
+    trends: List<DetailTrend>,
     maxP: Double,
     minP: Double,
     showAuction: Boolean,
@@ -1355,6 +1356,25 @@ private fun MinuteTickOverlay(
         if (w <= 0f || h <= 0f) return@Canvas
         fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
 
+        // 走势线（分时白线）在某个分钟处的 y：用于把买卖标短线真正连到走势线上的成交点。
+        // trends 已按分钟升序；命中同分钟直接用，否则在相邻两点间线性插值。
+        fun trendYAt(minute: Int): Float? {
+            if (trends.isEmpty()) return null
+            var lo: DetailTrend? = null
+            var hi: DetailTrend? = null
+            for (t in trends) {
+                if (t.price <= 0.0) continue
+                if (t.min <= minute) lo = t
+                if (t.min >= minute) { hi = t; break }
+            }
+            val a = lo ?: hi ?: return null
+            val b = hi ?: lo ?: return null
+            if (a.min == b.min) return yOf(a.price)
+            val r = (minute - a.min).toDouble() / (b.min - a.min).toDouble()
+            val p = a.price + (b.price - a.price) * r.coerceIn(0.0, 1.0)
+            return yOf(p)
+        }
+
         // 徽标方框尺寸：与日K一致（边长 2.5 根牙签 = 15dp）
         val side = 2.5f * TOOTHPICK.toPx()
         val half = side / 2f
@@ -1364,8 +1384,9 @@ private fun MinuteTickOverlay(
 
         for (tk in ticks) {
             val x = xMinuteAt(tk.minute.toFloat(), w, showAuction)
-            val y = yOf(tk.price)
-            if (y < -side || y > h + side) continue
+            val y = yOf(tk.price)                         // 成交价位置（画成交点小圆）
+            val yT = trendYAt(tk.minute) ?: y             // 走势线位置（连线终点，真实锚点）
+            if (yT < -side || yT > h + side) continue
             val c = tradeMarkColor(tk.color)
             val letter = when (tk.kind) { "B" -> "B"; "S" -> "S"; else -> "" }
             // 灰色系 → 点；红B / 蓝S → 字母徽标
@@ -1378,28 +1399,28 @@ private fun MinuteTickOverlay(
                 drawCircle(color = Color.White, radius = dotR * 0.42f, center = Offset(x, y))
                 continue
             }
-            // ===== 字母徽标：置于成交点上方/下方，短线必须连回成交点 =====
+            // ===== 字母徽标：置于【走势线成交点】上方/下方，短线连回走势线 =====
             val gap = 9.dp.toPx()
             // 上下各需要的半高（含间隙）
-            val needAbove = half + gap        // 放上方时：从 y 到框顶需要的高度
-            val needBelow = half + gap        // 放下方时：从 y 到框底需要的高度
+            val needAbove = half + gap        // 放上方时：从 yT 到框顶需要的高度
+            val needBelow = half + gap        // 放下方时：从 yT 到框底需要的高度
             // 优先放上方；上方空间不足则放下方；两侧都不足时选空间更大的一侧
-            val roomAbove = y                 // 点上方可用高度
-            val roomBelow = h - y             // 点下方可用高度
+            val roomAbove = yT                // 走势线点上方可用高度
+            val roomBelow = h - yT            // 走势线点下方可用高度
             val above = if (roomAbove >= needAbove) true
                         else if (roomBelow >= needBelow) false
                         else (roomAbove >= roomBelow)
-            // 框中心：保证框整体在画布内（留 1px 边），且与点保持净间距
+            // 框中心：保证框整体在画布内（留 1px 边），且与走势线点保持净间距
             val boxCy = if (above) {
-                (y - half - gap).coerceAtLeast(1f + half)
+                (yT - half - gap).coerceAtLeast(1f + half)
             } else {
-                (y + half + gap).coerceAtMost(h - 1f - half)
+                (yT + half + gap).coerceAtMost(h - 1f - half)
             }
-            // 框朝向成交点的那条边
+            // 框朝向走势线点的那条边
             val boxEdgeY = if (above) (boxCy + half) else (boxCy - half)
-            // 连接短线：成交点 ↔ 方框边，覆盖整段净间距（密虚线）
-            val yTop = min(y, boxEdgeY)
-            val yBot = max(y, boxEdgeY)
+            // 连接短线：走势线点(yT) ↔ 方框边，覆盖整段净间距（密虚线）
+            val yTop = min(yT, boxEdgeY)
+            val yBot = max(yT, boxEdgeY)
             val sp = yBot - yTop
             if (sp > 1f) {
                 val dashLen = 4f
@@ -1411,8 +1432,12 @@ private fun MinuteTickOverlay(
                     yy += dashLen + dashGap
                 }
             }
-            drawCircle(color = c, radius = side * 0.11f, center = Offset(x, y))
+            // 成交价小圆（保留成交语义）——若与走势线点差异明显，再从成交价补一小段实线到走势线
+            drawCircle(color = c, radius = side * 0.11f, center = Offset(x, yT))
             drawCircle(color = c, radius = side * 0.11f, center = Offset(x, boxEdgeY))
+            if (kotlin.math.abs(y - yT) > 1.5f) {
+                drawLine(c, Offset(x, min(y, yT)), Offset(x, max(y, yT)), wireW * 0.7f)
+            }
             // 白描边打底 + 彩色方框
             val tl = Offset(x - half, boxCy - half)
             drawRoundRect(
@@ -1611,6 +1636,7 @@ private fun MinuteChart(
                         }
                         MinuteTickOverlay(
                             marks = todayMarks,
+                            trends = trends,
                             maxP = range.first,
                             minP = range.second,
                             showAuction = showAuction,
