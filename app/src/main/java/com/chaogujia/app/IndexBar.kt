@@ -1017,7 +1017,12 @@ private fun StockRow(
                                 .width(78.dp)
                                 .height(24.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(if (reset) COLOR_FLAT else Color(0xFF009900)),
+                                .background(
+                                    if (reset) COLOR_FLAT
+                                    else if (s.changePct > 0.000001) COLOR_UP
+                                    else if (s.changePct < -0.000001) COLOR_DOWN
+                                    else COLOR_FLAT
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -2086,9 +2091,9 @@ private fun MiniMinuteChart(
                 strokeWidth = 1f
             )
             val c1 = when {
-                p0 > preClose -> Color(0xFF009900)
-                p0 < preClose -> Color(0xFF009900)
-                else -> Color(0xFF009900)
+                p0 > preClose -> RED_UP
+                p0 < preClose -> GREEN_DOWN
+                else -> Color(0xFF888888)
             }
             // 该点在横轴上的位置：按其时间（min/240）定位，早期靠左、随开盘向右成长
             val x1 = ((trends.first().min.toFloat() / 240f).coerceIn(0f, 1f)) * w
@@ -2133,9 +2138,9 @@ private fun MiniMinuteChart(
         val last = trends.last().price
         // 线色：相对昨收 涨红 / 跌绿 / 平灰 —— 线用纯色
         val lineColor = when {
-            last > preClose -> Color(0xFF009900)
-            last < preClose -> Color(0xFF009900)
-            else -> Color(0xFF009900)
+            last > preClose -> RED_UP
+            last < preClose -> GREEN_DOWN
+            else -> Color(0xFF888888)
         }
 
         val path = Path()
