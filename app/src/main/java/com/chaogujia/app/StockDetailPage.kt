@@ -1309,35 +1309,109 @@ private fun MinuteTickOverlay(
     showAuction: Boolean,
     modifier: Modifier = Modifier
 ) {
+    // ===== 分时图买卖标（本轮需求）=====
+    // 规则（用户定稿）：分时图只出 B / S；T 不显示。
+    //   B + redB  → 红色 B 字母徽标
+    //   S + blueS → 蓝色 S 字母徽标
+    //   B + greyB / S + greyS → 灰点（退化，不出字母）
     val span = (maxP - minP).coerceAtLeast(1e-6)
+    // 展平为 (分钟序号, kind, color, price)；time "HH:mm" → 分钟序号。
     val ticks = remember(marks) {
-        // 展平为 (分钟序号, dir, price)；time "HH:mm" → 分钟序号（09:30=0，午休跳过）
-        val out = ArrayList<Triple<Int, String, Double>>()
+        val out = ArrayList<MarkTick>()
         for (m in marks) for (t in m.trades) {
             val mins = hhmmToMin(t.time) ?: continue
-            out.add(Triple(mins, t.dir, t.price))
+            val kind = m.kind
+            if (kind != "B" && kind != "S") continue   // T 及未知一律不画
+            out.add(MarkTick(mins, kind, m.color, t.price))
         }
         out
     }
     if (ticks.isEmpty()) return
+    val markLabel = remember { tradeMarkPaint() }
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
-        val r = 2.6f
         fun yOf(p: Double): Float = (h - ((p - minP) / span) * h).toFloat()
-        for ((min, dir, price) in ticks) {
-            // 分时主轴：min<0 为早盘竞价，>240 为尾盘竞价，均参与映射
-            val x = xMinuteAt(min.toFloat(), w, showAuction)
-            val y = yOf(price)
-            if (y < -r || y > h + r) continue
-            val c = if (dir == "B") RED_UP else GREEN_DOWN
-            drawCircle(color = c, radius = r, center = Offset(x, y))
-            drawCircle(color = Color.White, radius = r * 0.42f, center = Offset(x, y))
+
+        // 徽标方框尺寸：与日K一致（边长 2.5 根牙签 = 15dp）
+        val side = 2.5f * TOOTHPICK.toPx()
+        val half = side / 2f
+        val corner = side * 0.28f
+        val dotR = 3.2f                      // 灰点半径（比原先 2.6f 略大，更易见）
+        val wireW = 1.4.dp.toPx()
+
+        for (tk in ticks) {
+            val x = xMinuteAt(tk.minute.toFloat(), w, showAuction)
+            val y = yOf(tk.price)
+            if (y < -side || y > h + side) continue
+            val c = tradeMarkColor(tk.color)
+            val letter = when (tk.kind) { "B" -> "B"; "S" -> "S"; else -> "" }
+            // 灰色系 → 点；红B / 蓝S → 字母徽标
+            val showLetter = letter.isNotEmpty() &&
+                ((tk.kind == "B" && tk.color == "redB") || (tk.kind == "S" && tk.color == "blueS"))
+            if (!showLetter) {
+                drawCircle(color = c, radius = dotR, center = Offset(x, y))
+                drawCircle(color = Color.White, radius = dotR * 0.42f, center = Offset(x, y))
+                continue
+            }
+            // ===== 字母徽标：置于成交点上方，短线连回成交点 =====
+            val gap = 9.dp.toPx()
+            // 上方放置；若顶出画布则翻到下方
+            var above = true
+            var boxCyRaw = y - half - gap
+            if (boxCyRaw - half < 0f) {
+                above = false
+                boxCyRaw = y + half + gap
+            }
+            val loB = half + 1f
+            val hiB = (h - half - 1f).coerceAtLeast(loB)
+            val boxCy = boxCyRaw.coerceIn(loB, hiB)
+            val boxEdgeY = if (above) (boxCy + half) else (boxCy - half)
+            // 连接短线：成交点 ↔ 方框边
+            val y0 = min(y, boxEdgeY)
+            val y1 = max(y, boxEdgeY)
+            val sp = y1 - y0
+            if (sp > 4f) {
+                val seg = sp / 3f
+                for (s in 0 until 3) {
+                    val segTop = y0 + s * seg
+                    val dashLen = seg * 0.28f
+                    drawLine(c, Offset(x, segTop + seg * 0.16f), Offset(x, segTop + seg * 0.16f + dashLen), wireW)
+                    drawLine(c, Offset(x, segTop + seg * 0.58f), Offset(x, segTop + seg * 0.58f + dashLen), wireW)
+                }
+            }
+            drawCircle(color = c, radius = side * 0.11f, center = Offset(x, y))
+            drawCircle(color = c, radius = side * 0.11f, center = Offset(x, boxEdgeY))
+            // 白描边打底 + 彩色方框
+            val tl = Offset(x - half, boxCy - half)
+            drawRoundRect(
+                color = Color.White,
+                topLeft = Offset(tl.x - 1.5f, tl.y - 1.5f),
+                size = Size(side + 3f, side + 3f),
+                cornerRadius = CornerRadius(corner + 1.5f, corner + 1.5f)
+            )
+            drawRoundRect(
+                color = c,
+                topLeft = tl,
+                size = Size(side, side),
+                cornerRadius = CornerRadius(corner, corner)
+            )
+            markLabel.textSize = side * 0.62f
+            markLabel.isFakeBoldText = true
+            drawContext.canvas.nativeCanvas.drawText(
+                letter, x, boxCy + markLabel.textSize * 0.36f, markLabel
+            )
         }
     }
 }
-
+/** 分时买卖标一条（展平后）。 */
+private class MarkTick(
+    val minute: Int,
+    val kind: String,
+    val color: String,
+    val price: Double
+)
 /** "HH:mm" → 分钟序号（09:30=0；11:30=120；13:00=121；15:00=240）。非法返回 null。 */
 private fun hhmmToMin(t: String): Int? {
     val s = t.trim()
