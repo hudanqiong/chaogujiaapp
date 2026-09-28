@@ -1,4 +1,5 @@
 package com.chaogujia.app
+import android.util.Log
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -253,9 +254,12 @@ fun IndexBar(
                 val list = withContext(Dispatchers.IO) {
                     val out = ArrayList<StockItem>()
                     val brokers = Api.brokerList(token)
+                    Log.e("CGJ_POS", "token=" + (token?.length ?: -1) + " brokers.size=" + brokers.size + " ids=" + brokers.map { it.id })
                     for (b in brokers) {
                         try {
-                            for (p in Api.positions(token, b.id)) {
+                            val ps = Api.positions(token, b.id)
+                            Log.e("CGJ_POS", "broker=" + b.id + " positions.size=" + ps.size + " codes=" + ps.map { it.code + ":" + it.quantity })
+                            for (p in ps) {
                                 if (p.quantity <= 0 || p.code.isBlank()) continue
                                 var d: StockDetail? = null
                                 try {
@@ -283,11 +287,12 @@ fun IndexBar(
                     out
                 }
                 stocks = list
+                Log.e("CGJ_POS", "FINAL stocks.size=" + list.size)
             } else {
                 val l = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
                 stocks = l
             }
-        } catch (e: Exception) { /* 忽略 */ }
+        } catch (e: Exception) { Log.e("CGJ_POS", "outer catch: " + e) }
         loadingStocks = false
     }
 
