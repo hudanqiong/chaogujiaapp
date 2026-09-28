@@ -1351,7 +1351,9 @@ private fun MinuteTickOverlay(
             val showLetter = letter.isNotEmpty() &&
                 ((tk.kind == "B" && tk.color == "redB") || (tk.kind == "S" && tk.color == "blueS"))
             if (!showLetter) {
-                drawCircle(color = c, radius = dotR, center = Offset(x, y))
+                // 点按买卖方向着色：B → 红、S → 蓝（用户定稿「红蓝点」）
+                val dotC = if (tk.kind == "B") RED_UP else BST_BLUE_S
+                drawCircle(color = dotC, radius = dotR, center = Offset(x, y))
                 drawCircle(color = Color.White, radius = dotR * 0.42f, center = Offset(x, y))
                 continue
             }
