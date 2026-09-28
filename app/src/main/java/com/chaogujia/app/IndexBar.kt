@@ -173,6 +173,8 @@ fun IndexBar(
 
     // 自选列表分时走势缓存： code -> (trends, preClose)
     var watchTrendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
+    // 持仓代码集合：用于给「属于持仓」的股票名统一上紫色（与当前分组无关）
+    var holdingCodes by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // 时间滴答：每 20 秒触发一次重组，保证「08:45–09:15 重置时段」到点自动切换
     // （服务器时间偏移会在每次网络请求后更新，这里只需推动重组即可）
@@ -219,13 +221,69 @@ fun IndexBar(
             if (g.isNotEmpty()) userGroups = g.sortedBy { it.sort }
         } catch (e: Exception) { /* 忽略 */ }
     }
-    // 切换分组时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 后续接）
+    // 持仓代码集合：每 3 秒刷新一次（进入持仓股分组时也复用同一集合）
+    LaunchedEffect(token) {
+        while (true) {
+            try {
+                val sets = withContext(Dispatchers.IO) {
+                    val brokers = Api.brokerList(token)
+                    val s = mutableSetOf<String>()
+                    for (b in brokers) {
+                        try {
+                            for (p in Api.positions(token, b.id)) {
+                                if (p.quantity > 0 && p.code.isNotBlank()) s.add(p.code)
+                            }
+                        } catch (e: Exception) { /* 忽略该券商 */ }
+                    }
+                    s
+                }
+                holdingCodes = sets
+            } catch (e: Exception) { /* 忽略 */ }
+            kotlinx.coroutines.delay(3000)
+        }
+    }
+    // 切换分组时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 用持仓）
     LaunchedEffect(selectedGroup, token) {
         loadingStocks = true
         stocks = emptyList()
         try {
             val gid = if (selectedGroup >= 0) selectedGroup else -1
-            if (selectedGroup != -2) {
+            if (selectedGroup == -2) {
+                // 持仓股分组：券商账户 -> 持仓 -> 转 StockItem（用 detail.preClose 算涨跌）
+                val list = withContext(Dispatchers.IO) {
+                    val out = ArrayList<StockItem>()
+                    val brokers = Api.brokerList(token)
+                    for (b in brokers) {
+                        try {
+                            for (p in Api.positions(token, b.id)) {
+                                if (p.quantity <= 0 || p.code.isBlank()) continue
+                                var d: StockDetail? = null
+                                try {
+                                    d = Api.detail(p.code, token = token)
+                                } catch (e: Exception) { /* 忽略 */ }
+                                val bp = d?.base?.price ?: 0.0
+                                val pre = d?.base?.preClose ?: 0.0
+                                val price = if (bp > 0.0) bp else p.price
+                                val chg = if (bp > 0.0) (d?.base?.change ?: 0.0)
+                                          else if (pre > 0.0) price - pre else 0.0
+                                val pct = if (bp > 0.0) (d?.base?.changePct ?: 0.0)
+                                          else if (pre > 0.0) (price - pre) / pre * 100.0 else 0.0
+                                out.add(
+                                    StockItem(
+                                        code = p.code,
+                                        name = p.name,
+                                        price = price,
+                                        change = chg,
+                                        changePct = pct
+                                    )
+                                )
+                            }
+                        } catch (e: Exception) { /* 忽略该券商 */ }
+                    }
+                    out
+                }
+                stocks = list
+            } else {
                 val l = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
                 stocks = l
             }
@@ -552,6 +610,7 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                     fixedW = fixedW,
                                     pctW = pctW,
                                     midW = midW,
+                                    nameColor = if (s.code in holdingCodes) Color(0xFF9D27B1) else COLOR_TEXT,
                                     onOpen = {
                                         val i = stocks.indexOfFirst { it.code == s.code }
                                         if (i >= 0) onOpenDetail(stocks, i)
@@ -909,6 +968,7 @@ private fun StockRow(
     fixedW: Int,
     pctW: Int,
     midW: Int,
+    nameColor: androidx.compose.ui.graphics.Color = COLOR_TEXT,
     onOpen: () -> Unit
 ) {
     // 盘前重置时段（交易日 08:45–09:15）：全部显示平盘黑 + "--"，分时图重置
@@ -952,7 +1012,7 @@ private fun StockRow(
                                 .width(78.dp)
                                 .height(24.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(if (reset) COLOR_FLAT else colorOf(s.changePct)),
+                                .background(if (reset) COLOR_FLAT else Color(0xFF009900)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -1058,7 +1118,7 @@ private fun StockRow(
             ) {
                 Text(
                     text = watchNameDisplay(s.name),
-                    color = COLOR_TEXT,
+                    color = nameColor,
                     fontSize = watchNameFontSize(s.name).sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -2021,9 +2081,9 @@ private fun MiniMinuteChart(
                 strokeWidth = 1f
             )
             val c1 = when {
-                p0 > preClose -> RED_UP
-                p0 < preClose -> GREEN_DOWN
-                else -> Color(0xFF9E9E9E)
+                p0 > preClose -> Color(0xFF009900)
+                p0 < preClose -> Color(0xFF009900)
+                else -> Color(0xFF009900)
             }
             // 该点在横轴上的位置：按其时间（min/240）定位，早期靠左、随开盘向右成长
             val x1 = ((trends.first().min.toFloat() / 240f).coerceIn(0f, 1f)) * w
@@ -2068,9 +2128,9 @@ private fun MiniMinuteChart(
         val last = trends.last().price
         // 线色：相对昨收 涨红 / 跌绿 / 平灰 —— 线用纯色
         val lineColor = when {
-            last > preClose -> RED_UP
-            last < preClose -> GREEN_DOWN
-            else -> Color(0xFF9E9E9E)
+            last > preClose -> Color(0xFF009900)
+            last < preClose -> Color(0xFF009900)
+            else -> Color(0xFF009900)
         }
 
         val path = Path()

@@ -88,7 +88,7 @@ private val DSpNumFont = FontFamily(Font(R.font.ths_regular))
 // ===== 颜色 =====
 // 全站涨跌配色单一源头：改这两处，全软件（K线/分时/盘口/涨跌幅/列表）同步生效
 internal val RED_UP = Color(0xFFE64A3B)       // 涨：红
-internal val GREEN_DOWN = Color(0xFF306612)   // 跌：绿（图表柱体/影线/量柱，墨绿 #306612，同花顺实测）
+internal val GREEN_DOWN = Color(0xFF009900)   // 跌：绿 #009900（图表柱体/影线/量柱/迷你图/顶部配色统一）
 internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮绿）
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一黑色（全历史黑波浪）
