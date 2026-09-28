@@ -138,15 +138,15 @@ private fun DetailHeaderRow(
             .padding(start = 12.dp, end = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 左侧：返回箭头（返回上一步）
-        Text(
-            text = "←",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
+        // 左侧：返回箭头（返回上一步）— 使用自定义图片图标
+        Image(
+            painter = painterResource(R.drawable.ic_detail_back),
+            contentDescription = "返回",
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .clickable { onBack() }
+                .size(D_ICON_SMALL)
+                .clickable { onBack() },
+            contentScale = ContentScale.Fit
         )
 
         // 中间：◀ 名称/代码 ▶

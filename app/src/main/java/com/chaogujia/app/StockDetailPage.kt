@@ -631,11 +631,11 @@ private fun DetailHeaderBar(
                 ) { onBack() },
             contentAlignment = Alignment.Center
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.ic_back_custom),
-                contentDescription = "返回",
-                modifier = Modifier.size(24.dp),
-                contentScale = ContentScale.Fit
+            Text(
+                text = "←",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
             )
         }
 
