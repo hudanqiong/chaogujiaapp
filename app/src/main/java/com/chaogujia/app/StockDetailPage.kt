@@ -2929,11 +2929,12 @@ private fun MinutePriceCanvas(
         drawPath(path, priceColor, style = Stroke(width = 3.0f))
 
         // ===== 现价水平虚线（本轮需求）=====
-        // 取清洗后最后一个有效分时点的价格作为「最新价」，在其高度画一条贯穿全宽的虚线。
+        // 取清洗后最后一个有效分时点的价格作为「最新价」，在其高度画一条水平虚线，右端止于走势线末端。
         // 颜色按现价相对昨收的涨跌上色（涨红/跌绿/平灰），样式沿用昨收基准线的短划虚线，保证视觉一致。
         run {
-            val lastPrice = trends.lastOrNull { it.price > 0.0 }?.price
-            if (lastPrice != null && lastPrice > 0.0) {
+            val lastTrend = trends.lastOrNull { it.price > 0.0 }
+            val lastPrice = lastTrend?.price
+            if (lastTrend != null && lastPrice != null && lastPrice > 0.0) {
                 val yNow = yOf(lastPrice)
                 val nowColor = when {
                     preClose <= 0.0 -> GRAY_FLAT
@@ -2941,11 +2942,14 @@ private fun MinutePriceCanvas(
                     lastPrice < preClose - 1e-9 -> GREEN_TEXT
                     else -> GRAY_FLAT
                 }
+                // 右端止于走势线末端（最后一个有效点的 X），不再画满全宽，
+                // 否则盘中未到 15:00 时虚线会超出曲线末端、与走势线脱节。
+                val xEnd = xOf(lastTrend).coerceIn(0f, w)
                 val dash = 7f
                 val gap = 5f
                 var xd = 0f
-                while (xd < w) {
-                    drawLine(nowColor, Offset(xd, yNow), Offset(min(xd + dash, w), yNow), strokeWidth = 1.6f)
+                while (xd < xEnd) {
+                    drawLine(nowColor, Offset(xd, yNow), Offset(min(xd + dash, xEnd), yNow), strokeWidth = 1.6f)
                     xd += dash + gap
                 }
             }
