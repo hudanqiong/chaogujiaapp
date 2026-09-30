@@ -375,7 +375,11 @@ fun IndexBar(
         }
     }
 
-    // 自选列表分时走势：跟随 stocks 拉取每只股票的分时（并发，失败跳过），3 秒刷新
+    // 自选列表分时走势：跟随 stocks 拉取每只股票的分时（并发，失败跳过）
+    // ★ 性能修复（方案 A）：原先每 3 秒对「全部自选股」并发 forceRefresh=true 强刷，
+    //   会绕过本地缓存把后端 detail.php（冷请求 ~5s）打饱和，导致详情页请求排队、体感卡顿。
+    //   现改为：走本地磁盘缓存（forceRefresh=false，5 分钟 TTL），刷新间隔放宽到 15 秒。
+    //   分时走势由详情页/预热负责更新缓存，此处只消费缓存，秒级延迟可接受。
     LaunchedEffect(stocks) {
         while (true) {
             try {
@@ -386,8 +390,8 @@ fun IndexBar(
                         codes.map { code ->
                             async {
                                 try {
-                                    // ★ 3 秒实时刷新：强制绕过本地缓存，保证分时走势持续更新
-                                    val d = Api.detail(code, forceRefresh = true)
+                                    // ★ 走缓存：命中即秒回，不绕过缓存，避免打爆后端
+                                    val d = Api.detail(code, forceRefresh = false)
                                     if (d != null && d.trends.isNotEmpty())
                                         code to (d.trends to d.base.preClose)
                                     else null
@@ -400,7 +404,7 @@ fun IndexBar(
                 }
             } catch (e: Exception) { /* 忽略 */ }
             android.util.Log.d("CGJ_DIAG", "watch stocks.size=" + stocks.size + " codes=" + stocks.map { it.code }.take(5) + " trendMap.size=" + watchTrendMap.size)
-            kotlinx.coroutines.delay(3000)
+            kotlinx.coroutines.delay(15000)
         }
     }
 // 顶部红条高度由内容自适应，面板紧贴其底部，无需硬编码
