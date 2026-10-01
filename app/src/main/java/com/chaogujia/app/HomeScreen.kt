@@ -32,12 +32,19 @@ fun HomeScreen(
     token: String? = null,
     username: String = "",
     onLogout: () -> Unit = {},
-    onMemberChanged: (MemberInfo) -> Unit = {}
+    onMemberChanged: (MemberInfo) -> Unit = {},
+    // 外部（如交易页银证转账）请求打开会员子页：仅当 openSubPageTick 变化且 > 0 时打开一次
+    openSubPageTick: Int = 0,
+    openSubPageKey: String = ""
 ) {
     var account by remember { mutableStateOf(AccountInfo()) }
     var member by remember { mutableStateOf(MemberInfo()) }
     var points by remember { mutableStateOf(0) }
     var subPage by remember { mutableStateOf<String?>(null) }
+    // 外部请求：tick 每次自增表示一次“打开子页”请求（仅变化时触发，不因重进首页重复弹）
+    LaunchedEffect(openSubPageTick) {
+        if (openSubPageTick > 0 && openSubPageKey.isNotEmpty()) subPage = openSubPageKey
+    }
     // 首页资产卡取「默认券商账户」= 列表第一个；下拉切换在交易页
     var brokerAccountId by remember { mutableStateOf(0) }
 

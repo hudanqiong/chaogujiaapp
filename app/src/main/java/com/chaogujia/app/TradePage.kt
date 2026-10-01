@@ -81,7 +81,9 @@ fun TradePage(
     token: String,
     subTab: String = "A股",
     onSubTabChange: (String) -> Unit = {},
-    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
+    onOpenMemberCenter: () -> Unit = {},
+    onLogout: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -90,7 +92,12 @@ fun TradePage(
     ) {
         // ===== 子页内容（账户类型切换按钮已移入顶部红条 MemberHeaderBar） =====
         when (subTab) {
-            "A股" -> ASharePage(token = token, onOpenDetail = onOpenDetail)
+            "A股" -> ASharePage(
+                token = token,
+                onOpenDetail = onOpenDetail,
+                onOpenMemberCenter = onOpenMemberCenter,
+                onLogout = onLogout
+            )
             else -> PlaceholderPage(subTab)
         }
     }
@@ -100,7 +107,9 @@ fun TradePage(
 @Composable
 private fun ASharePage(
     token: String,
-    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit,
+    onOpenMemberCenter: () -> Unit = {},
+    onLogout: () -> Unit = {}
 ) {
     var loading by remember { mutableStateOf(true) }
     var account by remember { mutableStateOf(AccountInfo()) }
@@ -193,6 +202,12 @@ private fun ASharePage(
         Spacer(Modifier.fillMaxWidth().height(8.dp))
         // ===== ④.6 功能入口宫格（新栏，月度盈亏下方） =====
         MenuGrid(brokerName = currentBroker?.broker ?: "光大证券")
+        Spacer(Modifier.fillMaxWidth().height(8.dp))
+        // ===== ④.7 功能列表（6 栏 + 退出按钮，第九轮新增） =====
+        MenuListSection(
+            onOpenMemberCenter = onOpenMemberCenter,
+            onLogout = onLogout
+        )
         Spacer(Modifier.fillMaxWidth().height(8.dp))
 
         // ===== ⑤ 面板区 =====
@@ -1279,7 +1294,8 @@ data class MenuItem(
     val icon: Int,
     val title: String,
     val sub: String,
-    val isNew: Boolean = false
+    val isNew: Boolean = false,
+    val subRed: Boolean = false
 )
 
 /** 功能入口宫格：一行两个、共五行。点击先留占位。 */
@@ -1288,7 +1304,7 @@ private fun MenuGrid(brokerName: String) {
     val ctx = LocalContext.current
     val items = listOf(
         MenuItem(R.drawable.ic_menu_01, "新股/债申购", "暂无新股和新债"),
-        MenuItem(R.drawable.ic_menu_02, "通用逆回购回购", "14天期1.385%"),
+        MenuItem(R.drawable.ic_menu_02, "通用逆回购回购", "14天期1.385%", subRed = true),
         MenuItem(R.drawable.ic_menu_03, "条件单", "监控条件 触发委托", isNew = true),
         MenuItem(R.drawable.ic_menu_04, "融资融券", "借钱买多 借券卖空"),
         MenuItem(R.drawable.ic_menu_05, "科创板", "科创板交易"),
@@ -1317,6 +1333,172 @@ private fun MenuGrid(brokerName: String) {
                 MenuCell(items[ri], Modifier.weight(1f)) { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
             }
         }
+    }
+}
+
+// ================= ④.7 功能列表（6 栏 + 退出按钮，第九轮新增） =================
+/** 功能列表区：6 栏（灰底分隔，单/双行高） + 3牙签空隙 + 红色退出按钮 */
+@Composable
+private fun MenuListSection(
+    onOpenMemberCenter: () -> Unit,
+    onLogout: () -> Unit
+) {
+    val ctx = LocalContext.current
+    // 1 牙签 = 月度参考盈亏灰底间隔高 = 8dp；3 牙签 = 24dp；左右各 2 牙签 = 16dp
+    val toothpick = 8.dp
+    val rowDivider = Color(Config.COLOR_DIVIDER)
+
+    val gap = toothpick  // 每栏之间的灰底间隔 = 1 牙签 = 8dp
+    Column(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // 第1栏：银证转账 → 整行点击跳会员中心（资金设置），右侧 › 图标
+        ListRow(title = "银证转账") { onOpenMemberCenter() }
+        Spacer(Modifier.fillMaxWidth().height(gap))
+
+        // 第2栏：盘后固定价格交易
+        ListRow(title = "盘后固定价格交易") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        Spacer(Modifier.fillMaxWidth().height(gap))
+
+        // 第3栏：融资融券预约开通（右灰小字“借钱借券”）
+        ListRow(title = "融资融券预约开通", rightText = "借钱借券") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        Spacer(Modifier.fillMaxWidth().height(gap))
+
+        // 第4栏：两行式（同一白块内上下两行）
+        //   行1 人脸/指纹,快捷登录  右“未开启”
+        //   行2 风险评测            右“即将退出敬请期待”
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.White)
+        ) {
+            ListRowInline(title = "人脸/指纹,快捷登录", rightText = "未开启") {
+                Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show()
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp)
+                    .height(0.5.dp)
+                    .background(rowDivider)
+            )
+            ListRowInline(title = "风险评测", rightText = "即将退出敬请期待") {
+                Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show()
+            }
+        }
+        Spacer(Modifier.fillMaxWidth().height(gap))
+
+        // 第5栏：交易设置（右灰小字“买卖预设，交易提醒，修改密码”）
+        ListRow(title = "交易设置", rightText = "买卖预设，交易提醒，修改密码") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        Spacer(Modifier.fillMaxWidth().height(gap))
+
+        // 第6栏：用户帮助与反馈
+        ListRow(title = "用户帮助与反馈") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+    }
+
+    // 3 牙签高 = 24dp 空隙（露出灰底）
+    Spacer(Modifier.fillMaxWidth().height(toothpick * 3))
+
+    // 红色退出按钮：红底白字，左右各 2 牙签 = 16dp 边距
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = toothpick * 2)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+            .background(Color(0xFFE64A3B))
+            .clickable { onLogout() }
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "退出当前账户",
+            color = Color.White,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/** 单行列表项（独立白块）：大标题左，灰色小字（可选）+ › 图标右 */
+@Composable
+private fun ListRow(
+    title: String,
+    rightText: String = "",
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            color = TP_BLACK,
+            fontSize = 14.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        if (rightText.isNotEmpty()) {
+            Text(
+                text = rightText,
+                color = TP_GRAY,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_pnl_arrow),
+            contentDescription = "进入",
+            modifier = Modifier.width(12.dp).height(19.dp)
+        )
+    }
+}
+
+/** 两行式中的行（无底部分割线，分割由外层控制） */
+@Composable
+private fun ListRowInline(
+    title: String,
+    rightText: String = "",
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            color = TP_BLACK,
+            fontSize = 14.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        if (rightText.isNotEmpty()) {
+            Text(
+                text = rightText,
+                color = TP_GRAY,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(6.dp))
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_pnl_arrow),
+            contentDescription = "进入",
+            modifier = Modifier.width(12.dp).height(19.dp)
+        )
     }
 }
 
@@ -1368,7 +1550,7 @@ private fun MenuCell(item: MenuItem, modifier: Modifier = Modifier, onClick: () 
             Spacer(Modifier.height(2.dp))
             Text(
                 text = item.sub,
-                color = TP_GRAY,
+                color = if (item.subRed) TP_RED else TP_GRAY,
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,

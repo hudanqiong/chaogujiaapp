@@ -77,6 +77,8 @@ fun ChaoGuJiaApp() {
     var targetTab by remember { mutableStateOf("index") }
     // ★ 交易页账户类型（A股/基金/期货/黄金/模拟）：状态提升到 App 级，供顶部红条内切换按钮使用
     var tradeTab by remember { mutableStateOf("A股") }
+    // 银证转账 → 请求首页直接打开会员中心「资金设置」页；每次点击自增以触发
+    var memberPageTick by remember { mutableStateOf(0) }
 
     // ============ 轻量导航栈：详情页状态提升到 App 级 ============
     var detail by remember { mutableStateOf<DetailState?>(null) }
@@ -318,7 +320,9 @@ fun ChaoGuJiaApp() {
                     token = token,
                     username = uname,
                     onLogout = { doLogout() },
-                    onMemberChanged = { member = it }
+                    onMemberChanged = { member = it },
+                    openSubPageTick = memberPageTick,
+                    openSubPageKey = "initial"
                 )
                 "quote" -> FontComparePage()
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
@@ -338,7 +342,13 @@ fun ChaoGuJiaApp() {
                     token = token,
                     subTab = tradeTab,
                     onSubTabChange = { tradeTab = it },
-                    onOpenDetail = { list, index -> openDetail("trade", list, index) }
+                    onOpenDetail = { list, index -> openDetail("trade", list, index) },
+                    onOpenMemberCenter = {
+                        // 银证转账：切到首页（会员中心）并直达「资金设置」页
+                        memberPageTick++
+                        current = "index"
+                    },
+                    onLogout = { doLogout() }
                 )
                 "news" -> EmptyScreen()
             }
