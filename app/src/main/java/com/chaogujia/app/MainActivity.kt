@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import android.util.Log
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.ui.viewinterop.AndroidView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -357,7 +360,7 @@ fun ChaoGuJiaApp() {
                     },
                     onLogout = { doLogout() }
                 )
-                "news" -> EmptyScreen()
+                "news" -> NewsWebView()
             }
 
             // ★ 详情页：App 级覆盖层（位于红条下方的内容区）。
@@ -402,6 +405,28 @@ fun ChaoGuJiaApp() {
         }
     }
 }
+// ============ 资讯 tab：WebView 加载资讯站（第十二轮建站） ============
+// 直接内嵌 http://121.43.178.214:8080/news/ ，站端已实现列表/详情/无限加载。
+// 关键：WebViewClient 让页内跳转留在 WebView（不跳系统浏览器）；开启 JS 供无限加载。
+@Composable
+fun NewsWebView() {
+    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+        AndroidView(
+            factory = { ctx ->
+                WebView(ctx).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.useWideViewPort = true
+                    settings.loadWithOverviewMode = true
+                    webViewClient = WebViewClient()
+                    loadUrl(Config.NEWS_URL)
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
+}
+
 // 页面内容区：暂时留空，等后续接入真实接口后再填充
 @Composable
 fun EmptyScreen() {
