@@ -348,7 +348,14 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "收益率" + tpPct(monthPct) + ", 跑赢上证指数" + tpPct(excess),
+                text = "收益率 " + tpPct(monthPct),
+                color = TP_GRAY,
+                fontSize = 12.sp,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "跑赢上证指数 " + tpPct(excess),
                 color = TP_GRAY,
                 fontSize = 12.sp,
                 maxLines = 1
@@ -359,7 +366,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             data = series,
             centerLabel = tpPct(monthPct),
             centerLabelColor = tpPnColor(monthPct),
-            modifier = Modifier.weight(1.1f).height(46.dp)
+            modifier = Modifier.weight(0.95f).height(46.dp)
         )
         Spacer(Modifier.width(6.dp))
         Image(
