@@ -40,6 +40,7 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
+import androidx.compose.ui.platform.LocalDensity
 
 /**
  * 交易页（持仓）—— 第二十一轮
@@ -399,9 +400,10 @@ private fun MiniPnlChart(
     val lastVal = data.lastOrNull() ?: 0.0
     val lineColor = tpPnColor(lastVal)
     BoxWithConstraints(modifier = modifier) {
+        val d = LocalDensity.current.density
         val w = constraints.maxWidth.toFloat()
         val h = constraints.maxHeight.toFloat()
-        val pad = 4f * density
+        val pad = 4f * d
         val midY = h / 2f
         val n = visible.coerceAtMost(data.size)
         // 组合期统一计算几何（Canvas 绘制期直接引用）
@@ -443,8 +445,8 @@ private fun MiniPnlChart(
         }
         // 百分比文字：落在末端圆点旁边，与圆点同水平线（随走势浮动）
         if (centerLabel.isNotEmpty() && hasData) {
-            val offX = (dotX + 6f * density).roundToInt()
-            val offY = (dotY - 13f * density).roundToInt()
+            val offX = (dotX + 6f * d).roundToInt()
+            val offY = (dotY - 13f * d).roundToInt()
             Text(
                 text = centerLabel,
                 color = centerLabelColor,
