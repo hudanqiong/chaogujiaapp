@@ -23,6 +23,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import android.util.Log
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.view.ViewGroup
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.ui.viewinterop.AndroidView
@@ -410,19 +415,70 @@ fun ChaoGuJiaApp() {
 // ============ 资讯 tab：WebView 加载资讯站（第十二轮建站） ============
 // 直接内嵌 http://121.43.178.214:8080/news/ ，站端已实现列表/详情/无限加载。
 // 关键：WebViewClient 让页内跳转留在 WebView（不跳系统浏览器）；开启 JS 供无限加载。
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NewsWebView() {
+    var canGoBack by remember { mutableStateOf(false) }
+    var webRef by remember { mutableStateOf<WebView?>(null) }
+
+    BackHandler(enabled = canGoBack) {
+        webRef?.let { if (it.canGoBack()) it.goBack() }
+    }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
+                    layoutParams = ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT
+                    )
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.useWideViewPort = true
                     settings.loadWithOverviewMode = true
-                    webViewClient = WebViewClient()
+                    webViewClient = object : WebViewClient() {
+                        private fun handle(url: String?): Boolean {
+                            if (url.isNullOrEmpty()) return false
+                            val u = url.lowercase()
+                            val internal = u.startsWith("http://121.43.178.214:8080/") ||
+                                u.startsWith("https://121.43.178.214:8080/") ||
+                                u.startsWith("http://121.43.178.214/") ||
+                                u.startsWith("https://121.43.178.214/")
+                            return if (internal) {
+                                false
+                            } else {
+                                runCatching {
+                                    ctx.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                    )
+                                }
+                                true
+                            }
+                        }
+                        override fun shouldOverrideUrlLoading(
+                            view: WebView?,
+                            request: WebResourceRequest?
+                        ): Boolean = handle(request?.url?.toString())
+
+                        @Deprecated("legacy")
+                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean =
+                            handle(url)
+
+                        override fun onPageFinished(view: WebView?, url: String?) {
+                            super.onPageFinished(view, url)
+                            canGoBack = view?.canGoBack() == true
+                        }
+                    }
                     loadUrl(Config.NEWS_URL)
+                    webRef = this
                 }
+            },
+            update = { wv ->
+                webRef = wv
+                canGoBack = wv.canGoBack()
             },
             modifier = Modifier.fillMaxSize()
         )
