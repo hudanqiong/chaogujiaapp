@@ -38,6 +38,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 
 /**
  * 交易页（持仓）—— 第二十一轮
@@ -324,19 +326,20 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
     val monthPct = monthPnl / base * 100.0
     val excess = last?.excess ?: 0.0
     val nowMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
-    Row(
+    // 三行文字各自独立、贯穿卡片；走势图作为右上角独立小图叠在上层，不参与挤压文字宽度
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = nowMonth.toString() + "月参考盈亏",
                 color = tpPnColor(monthPnl),
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
             )
             Spacer(Modifier.height(6.dp))
             Text(
@@ -344,39 +347,38 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
                 color = Color(Config.COLOR_TEXT_MAIN),
                 fontSize = 18.sp,
                 fontFamily = TPNumFont,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = "收益率 " + tpPct(monthPct),
-                color = TP_GRAY,
-                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(6.dp))
+            // 第3行：收益率与跑赢上证指数同一行，满宽显示不被走势图挤压
             Text(
-                text = "跑赢上证指数 " + tpPct(excess),
+                text = "收益率 " + tpPct(monthPct) + "  跑赢上证指数 " + tpPct(excess),
                 color = TP_GRAY,
                 fontSize = 12.sp,
                 maxLines = 1
             )
         }
-        Spacer(Modifier.width(12.dp))
+        // 右上角独立小图（绝对定位，不占文字宽度）
         MiniPnlChart(
             data = series,
             centerLabel = tpPct(monthPct),
             centerLabelColor = tpPnColor(monthPct),
-            modifier = Modifier.weight(0.95f).height(46.dp)
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 2.dp)
+                .size(width = 108.dp, height = 40.dp)
         )
-        Spacer(Modifier.width(6.dp))
         Image(
             painter = painterResource(R.drawable.ic_pnl_arrow),
             contentDescription = "展开",
-            modifier = Modifier.size(width = 12.dp, height = 19.dp)
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .size(width = 12.dp, height = 19.dp)
         )
     }
 }
-/** 迷你盈亏走势图（对标自选列表 MiniMinuteChart）：① 长期零轴水平虚线（基准） + ② 红涨蓝跌实线从零轴出发逐点绘制；末端圆点；百分比置右上角 */
+/** 迷你盈亏走势图（对标自选列表 MiniMinuteChart）：① 长期零轴水平虚线（基准） + ② 红涨蓝跌实线从零轴出发逐点绘制；末端圆点；百分比落在末端圆点旁、与圆点同水平线 */
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
@@ -384,7 +386,6 @@ private fun MiniPnlChart(
     centerLabelColor: Color = TP_GRAY,
     modifier: Modifier = Modifier
 ) {
-    // 逐点渐现：从 0 个点开始，每个点 260ms 画出（同花顺“一点点长出来”的效果）
     var visible by remember(data) { mutableStateOf(0) }
     LaunchedEffect(data) {
         visible = 0
@@ -397,12 +398,23 @@ private fun MiniPnlChart(
     }
     val lastVal = data.lastOrNull() ?: 0.0
     val lineColor = tpPnColor(lastVal)
-    Box(modifier = modifier) {
+    BoxWithConstraints(modifier = modifier) {
+        val w = constraints.maxWidth.toFloat()
+        val h = constraints.maxHeight.toFloat()
+        val pad = 4f * density
+        val midY = h / 2f
+        val n = visible.coerceAtMost(data.size)
+        // 组合期统一计算几何（Canvas 绘制期直接引用）
+        val maxAbs = (data.maxOfOrNull { kotlin.math.abs(it) } ?: 1.0).coerceAtLeast(1e-9)
+        val span = maxOf(data.size, 30)
+        val stepX = if (span > 1) w / (span - 1) else w
+        fun yOf(v: Double): Float =
+            (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
+        val hasData = n >= 1 && data.isNotEmpty()
+        val li = n - 1
+        val dotX = if (hasData) li * stepX else 0f
+        val dotY = if (hasData) yOf(data[li]) else midY
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val pad = 4f
-            val midY = h / 2f
             // ① 零轴线：长期存在的水平浅灰虚线（走势基准）
             drawLine(
                 color = TP_GRAY.copy(alpha = 0.5f),
@@ -411,56 +423,34 @@ private fun MiniPnlChart(
                 strokeWidth = 1f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
             )
-            val n = visible.coerceAtMost(data.size)
-            if (n >= 1 && data.isNotEmpty()) {
-                // 幅度缩放：以零轴为基准，上下按最大绝对值铺满半高以内
-                val maxAbs = data.maxOf { kotlin.math.abs(it) }.coerceAtLeast(1e-9)
-                fun yOf(v: Double): Float =
-                    (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
-                // ② x 轴按“满月跨度”固定步长，点从左向右逐点延伸；
-                //    数据不足一月时曲线停在左侧，随天数增长慢慢铺满
-                val fullSpan = 30
-                val span = maxOf(data.size, fullSpan)
-                val stepX = if (span > 1) w / (span - 1) else w
-                fun xOf(i: Int): Float = i * stepX
-                // ③ 走势线：红涨蓝跌实线，从零轴出发逐点连接
+            if (hasData) {
+                // ② 走势线：红涨蓝跌实线，从零轴出发逐点连接
                 var prevX = 0f
                 var prevY = midY
-                var lastX = 0f
-                var lastY = midY
                 for (i in 0 until n) {
-                    val x = xOf(i)
+                    val x = i * stepX
                     val y = yOf(data[i])
-                    // 第一个点：从零轴(midY)出发，体现“从零轴上下浮动”
                     if (i == 0) {
-                        drawLine(
-                            color = lineColor,
-                            start = Offset(0f, midY),
-                            end = Offset(x, y),
-                            strokeWidth = 2f
-                        )
+                        drawLine(lineColor, Offset(0f, midY), Offset(x, y), strokeWidth = 2f)
                     } else {
-                        drawLine(
-                            color = lineColor,
-                            start = Offset(prevX, prevY),
-                            end = Offset(x, y),
-                            strokeWidth = 2f
-                        )
+                        drawLine(lineColor, Offset(prevX, prevY), Offset(x, y), strokeWidth = 2f)
                     }
                     prevX = x; prevY = y
-                    lastX = x; lastY = y
                 }
-                // 末端圆点（颜色跟随红涨蓝跌）
-                drawCircle(color = lineColor, radius = 3.2f, center = Offset(lastX, lastY))
+                // 末端圆点
+                drawCircle(color = lineColor, radius = 3.2f, center = Offset(prevX, prevY))
             }
         }
-        if (centerLabel.isNotEmpty()) {
+        // 百分比文字：落在末端圆点旁边，与圆点同水平线（随走势浮动）
+        if (centerLabel.isNotEmpty() && hasData) {
+            val offX = (dotX + 6f * density).roundToInt()
+            val offY = (dotY - 13f * density).roundToInt()
             Text(
                 text = centerLabel,
                 color = centerLabelColor,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 maxLines = 1,
-                modifier = Modifier.align(Alignment.TopEnd)
+                modifier = Modifier.offset { IntOffset(offX, offY) }
             )
         }
     }
