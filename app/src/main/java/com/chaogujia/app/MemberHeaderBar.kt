@@ -59,7 +59,10 @@ fun MemberHeaderBar(
     onDetailNext: () -> Unit = {},
     // ===== 交易页模式（current == "trade"）专用参数：账户类型切换按钮 =====
     tradeTab: String = "A股",
-    onTradeTabSelect: (String) -> Unit = {}
+    onTradeTabSelect: (String) -> Unit = {},
+    // ===== 资讯页紧凑模式（current == "news"）：红条压矮到仅盖状态栏，
+    //       腾出空间给网页自带的频道切换栏，与红条拼成一体。其他页保持 false 零影响。
+    compact: Boolean = false
 ) {
     // ★ 只有详情页是 edge-to-edge（状态栏透明、由内容绘制），
     //   此时红条背景必须铺满到屏幕最顶（含状态栏区域），内容再下移该高度；
@@ -68,10 +71,12 @@ fun MemberHeaderBar(
     val edgeToEdge = current == "detail"
     val statusInset =
         if (edgeToEdge) WindowInsets.statusBars.asPaddingValues().calculateTopPadding() else 0.dp
+    // ★ 资讯页紧凑：红条清零内容、高度压到 28dp（仅盖住状态栏区域）
+    val barHeight = if (compact) 28.dp else BarHeight
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(BarHeight + statusInset)   // 详情页 = 74dp + 状态栏；其他页 = 74dp
+            .height(barHeight + statusInset)   // 详情页 = 74dp + 状态栏；资讯紧凑 = 28dp；其他页 = 74dp
             .background(
                 Brush.verticalGradient(
                     listOf(Color(Config.COLOR_PRIMARY), Color(0xFFD0202A))
@@ -80,17 +85,18 @@ fun MemberHeaderBar(
             .padding(top = statusInset),       // 详情页内容下移；其他页为 0
         contentAlignment = Alignment.Center             // 内容整体在红条内居中
     ) {
-        when (current) {
-            // 首页：会员信息
-            "index" -> MemberInfoRow(username, isMember, levelName, expireAt)
+        when {
+            // ★ 资讯紧凑模式：红条只作为状态栏背景色块，不渲染任何内容
+            compact -> Unit
+            current == "index" -> MemberInfoRow(username, isMember, levelName, expireAt)
 
             // 自选页：同花顺自选 + 三图标
-            "watch" -> WatchHeaderRow(onOpenSearch)
+            current == "watch" -> WatchHeaderRow(onOpenSearch)
             // ★ 交易页：红条内直接放「账户类型切换按钮」(A股/基金/期货/黄金/模拟)
-            "trade" -> TradeHeaderRow(cur = tradeTab, onSelect = onTradeTabSelect)
+            current == "trade" -> TradeHeaderRow(cur = tradeTab, onSelect = onTradeTabSelect)
 
             // ★ 详情页：唯一红条 [←返回] ◀名称/代码▶ [图二][图三]
-            "detail" -> DetailHeaderRow(
+            current == "detail" -> DetailHeaderRow(
                 name = detailName,
                 code = detailCode,
                 canPrev = detailCanPrev,

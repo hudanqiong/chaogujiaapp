@@ -252,7 +252,9 @@ fun ChaoGuJiaApp() {
                     expireAt = member.expireAt,
                     onOpenSearch = { showSearch = true },   // ★ 点自选页红条最右图标 → 全屏搜索页
                     tradeTab = tradeTab,
-                    onTradeTabSelect = { tradeTab = it }
+                    onTradeTabSelect = { tradeTab = it },
+                    // ★ 资讯页：红条压矮到 28dp，让网页频道栏接在下方；其他页不受影响。
+                    compact = (current == "news")
                 )
             }
         },
