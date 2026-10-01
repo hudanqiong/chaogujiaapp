@@ -173,7 +173,7 @@ private fun ASharePage(
         }
         tpDivider()
 
-        // ===== ④ 操作按钮排：买入 / 卖出 / 撤单 / 持仓 / 刷新 =====
+        // ===== ④ 操作按钮排：买入 / 卖出 / 撤单 / 刷新 =====
         ActionBarRow(onAction = { panel = it })
 
         // ===== ⑤ 面板区 =====
@@ -244,14 +244,13 @@ private fun StatCell(
     }
 }
 
-/** ④ 操作按钮排：买入 / 卖出 / 撤单 / 持仓 / 刷新（图标 + 文字） */
+/** ④ 操作按钮排：买入 / 卖出 / 撤单 / 刷新（图标 + 文字） */
 @Composable
 private fun ActionBarRow(onAction: (String) -> Unit) {
     val actions = listOf(
         "买入" to (R.drawable.ico_trade_buy to "buy"),
         "卖出" to (R.drawable.ico_trade_sell to "sell"),
         "撤单" to (R.drawable.ico_trade_cancel to "order"),
-        "持仓" to (R.drawable.ico_trade_position to "pos"),
         "刷新" to (R.drawable.ico_trade_query to "refresh")
     )
     Row(
