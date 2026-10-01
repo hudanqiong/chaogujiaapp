@@ -59,9 +59,10 @@ private val TP_BLACK = Color(0xFF222222)   // 总资产/总市值 数值色
 private val TPNumFont = FontFamily(Font(R.font.ths_regular))
 private fun tpMoney(v: Double): String =
     String.format(Locale.CHINA, "%,.2f", v)
-/** 盈亏金额：带正负号，盈利 + ，亏损 - */
+/** 盈亏金额：带正负号，盈利 + ，亏损 -；为 0 时不带符号 */
 private fun tpSigned(v: Double): String =
-    String.format(Locale.CHINA, "%+,.2f", v)
+    if (kotlin.math.abs(v) < 5e-3) String.format(Locale.CHINA, "%,.2f", 0.0)
+    else String.format(Locale.CHINA, "%+,.2f", v)
 private fun tpPct(v: Double): String =
     String.format(Locale.CHINA, "%+.2f%%", v)
 /** 盈亏颜色：盈利红、亏损蓝、零灰 */
@@ -327,25 +328,25 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = nowMonth.toString() + "月参考盈亏",
-                color = Color(Config.COLOR_TEXT_MAIN),
+                color = tpPnColor(monthPnl),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 text = tpSigned(monthPnl),
-                color = tpPnColor(monthPnl),
+                color = Color(Config.COLOR_TEXT_MAIN),
                 fontSize = 18.sp,
                 fontFamily = TPNumFont,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 text = "收益率" + tpPct(monthPct) + ", 跑赢上证指数" + tpPct(excess),
                 color = TP_GRAY,
@@ -358,7 +359,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             data = series,
             centerLabel = tpPct(monthPct),
             centerLabelColor = tpPnColor(monthPct),
-            modifier = Modifier.weight(1.1f).height(40.dp)
+            modifier = Modifier.weight(1.1f).height(46.dp)
         )
         Spacer(Modifier.width(6.dp))
         Image(
@@ -368,7 +369,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         )
     }
 }
-/** 迷你盈亏曲线：水平虚线为 0 轴；逐点渐现（同花顺效果）；上方红、下方蓝 */
+/** 迷你盈亏曲线：虚线走势 + 末端圆点（红涨蓝跌）；逐点渐现（同花顺效果）；百分比置右上角不压线 */
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
@@ -376,7 +377,7 @@ private fun MiniPnlChart(
     centerLabelColor: Color = TP_GRAY,
     modifier: Modifier = Modifier
 ) {
-    // 逐点渐现：从 1 个点开始，每个点 260ms 画出（最多约 2.6s 走完）
+    // 逐点渐现：从 1 个点开始，每个点 260ms 画出
     var visible by remember(data) { mutableStateOf(1) }
     LaunchedEffect(data) {
         visible = 1
@@ -387,12 +388,15 @@ private fun MiniPnlChart(
             }
         }
     }
+    val lastVal = data.lastOrNull() ?: 0.0
+    val lineColor = tpPnColor(lastVal)
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val pad = 2f
+            val pad = 4f
             val midY = h / 2f
+            // 0 轴水平虚线（浅灰）
             drawLine(
                 color = TP_GRAY.copy(alpha = 0.5f),
                 start = Offset(0f, midY),
@@ -408,13 +412,24 @@ private fun MiniPnlChart(
                 val stepX = if (data.size > 1) w / (data.size - 1) else w
                 var prevX = 0f
                 var prevY = midY
+                var lastX = 0f
+                var lastY = midY
                 for (i in 0 until n) {
                     val x = i * stepX
                     val y = if (n == 1) midY else yOf(data[i])
-                    val c = if (data[i] >= 0.0) TP_RED else TP_BLUE
-                    drawLine(color = c, start = Offset(prevX, prevY), end = Offset(x, y), strokeWidth = 2f)
+                    // 走势线：虚线
+                    drawLine(
+                        color = lineColor,
+                        start = Offset(prevX, prevY),
+                        end = Offset(x, y),
+                        strokeWidth = 2f,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 5f), 0f)
+                    )
                     prevX = x; prevY = y
+                    lastX = x; lastY = y
                 }
+                // 末端圆点（颜色跟随红涨蓝跌）
+                drawCircle(color = lineColor, radius = 3.2f, center = Offset(lastX, lastY))
             }
         }
         if (centerLabel.isNotEmpty()) {
@@ -422,7 +437,8 @@ private fun MiniPnlChart(
                 text = centerLabel,
                 color = centerLabelColor,
                 fontSize = 11.sp,
-                modifier = Modifier.align(Alignment.Center)
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.TopEnd)
             )
         }
     }
