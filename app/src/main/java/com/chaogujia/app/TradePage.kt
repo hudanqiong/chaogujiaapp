@@ -417,13 +417,12 @@ private fun MiniPnlChart(
                 for (i in 0 until n) {
                     val x = i * stepX
                     val y = if (n == 1) midY else yOf(data[i])
-                    // 走势线：虚线
+                    // 走势线：实线
                     drawLine(
                         color = lineColor,
                         start = Offset(prevX, prevY),
                         end = Offset(x, y),
-                        strokeWidth = 2f,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 5f), 0f)
+                        strokeWidth = 2f
                     )
                     prevX = x; prevY = y
                     lastX = x; lastY = y
