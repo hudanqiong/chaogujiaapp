@@ -369,7 +369,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         )
     }
 }
-/** 迷你盈亏曲线：虚线走势 + 末端圆点（红涨蓝跌）；逐点渐现（同花顺效果）；百分比置右上角不压线 */
+/** 迷你盈亏走势图（对标自选列表 MiniMinuteChart）：① 长期零轴水平虚线（基准） + ② 红涨蓝跌实线从零轴出发逐点绘制；末端圆点；百分比置右上角 */
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
@@ -377,12 +377,12 @@ private fun MiniPnlChart(
     centerLabelColor: Color = TP_GRAY,
     modifier: Modifier = Modifier
 ) {
-    // 逐点渐现：从 1 个点开始，每个点 260ms 画出
-    var visible by remember(data) { mutableStateOf(1) }
+    // 逐点渐现：从 0 个点开始，每个点 260ms 画出（同花顺“一点点长出来”的效果）
+    var visible by remember(data) { mutableStateOf(0) }
     LaunchedEffect(data) {
-        visible = 1
-        if (data.size > 1) {
-            for (i in 2..data.size) {
+        visible = 0
+        if (data.isNotEmpty()) {
+            for (i in 1..data.size) {
                 kotlinx.coroutines.delay(260)
                 visible = i
             }
@@ -396,7 +396,7 @@ private fun MiniPnlChart(
             val h = size.height
             val pad = 4f
             val midY = h / 2f
-            // 0 轴水平虚线（浅灰）
+            // ① 零轴线：长期存在的水平浅灰虚线（走势基准）
             drawLine(
                 color = TP_GRAY.copy(alpha = 0.5f),
                 start = Offset(0f, midY),
@@ -406,24 +406,40 @@ private fun MiniPnlChart(
             )
             val n = visible.coerceAtMost(data.size)
             if (n >= 1 && data.isNotEmpty()) {
+                // 幅度缩放：以零轴为基准，上下按最大绝对值铺满半高以内
                 val maxAbs = data.maxOf { kotlin.math.abs(it) }.coerceAtLeast(1e-9)
                 fun yOf(v: Double): Float =
                     (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
-                val stepX = if (data.size > 1) w / (data.size - 1) else w
+                // ② x 轴按“满月跨度”固定步长，点从左向右逐点延伸；
+                //    数据不足一月时曲线停在左侧，随天数增长慢慢铺满
+                val fullSpan = 30
+                val span = maxOf(data.size, fullSpan)
+                val stepX = if (span > 1) w / (span - 1) else w
+                fun xOf(i: Int): Float = i * stepX
+                // ③ 走势线：红涨蓝跌实线，从零轴出发逐点连接
                 var prevX = 0f
                 var prevY = midY
                 var lastX = 0f
                 var lastY = midY
                 for (i in 0 until n) {
-                    val x = i * stepX
-                    val y = if (n == 1) midY else yOf(data[i])
-                    // 走势线：实线
-                    drawLine(
-                        color = lineColor,
-                        start = Offset(prevX, prevY),
-                        end = Offset(x, y),
-                        strokeWidth = 2f
-                    )
+                    val x = xOf(i)
+                    val y = yOf(data[i])
+                    // 第一个点：从零轴(midY)出发，体现“从零轴上下浮动”
+                    if (i == 0) {
+                        drawLine(
+                            color = lineColor,
+                            start = Offset(0f, midY),
+                            end = Offset(x, y),
+                            strokeWidth = 2f
+                        )
+                    } else {
+                        drawLine(
+                            color = lineColor,
+                            start = Offset(prevX, prevY),
+                            end = Offset(x, y),
+                            strokeWidth = 2f
+                        )
+                    }
                     prevX = x; prevY = y
                     lastX = x; lastY = y
                 }
