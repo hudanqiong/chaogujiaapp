@@ -183,7 +183,7 @@ private fun ASharePage(
 
         tpDivider()
         // ===== ④.5 月度参考盈亏（新栏） =====
-        MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick)
+        MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick, totalAsset = account.total)
         tpDivider()
 
         // ===== ⑤ 面板区 =====
@@ -304,7 +304,7 @@ private fun ActionBarRow(onAction: (String) -> Unit) {
 
 /** ④.5 月度参考盈亏栏：标题 + 箭头 + 曲线（0 轴上方红/下方蓝）+ 三行统计 */
 @Composable
-private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int) {
+private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, totalAsset: Double) {
     var hist by remember { mutableStateOf(PnlHistory()) }
     LaunchedEffect(brokerAccountId, reloadTick) {
         hist = withContext(Dispatchers.IO) {
@@ -318,7 +318,8 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int) 
     }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
-    val base = if (hist.lastMonthEnd != 0.0) hist.lastMonthEnd else 1.0
+    // 月度收益率 = 本月盈亏 / 上月末总资产；上月末总资产 = 当前总资产 - 本月盈亏（避免除零）
+    val base = if (totalAsset - monthPnl != 0.0) totalAsset - monthPnl else 1.0
     val monthPct = monthPnl / base * 100.0   // 月度收益率 %
     val excess = last?.excess ?: 0.0
     val nowMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
