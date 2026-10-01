@@ -303,7 +303,7 @@ private fun ActionBarRow(onAction: (String) -> Unit) {
     }
 }
 
-/** ④.5 月度参考盈亏栏：金额 + 曲线 + 收益率（三行整体纵向居中，右侧箭头） */
+/** ④.5 月度参考盈亏栏：金额 + 曲线(逐点渐现) + 收益率（三行整体纵向居中） */
 @Composable
 private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, totalAsset: Double) {
     var hist by remember { mutableStateOf(PnlHistory()) }
@@ -349,7 +349,8 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             Text(
                 text = "收益率" + tpPct(monthPct) + ", 跑赢上证指数" + tpPct(excess),
                 color = TP_GRAY,
-                fontSize = 12.sp
+                fontSize = 12.sp,
+                maxLines = 1
             )
         }
         Spacer(Modifier.width(12.dp))
@@ -357,7 +358,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             data = series,
             centerLabel = tpPct(monthPct),
             centerLabelColor = tpPnColor(monthPct),
-            modifier = Modifier.weight(1.1f).height(52.dp)
+            modifier = Modifier.weight(1.1f).height(40.dp)
         )
         Spacer(Modifier.width(6.dp))
         Image(
@@ -367,7 +368,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         )
     }
 }
-/** 迷你盈亏曲线：水平虚线为 0 轴；上方红、下方蓝；虚线上方居中显示当前百分比小字 */
+/** 迷你盈亏曲线：水平虚线为 0 轴；逐点渐现（同花顺效果）；上方红、下方蓝 */
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
@@ -375,6 +376,17 @@ private fun MiniPnlChart(
     centerLabelColor: Color = TP_GRAY,
     modifier: Modifier = Modifier
 ) {
+    // 逐点渐现：从 1 个点开始，每个点 260ms 画出（最多约 2.6s 走完）
+    var visible by remember(data) { mutableStateOf(1) }
+    LaunchedEffect(data) {
+        visible = 1
+        if (data.size > 1) {
+            for (i in 2..data.size) {
+                kotlinx.coroutines.delay(260)
+                visible = i
+            }
+        }
+    }
     Box(modifier = modifier) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
@@ -388,25 +400,20 @@ private fun MiniPnlChart(
                 strokeWidth = 1f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
             )
-            if (data.isNotEmpty()) {
+            val n = visible.coerceAtMost(data.size)
+            if (n >= 1 && data.isNotEmpty()) {
                 val maxAbs = data.maxOf { kotlin.math.abs(it) }.coerceAtLeast(1e-9)
                 fun yOf(v: Double): Float =
                     (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
-                // 从 0 轴起点开始，逐点连线，形成从 0 轴蔓延开的曲线
-                if (data.size == 1) {
-                    val c = if (data[0] >= 0.0) TP_RED else TP_BLUE
-                    drawLine(color = c, start = Offset(0f, midY), end = Offset(w, yOf(data[0])), strokeWidth = 2f)
-                } else {
-                    val stepX = w / (data.size - 1)
-                    var prevX = 0f
-                    var prevY = midY
-                    for (i in data.indices) {
-                        val x = i * stepX
-                        val y = yOf(data[i])
-                        val c = if (data[i] >= 0.0) TP_RED else TP_BLUE
-                        drawLine(color = c, start = Offset(prevX, prevY), end = Offset(x, y), strokeWidth = 2f)
-                        prevX = x; prevY = y
-                    }
+                val stepX = if (data.size > 1) w / (data.size - 1) else w
+                var prevX = 0f
+                var prevY = midY
+                for (i in 0 until n) {
+                    val x = i * stepX
+                    val y = if (n == 1) midY else yOf(data[i])
+                    val c = if (data[i] >= 0.0) TP_RED else TP_BLUE
+                    drawLine(color = c, start = Offset(prevX, prevY), end = Offset(x, y), strokeWidth = 2f)
+                    prevX = x; prevY = y
                 }
             }
         }
