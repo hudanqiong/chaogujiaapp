@@ -32,6 +32,23 @@ data class PositionItem(
     val pnl: Double = 0.0,
     val pnlPct: Double = 0.0
 )
+/** 月度参考盈亏 - 单日数据点（pnl_history.php 的 data.points[]） */
+data class PnlPoint(
+    val date: String = "",           // yyyy-MM-dd
+    val totalPnl: Double = 0.0,      // 总参考盈亏（元）
+    val monthPnl: Double = 0.0,      // 月度参考盈亏（元）
+    val totalPnlPct: Double = 0.0,   // 总盈亏率 %
+    val shIndex: Double = 0.0,       // 上证指数
+    val shPct: Double = 0.0,         // 上证涨跌幅 %
+    val excess: Double = 0.0         // 超额（我 - 上证）%
+)
+/** 月度参考盈亏 - 整体返回（pnl_history.php 的 data） */
+data class PnlHistory(
+    val month: String = "",          // yyyy-MM
+    val lastMonthEnd: Double = 0.0,  // 上月末基准
+    val points: List<PnlPoint> = emptyList(),
+    val today: PnlPoint? = null      // 今日实时点（可能为 null）
+)
 /** 下单结果（buy.php / sell.php 的 data）
  *  quick（方式A）：立即成交，字段 price/quantity/amount/commission/settle
  *  limit（方式B）：挂单，字段 orderId/status/mode/price/quantity/frozen */
@@ -697,6 +714,54 @@ object Api {
         }
     }
 
+    /** 拉取月度参考盈亏（pnl_history.php ?broker_account_id=&month=）
+     *  month 空则取当前月。返回 points（本月每交易日）+ today（今日实时） */
+    fun pnlHistory(token: String?, brokerAccountId: Int, month: String = ""): PnlHistory {
+        return try {
+            var url = "pnl_history.php?broker_account_id=$brokerAccountId"
+            if (month.isNotEmpty()) url += "&month=$month"
+            val raw = Net.get(base(url), token)
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return PnlHistory()
+            val d = o.optJSONObject("data") ?: return PnlHistory()
+            val list = ArrayList<PnlPoint>()
+            val arr = d.optJSONArray("points")
+            if (arr != null) {
+                for (i in 0 until arr.length()) {
+                    val pt = arr.optJSONObject(i) ?: continue
+                    list.add(
+                        PnlPoint(
+                            date = pt.optString("date", ""),
+                            totalPnl = pt.optDouble("total_pnl", 0.0),
+                            monthPnl = pt.optDouble("month_pnl", 0.0),
+                            totalPnlPct = pt.optDouble("total_pnl_pct", 0.0),
+                            shIndex = pt.optDouble("sh_index", 0.0),
+                            shPct = pt.optDouble("sh_pct", 0.0),
+                            excess = pt.optDouble("excess", 0.0)
+                        )
+                    )
+                }
+            }
+            val t = d.optJSONObject("today")
+            val today = if (t != null && t.length() > 0) PnlPoint(
+                date = t.optString("date", ""),
+                totalPnl = t.optDouble("total_pnl", 0.0),
+                monthPnl = t.optDouble("month_pnl", 0.0),
+                totalPnlPct = t.optDouble("total_pnl_pct", 0.0),
+                shIndex = t.optDouble("sh_index", 0.0),
+                shPct = t.optDouble("sh_pct", 0.0),
+                excess = t.optDouble("excess", 0.0)
+            ) else null
+            PnlHistory(
+                month = d.optString("month", ""),
+                lastMonthEnd = d.optDouble("last_month_end", 0.0),
+                points = list,
+                today = today
+            )
+        } catch (e: Exception) {
+            PnlHistory()
+        }
+    }
     /** 拉取持仓列表（positions.php ?broker_account_id=） */
     fun positions(token: String?, brokerAccountId: Int): List<PositionItem> {
         return try {

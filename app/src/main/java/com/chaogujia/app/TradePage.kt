@@ -6,6 +6,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -173,8 +178,13 @@ private fun ASharePage(
         }
         tpDivider()
 
-        // ===== ④ 操作按钮排：买入 / 卖出 / 撤单 / 刷新 =====
+        // ===== ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 刷新 =====
         ActionBarRow(onAction = { panel = it })
+
+        tpDivider()
+        // ===== ④.5 月度参考盈亏（新栏） =====
+        MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick)
+        tpDivider()
 
         // ===== ⑤ 面板区 =====
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -244,12 +254,13 @@ private fun StatCell(
     }
 }
 
-/** ④ 操作按钮排：买入 / 卖出 / 撤单 / 刷新（图标 + 文字） */
+/** ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 刷新（图标 + 文字） */
 @Composable
 private fun ActionBarRow(onAction: (String) -> Unit) {
     val actions = listOf(
         "买入" to (R.drawable.ico_trade_buy to "buy"),
         "卖出" to (R.drawable.ico_trade_sell to "sell"),
+        "持仓" to (R.drawable.ico_trade_position to "pos"),
         "撤单" to (R.drawable.ico_trade_cancel to "order"),
         "刷新" to (R.drawable.ico_trade_query to "refresh")
     )
@@ -291,6 +302,132 @@ private fun ActionBarRow(onAction: (String) -> Unit) {
     }
 }
 
+/** ④.5 月度参考盈亏栏：标题 + 箭头 + 曲线（0 轴上方红/下方蓝）+ 三行统计 */
+@Composable
+private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int) {
+    var hist by remember { mutableStateOf(PnlHistory()) }
+    LaunchedEffect(brokerAccountId, reloadTick) {
+        hist = withContext(Dispatchers.IO) {
+            try { Api.pnlHistory(token, brokerAccountId) } catch (e: Exception) { PnlHistory() }
+        }
+    }
+    // 曲线数据：points 末尾追加 today（实时）
+    val series: List<Double> = remember(hist) {
+        val base = hist.points.map { it.monthPnl }
+        val t = hist.today
+        if (t != null) base + t.monthPnl else base
+    }
+    val last = hist.today ?: hist.points.lastOrNull()
+    val monthPnl = last?.monthPnl ?: 0.0
+    val shPct = last?.shPct ?: 0.0
+    val excess = last?.excess ?: 0.0
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        // 标题行 + 右侧箭头
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "月度参考盈亏",
+                color = Color(Config.COLOR_TEXT_MAIN),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            Image(
+                painter = painterResource(R.drawable.ic_pnl_arrow),
+                contentDescription = "展开",
+                modifier = Modifier.size(width = 12.dp, height = 19.dp)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        // 曲线
+        MiniPnlChart(
+            data = series,
+            modifier = Modifier.fillMaxWidth().height(72.dp)
+        )
+        Spacer(Modifier.height(10.dp))
+        // 三行统计
+        PnlStatRow("月度参考盈亏", tpSigned(monthPnl), tpPnColor(monthPnl))
+        PnlStatRow("上证涨跌幅", tpPct(shPct), tpPnColor(shPct))
+        PnlStatRow("超额", tpSigned(excess) + "%", tpPnColor(excess))
+    }
+}
+/** 单行统计：左标题灰、右数值（字体同股价） */
+@Composable
+private fun PnlStatRow(label: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = TP_GRAY,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            color = valueColor,
+            fontSize = 13.sp,
+            fontFamily = TPNumFont
+        )
+    }
+}
+/** 迷你盈亏曲线：0 轴用水平虚线；0 以上红、以下蓝（分段着色） */
+@Composable
+private fun MiniPnlChart(data: List<Double>, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val pad = 2f
+        if (data.isEmpty()) {
+            // 至少画一条 0 轴虚线
+            drawLine(
+                color = TP_GRAY.copy(alpha = 0.5f),
+                start = Offset(0f, h / 2f),
+                end = Offset(w, h / 2f),
+                strokeWidth = 1f,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+            )
+            return@Canvas
+        }
+        val maxAbs = data.maxOf { kotlin.math.abs(it) }.coerceAtLeast(1e-9)
+        val midY = h / 2f
+        val stepX = if (data.size > 1) w / (data.size - 1) else w
+        fun yOf(v: Double): Float =
+            (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
+
+        // 0 轴虚线
+        drawLine(
+            color = TP_GRAY.copy(alpha = 0.5f),
+            start = Offset(0f, midY),
+            end = Offset(w, midY),
+            strokeWidth = 1f,
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
+        )
+        // 分段折线：按相邻两点均值是否 >=0 选色
+        for (i in 0 until data.size - 1) {
+            val x1 = i * stepX
+            val x2 = (i + 1) * stepX
+            val y1 = yOf(data[i])
+            val y2 = yOf(data[i + 1])
+            val c = if ((data[i] + data[i + 1]) / 2.0 >= 0.0) TP_RED else TP_BLUE
+            drawLine(color = c, start = Offset(x1, y1), end = Offset(x2, y2), strokeWidth = 2f)
+        }
+        // 最后一个点小圆点
+        val lx = (data.size - 1) * stepX
+        val ly = yOf(data.last())
+        drawCircle(
+            color = if (data.last() >= 0.0) TP_RED else TP_BLUE,
+            radius = 3f,
+            center = Offset(lx, ly)
+        )
+    }
+}
 /** 其他账户类型占位页 */
 @Composable
 private fun PlaceholderPage(name: String) {
@@ -918,106 +1055,25 @@ private fun OrderListPanel(
     }
 }
 
-/** 持仓列表面板 */
+/** 持仓面板（占位）：按钮保留，内容后续重新设计填充 */
 @Composable
 private fun PositionPanel(
     token: String,
     brokerAccountId: Int,
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit
 ) {
-    var positions by remember { mutableStateOf<List<PositionItem>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-
-    LaunchedEffect(brokerAccountId) {
-        loading = true
-        try {
-            positions = withContext(Dispatchers.IO) { Api.positions(token, brokerAccountId) }
-        } catch (e: Exception) {
-            positions = emptyList()
-        } finally {
-            loading = false
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.White)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "我的持仓",
-                color = Color(Config.COLOR_TEXT_MAIN),
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        tpDivider()
-        if (loading) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("加载中…", color = TP_GRAY, fontSize = 13.sp) }
-        } else if (positions.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) { Text("暂无持仓", color = TP_GRAY, fontSize = 13.sp) }
-        } else {
-            androidx.compose.foundation.lazy.LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
-                items(positions) { p ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.White)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                val list = positions.map {
-                                    StockItem(code = it.code, name = it.name)
-                                }
-                                val idx = positions.indexOf(p)
-                                onOpenDetail(list, idx)
-                            }
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = p.name.ifEmpty { p.code },
-                                color = TP_BLACK,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(p.code, color = TP_GRAY, fontSize = 12.sp)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "持仓 ${p.quantity}｜成本 ${tpMoney(p.avgCost)}",
-                                color = TP_GRAY,
-                                fontSize = 12.sp,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = tpSigned(p.pnl),
-                                color = tpPnColor(p.pnl),
-                                fontSize = 14.sp,
-                                fontFamily = TPNumFont
-                            )
-                        }
-                    }
-                    tpDivider()
-                }
-            }
-        }
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "持仓面板建设中",
+            color = TP_GRAY,
+            fontSize = 13.sp
+        )
     }
 }
+
 
 /** ② 证券账户栏：左图标 +（上）券商名（下）资金账号 + 右 ∨；点击弹底部半屏列表 */
 @OptIn(ExperimentalMaterial3Api::class)
