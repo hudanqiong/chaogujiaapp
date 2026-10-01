@@ -135,7 +135,7 @@ private fun ASharePage(
     // 面板开关：null=无 / "buy"=买入 / "sell"=卖出 / "order"=撤单(挂单列表) / "pos"=持仓
     var panel by remember { mutableStateOf<String?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // ===== ② 证券账户栏（可切换） =====
         AccountBar(
             brokers = myBrokers,
@@ -196,7 +196,7 @@ private fun ASharePage(
         Spacer(Modifier.fillMaxWidth().height(8.dp))
 
         // ===== ⑤ 面板区 =====
-        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+        Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
             when (panel) {
                 "buy" -> OrderPanel(
                     token = token,
@@ -559,14 +559,12 @@ private fun OrderPanel(
     val price = priceText.trim().toDoubleOrNull() ?: 0.0
     val amount = price * qty
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         PanelHeader(title = "$sideText 股票", onClose = onClose)
 
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
         ) {
             // ---- 代码 / 名称 ----
             Row(
@@ -971,7 +969,7 @@ private fun OrderListPanel(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1016,10 +1014,8 @@ private fun OrderListPanel(
                 contentAlignment = Alignment.Center
             ) { Text("暂无挂单", color = TP_GRAY, fontSize = 13.sp) }
         } else {
-            androidx.compose.foundation.lazy.LazyColumn(
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
-                items(orders) { o ->
+            Column(modifier = Modifier.fillMaxWidth()) {
+                orders.forEach { o ->
                     val isBuy = o.direction == 1 || o.type == "buy"
                     Column(
                         modifier = Modifier
@@ -1096,7 +1092,7 @@ private fun PositionPanel(
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit
 ) {
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -1292,14 +1288,14 @@ private fun MenuGrid(brokerName: String) {
     val ctx = LocalContext.current
     val items = listOf(
         MenuItem(R.drawable.ic_menu_01, "新股/债申购", "暂无新股和新债"),
-        MenuItem(R.drawable.ic_menu_02, "条件单", "监控条件 触发委托", isNew = true),
-        MenuItem(R.drawable.ic_menu_03, "科创板", "科创板交易"),
-        MenuItem(R.drawable.ic_menu_04, "我的组合", "创建组合 批量买卖"),
-        MenuItem(R.drawable.ic_menu_05, brokerName + "业务办理", "权限开通 信息更新"),
-        MenuItem(R.drawable.ic_menu_06, "融资融券", "借钱买多 借券卖空"),
-        MenuItem(R.drawable.ic_menu_07, "通用回购逆回购", "14天期1.385%"),
-        MenuItem(R.drawable.ic_menu_08, "我的笔记", "每日记录 心得积累"),
-        MenuItem(R.drawable.ic_menu_09, "行情全景", "产业板块 全球宏观"),
+        MenuItem(R.drawable.ic_menu_02, "通用逆回购回购", "14天期1.385%"),
+        MenuItem(R.drawable.ic_menu_03, "条件单", "监控条件 触发委托", isNew = true),
+        MenuItem(R.drawable.ic_menu_04, "融资融券", "借钱买多 借券卖空"),
+        MenuItem(R.drawable.ic_menu_05, "科创板", "科创板交易"),
+        MenuItem(R.drawable.ic_menu_06, "我的笔记", "每日记录 心得积累"),
+        MenuItem(R.drawable.ic_menu_07, "我的组合", "创建组合 批量买卖"),
+        MenuItem(R.drawable.ic_menu_08, "行情全景", "产业板块 全球宏观"),
+        MenuItem(R.drawable.ic_menu_09, brokerName + "业务办理", "权限开通 信息更新"),
         MenuItem(R.drawable.ic_menu_10, "港股ETF", "T+0交易 当天买卖"),
     )
     Column(
@@ -1346,7 +1342,8 @@ private fun MenuCell(item: MenuItem, modifier: Modifier = Modifier, onClick: () 
                 Text(
                     text = item.title,
                     color = TP_BLACK,
-                    fontSize = 13.sp,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -1354,7 +1351,7 @@ private fun MenuCell(item: MenuItem, modifier: Modifier = Modifier, onClick: () 
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .offset(x = 26.dp, y = (-4).dp)
+                            .offset(x = 26.dp, y = 0.dp)
                             .background(Color(0xFFFFECEC), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                             .padding(horizontal = 3.dp, vertical = 0.5.dp)
                     ) {
@@ -1372,7 +1369,8 @@ private fun MenuCell(item: MenuItem, modifier: Modifier = Modifier, onClick: () 
             Text(
                 text = item.sub,
                 color = TP_GRAY,
-                fontSize = 10.sp,
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
