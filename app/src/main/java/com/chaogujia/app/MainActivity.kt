@@ -68,8 +68,8 @@ fun ChaoGuJiaApp() {
 
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { ctx.getSharedPreferences("chaogujia", Context.MODE_PRIVATE) }
-    // 启动默认进"行情"页
-    var current by remember { mutableStateOf("quote") }
+    // 启动默认进"自选"页
+    var current by remember { mutableStateOf("watch") }
     var token by remember { mutableStateOf(prefs.getString("token", "") ?: "") }
     var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var showLogin by remember { mutableStateOf(false) }
@@ -212,7 +212,7 @@ fun ChaoGuJiaApp() {
         token = ""
         uname = ""
         prefs.edit().remove("token").remove("username").apply()
-        current = "quote"
+        current = "watch"
         member = MemberInfo()
     }
 
@@ -324,7 +324,14 @@ fun ChaoGuJiaApp() {
                     openSubPageTick = memberPageTick,
                     openSubPageKey = "initial"
                 )
-                "quote" -> FontComparePage()
+                // ★ 行情页：暂复用自选页同款内容（待开盘后再单独定制行情页）
+                "quote" -> Box(Modifier.fillMaxSize().background(Color.White)) {
+                    IndexBar(
+                        token = token,
+                        onOpenNews = { current = "news" },
+                        onOpenDetail = { list, index -> openDetail("quote", list, index) }
+                    )
+                }
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
                 // 点 ▼ 展开的「指数详情面板」悬浮在内容区之上（不挤压内容区高度）。
                 "watch" -> Box(Modifier.fillMaxSize().background(Color.White)) {

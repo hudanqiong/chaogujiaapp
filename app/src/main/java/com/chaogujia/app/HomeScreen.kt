@@ -93,8 +93,6 @@ fun HomeScreen(
         HomeMenuCard { subPage = it }
         Spacer(Modifier.height(12.dp))
         HomeLogoutCard(onLogout)
-        Spacer(Modifier.height(12.dp))
-        ChevronSizeCompareCard()
         Spacer(Modifier.height(16.dp))
         Text(
             text = "免责声明：本应用所有行情与交易数据均为模拟演示，仅供学习交流使用，不构成任何投资建议。股市有风险，投资需谨慎。",
@@ -243,123 +241,6 @@ private fun HomeLogoutCard(onLogout: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Text("退出登录", color = Color(Config.COLOR_PRIMARY), fontSize = 15.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-// ===== 尖角图标尺寸/角度 对比预览（调参用，可删）=====
-/**
- * 用 Canvas 画与 StockDetailPage.ChevronIcon 同几何的 90° 直角折线，但尺寸可调。
- * scale  = 折线整体占外框比例（越小越精致）
- * armRatio = 垂直臂 / 水平臂；=1.0 时拐点夹角严格 90°
- */
-@Composable
-private fun PreviewChevron(
-    tpLeft: Boolean,
-    boxSize: androidx.compose.ui.unit.Dp,
-    scale: Float,
-    armRatio: Float = 1f,
-    dbl: Boolean = false,
-    rot45: Boolean = false,
-    strokeW: androidx.compose.ui.unit.Dp = 1.6.dp,
-    tint: Color = Color(0xFF222222)
-) {
-    Canvas(modifier = Modifier.size(boxSize)) {
-        val w = size.width
-        val h = size.height
-        val sw = strokeW.toPx()
-        val armW = w * scale * 0.5f
-        val armH = h * scale * 0.5f * armRatio
-        val gap = w * 0.06f
-
-        fun chevron(cx: Float, cy: Float, tipLeftLocal: Boolean) {
-            // 照抄 d15_final.py：基准 = 拐点在角落的正 90° 直角（一竖一横），整体绕 (cx,cy) 旋转
-            val topY = cy - armH
-            val botY = cy + armH
-            val ax = if (tipLeftLocal) cx - armW else cx + armW   // 拐点所在 x
-            val bx = if (tipLeftLocal) cx + armW else cx - armW   // 横臂另一端 x
-            val deg = if (tipLeftLocal) -45f else 45f
-            rotate(deg, Offset(cx, cy)) {
-                val path = Path().apply {
-                    moveTo(ax, botY)
-                    lineTo(ax, topY)
-                    lineTo(bx, topY)
-                }
-                drawPath(path, color = tint, style = DrawStroke(width = sw, cap = DrawStrokeCap.Round))
-            }
-        }
-
-        val cx = w / 2f; val cy = h / 2f
-        if (dbl) {
-            val lx = cx - gap; val rx = cx + gap
-            val both: androidx.compose.ui.graphics.drawscope.DrawScope.() -> Unit = {
-                chevron(lx, cy, true); chevron(rx, cy, false)
-            }
-            // 整体再绕中心顺时针 +45°（与 K 线页一致）
-            if (rot45) rotate(45f, Offset(cx, cy)) { both() } else both()
-        } else chevron(cx, cy, tpLeft)
-    }
-}
-
-/** 圆形底 + 尖角的对比项（模拟真实按钮观感） */
-@Composable
-private fun CompareItem(label: String, box: androidx.compose.ui.unit.Dp, scale: Float, ratio: Float = 1f, dbl: Boolean = false, rot45: Boolean = false) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(Color(0x66EEEEEE)),
-            contentAlignment = Alignment.Center
-        ) {
-            PreviewChevron(tpLeft = true, boxSize = box, scale = scale, armRatio = ratio, dbl = dbl, rot45 = rot45)
-        }
-        Spacer(Modifier.height(4.dp))
-        Text(label, color = Color(0xFF666666), fontSize = 10.sp)
-    }
-}
-
-@Composable
-private fun ChevronSizeCompareCard() {
-    CardBox {
-        Column {
-            Text("尖角图标尺寸对比（挑一个，告诉我编号）", color = Color(0xFF222222), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text("尺寸=圆底内占比；90°=尖点夹角严格直角", color = Color(0xFF999999), fontSize = 10.sp)
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                CompareItem("A\n30%.30dp", 30.dp, 0.30f)
-                CompareItem("B\n42%.30dp", 30.dp, 0.42f)
-                CompareItem("C\n54%.30dp", 30.dp, 0.54f)
-                CompareItem("D\n66%.30dp", 30.dp, 0.66f)
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("圆底大小对比（同占比 42%）", color = Color(0xFF999999), fontSize = 10.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                CompareItem("24dp", 24.dp, 0.42f)
-                CompareItem("30dp", 30.dp, 0.42f)
-                CompareItem("36dp", 36.dp, 0.42f)
-                CompareItem("42dp", 42.dp, 0.42f)
-            }
-            Spacer(Modifier.height(12.dp))
-            Text("形状对比（42% / 30dp）", color = Color(0xFF999999), fontSize = 10.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                CompareItem("尖朝左", 30.dp, 0.42f)
-                CompareItem("尖朝右", 30.dp, 0.42f)
-                CompareItem("双尖45°", 30.dp, 0.42f, dbl = true, rot45 = true)
-                CompareItem("双尖0°", 30.dp, 0.42f, dbl = true, rot45 = false)
-            }
         }
     }
 }
