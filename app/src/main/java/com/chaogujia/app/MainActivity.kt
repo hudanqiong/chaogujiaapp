@@ -410,6 +410,9 @@ fun ChaoGuJiaApp() {
                 onOpenDetail = { list, index -> openDetail("search", list, index) }
             )
         }
+        // ★ 水印层：非会员显示斜排文字水印，会员自动隐藏。
+        // 放在最外层 Box 内、Scaffold 之后 → 叠在所有页面之上，且不拦截触摸。
+        WatermarkLayer(enabled = !member.isMember, text = if (uname.isNotEmpty()) "$uname 炒股家" else "炒股家")
     }
 }
 // ============ 资讯 tab：WebView 加载资讯站（第十二轮建站） ============
