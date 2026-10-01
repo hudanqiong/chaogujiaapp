@@ -21,6 +21,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -189,6 +190,9 @@ private fun ASharePage(
         Spacer(Modifier.fillMaxWidth().height(8.dp))
         // ===== ④.5 月度参考盈亏（新栏） =====
         MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick, totalAsset = account.total)
+        Spacer(Modifier.fillMaxWidth().height(8.dp))
+        // ===== ④.6 功能入口宫格（新栏，月度盈亏下方） =====
+        MenuGrid(brokerName = currentBroker?.broker ?: "光大证券")
         Spacer(Modifier.fillMaxWidth().height(8.dp))
 
         // ===== ⑤ 面板区 =====
@@ -1271,4 +1275,107 @@ private fun tpDivider() {
             .height(0.5.dp)
             .background(Color(Config.COLOR_DIVIDER))
     )
+}
+
+// ================= ④.6 功能入口宫格（2列×5行） =================
+/** 单个入口：图标 + 主标题(可带 NEW 角标) + 副标题 */
+data class MenuItem(
+    val icon: Int,
+    val title: String,
+    val sub: String,
+    val isNew: Boolean = false
+)
+
+/** 功能入口宫格：一行两个、共五行。点击先留占位。 */
+@Composable
+private fun MenuGrid(brokerName: String) {
+    val ctx = LocalContext.current
+    val items = listOf(
+        MenuItem(R.drawable.ic_menu_01, "新股/债申购", "暂无新股和新债"),
+        MenuItem(R.drawable.ic_menu_02, "条件单", "监控条件 触发委托", isNew = true),
+        MenuItem(R.drawable.ic_menu_03, "科创板", "科创板交易"),
+        MenuItem(R.drawable.ic_menu_04, "我的组合", "创建组合 批量买卖"),
+        MenuItem(R.drawable.ic_menu_05, brokerName + "业务办理", "权限开通 信息更新"),
+        MenuItem(R.drawable.ic_menu_06, "融资融券", "借钱买多 借券卖空"),
+        MenuItem(R.drawable.ic_menu_07, "通用回购逆回购", "14天期1.385%"),
+        MenuItem(R.drawable.ic_menu_08, "我的笔记", "每日记录 心得积累"),
+        MenuItem(R.drawable.ic_menu_09, "行情全景", "产业板块 全球宏观"),
+        MenuItem(R.drawable.ic_menu_10, "港股ETF", "T+0交易 当天买卖"),
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+    ) {
+        // 5 行
+        for (r in 0 until 5) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val li = r * 2
+                val ri = r * 2 + 1
+                MenuCell(items[li], Modifier.weight(1f)) { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+                MenuCell(items[ri], Modifier.weight(1f)) { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+            }
+        }
+    }
+}
+
+/** 单个入口格：左图标 + （上）主标题 （下）副标题；isNew 时标题右上叠加 NEW 角标 */
+@Composable
+private fun MenuCell(item: MenuItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier = modifier
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 6.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Image(
+            painter = painterResource(item.icon),
+            contentDescription = item.title,
+            modifier = Modifier.size(26.dp)
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            // 标题行（带可选 NEW 角标）
+            Box {
+                Text(
+                    text = item.title,
+                    color = TP_BLACK,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (item.isNew) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 26.dp, y = (-4).dp)
+                            .background(Color(0xFFFFECEC), androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                            .padding(horizontal = 3.dp, vertical = 0.5.dp)
+                    ) {
+                        Text(
+                            text = "NEW",
+                            color = TP_RED,
+                            fontSize = 7.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = item.sub,
+                color = TP_GRAY,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
