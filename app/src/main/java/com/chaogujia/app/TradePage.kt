@@ -241,11 +241,6 @@ private fun ASharePage(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "点击上方按钮进行交易",
-                        color = TP_GRAY,
-                        fontSize = 13.sp
-                    )
                 }
             }
         }
@@ -1456,7 +1451,7 @@ private fun ListRow(
         Image(
             painter = painterResource(R.drawable.ic_pnl_arrow),
             contentDescription = "进入",
-            modifier = Modifier.width(12.dp).height(19.dp)
+            modifier = Modifier.width(8.dp).height(13.dp)
         )
     }
 }
@@ -1497,7 +1492,7 @@ private fun ListRowInline(
         Image(
             painter = painterResource(R.drawable.ic_pnl_arrow),
             contentDescription = "进入",
-            modifier = Modifier.width(12.dp).height(19.dp)
+            modifier = Modifier.width(8.dp).height(13.dp)
         )
     }
 }
