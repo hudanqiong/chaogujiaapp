@@ -181,10 +181,11 @@ private fun ASharePage(
         // ===== ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 刷新 =====
         ActionBarRow(onAction = { panel = it })
 
-        tpDivider()
+        // 灰色间隔：露出页面灰底，把「月度参考盈亏」栏整体下移
+        Spacer(Modifier.fillMaxWidth().height(8.dp))
         // ===== ④.5 月度参考盈亏（新栏） =====
         MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick, totalAsset = account.total)
-        tpDivider()
+        Spacer(Modifier.fillMaxWidth().height(8.dp))
 
         // ===== ⑤ 面板区 =====
         Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
@@ -302,7 +303,7 @@ private fun ActionBarRow(onAction: (String) -> Unit) {
     }
 }
 
-/** ④.5 月度参考盈亏栏：标题 + 箭头 + 曲线（0 轴上方红/下方蓝）+ 三行统计 */
+/** ④.5 月度参考盈亏栏：金额 + 曲线 + 收益率（三行整体纵向居中，右侧箭头） */
 @Composable
 private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, totalAsset: Double) {
     var hist by remember { mutableStateOf(PnlHistory()) }
@@ -318,57 +319,51 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
     }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
-    // 月度收益率 = 本月盈亏 / 上月末总资产；上月末总资产 = 当前总资产 - 本月盈亏（避免除零）
     val base = if (totalAsset - monthPnl != 0.0) totalAsset - monthPnl else 1.0
-    val monthPct = monthPnl / base * 100.0   // 月度收益率 %
+    val monthPct = monthPnl / base * 100.0
     val excess = last?.excess ?: 0.0
     val nowMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = nowMonth.toString() + "月参考盈亏",
                 color = Color(Config.COLOR_TEXT_MAIN),
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
+                fontWeight = FontWeight.Bold
             )
-            Image(
-                painter = painterResource(R.drawable.ic_pnl_arrow),
-                contentDescription = "展开",
-                modifier = Modifier.size(width = 12.dp, height = 19.dp)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = tpSigned(monthPnl),
+                color = tpPnColor(monthPnl),
+                fontSize = 18.sp,
+                fontFamily = TPNumFont,
+                fontWeight = FontWeight.Bold
             )
-        }
-        Spacer(Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = "月度参考盈亏", color = TP_GRAY, fontSize = 12.sp)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = tpSigned(monthPnl),
-                    color = tpPnColor(monthPnl),
-                    fontSize = 18.sp,
-                    fontFamily = TPNumFont,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            MiniPnlChart(
-                data = series,
-                centerLabel = tpPct(monthPct),
-                centerLabelColor = tpPnColor(monthPct),
-                modifier = Modifier.weight(1.2f).height(64.dp)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = "收益率" + tpPct(monthPct) + ", 跑赢上证指数" + tpPct(excess),
+                color = TP_GRAY,
+                fontSize = 12.sp
             )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "收益率" + tpPct(monthPct) + ", 跑赢上证指数" + tpPct(excess),
-            color = TP_GRAY,
-            fontSize = 12.sp
+        Spacer(Modifier.width(12.dp))
+        MiniPnlChart(
+            data = series,
+            centerLabel = tpPct(monthPct),
+            centerLabelColor = tpPnColor(monthPct),
+            modifier = Modifier.weight(1.1f).height(52.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Image(
+            painter = painterResource(R.drawable.ic_pnl_arrow),
+            contentDescription = "展开",
+            modifier = Modifier.size(width = 12.dp, height = 19.dp)
         )
     }
 }
@@ -386,7 +381,6 @@ private fun MiniPnlChart(
             val h = size.height
             val pad = 2f
             val midY = h / 2f
-            // 0 轴虚线（水平）
             drawLine(
                 color = TP_GRAY.copy(alpha = 0.5f),
                 start = Offset(0f, midY),
@@ -396,20 +390,26 @@ private fun MiniPnlChart(
             )
             if (data.isNotEmpty()) {
                 val maxAbs = data.maxOf { kotlin.math.abs(it) }.coerceAtLeast(1e-9)
-                val stepX = if (data.size > 1) w / (data.size - 1) else w
                 fun yOf(v: Double): Float =
                     (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
-                for (i in 0 until data.size - 1) {
-                    val x1 = i * stepX
-                    val x2 = (i + 1) * stepX
-                    val y1 = yOf(data[i])
-                    val y2 = yOf(data[i + 1])
-                    val c = if ((data[i] + data[i + 1]) / 2.0 >= 0.0) TP_RED else TP_BLUE
-                    drawLine(color = c, start = Offset(x1, y1), end = Offset(x2, y2), strokeWidth = 2f)
+                // 从 0 轴起点开始，逐点连线，形成从 0 轴蔓延开的曲线
+                if (data.size == 1) {
+                    val c = if (data[0] >= 0.0) TP_RED else TP_BLUE
+                    drawLine(color = c, start = Offset(0f, midY), end = Offset(w, yOf(data[0])), strokeWidth = 2f)
+                } else {
+                    val stepX = w / (data.size - 1)
+                    var prevX = 0f
+                    var prevY = midY
+                    for (i in data.indices) {
+                        val x = i * stepX
+                        val y = yOf(data[i])
+                        val c = if (data[i] >= 0.0) TP_RED else TP_BLUE
+                        drawLine(color = c, start = Offset(prevX, prevY), end = Offset(x, y), strokeWidth = 2f)
+                        prevX = x; prevY = y
+                    }
                 }
             }
         }
-        // 百分比小字：水平居中对齐、位于虚线（垂直线中点）上方
         if (centerLabel.isNotEmpty()) {
             Text(
                 text = centerLabel,
