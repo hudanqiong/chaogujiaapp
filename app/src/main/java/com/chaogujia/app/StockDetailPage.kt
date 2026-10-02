@@ -462,7 +462,9 @@ fun StockDetailPage(
                             showAmount = showOrderAmount,
                             todayTrades = todayTrades,
                             onCursorChange = { cursorMin = it },
-                            onPickPrice = { orderPickPrice = it }
+                            onPickPrice = { orderPickPrice = it },
+                            canSub = perm.has("sd_kline_sub"),
+                            onLockedSub = { gateTitle = "K线副图指标" }
                         )
                         "fiveday" -> FiveDayChart(detail)
                         else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
@@ -1541,7 +1543,10 @@ private fun MinuteChart(
     cursorMin: Float = CURSOR_NONE,
     onCursorChange: (Float) -> Unit = {},
     // 第十轮需求⑤：点右侧五档价格 → 回填下单弹窗价格（由 StockDetailPage 注入）
-    onPickPrice: (Double) -> Unit = {}
+    onPickPrice: (Double) -> Unit = {},
+    // 副图指标权限（sd_kline_sub）：成交量/成交额免费，MACD/KDJ/RSI/量MA5 需会员
+    canSub: Boolean = true,
+    onLockedSub: () -> Unit = {}
 ) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
     // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
@@ -1744,6 +1749,8 @@ private fun MinuteChart(
                             MinuteVolPicker(
                                 current = volMode,
                                 onPick = { volMode = it; showVolPicker = false },
+                                canSub = canSub,
+                                onLocked = onLockedSub,
                                 modifier = Modifier
                                     .align(Alignment.TopStart)
                                     .padding(start = 1.dp, top = 18.dp)
@@ -2146,6 +2153,8 @@ private fun MinuteVolToolbar(
 private fun MinuteVolPicker(
     current: Int,
     onPick: (Int) -> Unit,
+    canSub: Boolean = true,
+    onLocked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -2161,7 +2170,7 @@ private fun MinuteVolPicker(
                     .fillMaxWidth()
                     .clickable {
                         // 成交量(0)/成交额(1) 免费；MACD/KDJ/RSI/量MA5 属副图指标(会员)
-                        if (i >= 2) guard("sd_kline_sub", "K线副图指标") { onPick(i) } else onPick(i)
+                        if (i >= 2 && !canSub) onLocked() else onPick(i)
                     }
                     .padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
