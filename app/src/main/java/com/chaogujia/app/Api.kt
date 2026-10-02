@@ -1530,7 +1530,8 @@ object Api {
         }
     }
 
-    private fun String.toMediaTypeOrNull() = okhttp3.MediaType.Companion.toMediaTypeOrNull(this)
+    private fun String.toMediaTypeOrNull(): okhttp3.MediaType? =
+        okhttp3.MediaType.parse(this)
 
     // ============ 会员开通 · 收款页（第15轮 批2D）============
     /**
