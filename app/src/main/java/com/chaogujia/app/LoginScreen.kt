@@ -43,6 +43,7 @@ fun LoginScreen(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var password2 by remember { mutableStateOf("") }
+    var inviteCode by remember { mutableStateOf("") }
 
     var busy by remember { mutableStateOf(false) }
     var err by remember { mutableStateOf<String?>(null) }
@@ -69,7 +70,7 @@ fun LoginScreen(
                 if (loginMode) {
                     Api.login(u, p)
                 } else {
-                    val reg = Api.register(u, p)
+                    val reg = Api.register(u, p, inviteCode)
                     if (reg.ok) Api.login(u, p) else reg   // 注册成功后再自动登录
                 }
             }
@@ -150,6 +151,15 @@ fun LoginScreen(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = inviteCode,
+                    onValueChange = { inviteCode = it },
+                    label = { Text("邀请码（选填）") },
+                    placeholder = { Text("填写邀请人的邀请码") },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
