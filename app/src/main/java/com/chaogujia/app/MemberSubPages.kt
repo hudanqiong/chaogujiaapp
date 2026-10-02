@@ -1364,11 +1364,12 @@ private fun PageRecharge(token: String?, onBack: () -> Unit) {
                                 }
                             }
                             Spacer(Modifier.height(10.dp))
-                            InputBox(remark, "备注（选填，如转账尾号）", { remark = it })
+                            InputBox(remark, "订单编号（必填，请填写支付订单号）", { remark = it })
                             Spacer(Modifier.height(14.dp))
                             BigBtn(if (busy) "请稍候…" else "提交支付凭证") {
                                 if (busy) return@BigBtn
                                 if (proofUrl.isBlank()) { msg = "请先上传支付凭证"; return@BigBtn }
+                                if (remark.isBlank()) { msg = "请填写订单编号"; return@BigBtn }
                                 busy = true
                                 msg = "提交中…"
                                 Thread {
