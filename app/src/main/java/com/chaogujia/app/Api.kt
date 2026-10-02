@@ -647,12 +647,17 @@ object Api {
         }
     }
 
-    /** 注册 */
-    fun register(username: String, password: String): AuthResult {
+    /** 注册。inviteCode 为邀请人的邀请码（选填，填了则注册后绑定邀请关系） */
+    fun register(username: String, password: String, inviteCode: String = ""): AuthResult {
         return try {
+            val body = if (inviteCode.isBlank()) {
+                jsonOf("username" to username, "password" to password)
+            } else {
+                jsonOf("username" to username, "password" to password, "invite_code" to inviteCode.trim())
+            }
             val raw = Net.postJson(
                 base("register.php"),
-                jsonOf("username" to username, "password" to password),
+                body,
                 token = null,
                 withTokenParam = false
             )
