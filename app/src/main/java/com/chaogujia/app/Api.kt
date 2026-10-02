@@ -1,5 +1,6 @@
 package com.chaogujia.app
 
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import org.json.JSONObject
 
 /**
@@ -1529,9 +1530,6 @@ object Api {
             Res(false, e.message ?: "网络异常")
         }
     }
-
-    private fun String.toMediaTypeOrNull(): okhttp3.MediaType? =
-        okhttp3.MediaType.parse(this)
 
     // ============ 会员开通 · 收款页（第15轮 批2D）============
     /**
