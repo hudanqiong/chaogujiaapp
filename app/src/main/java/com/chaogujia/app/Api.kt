@@ -120,6 +120,56 @@ data class MemberInfo(
     val plans: List<MemberPlan> = emptyList()
 )
 
+/** 权限网关返回（my_permissions.php）—— App 端功能门禁依据 */
+data class PermissionInfo(
+    val isMember: Boolean = false,
+    val level: String = "free",          // free / month / year / life
+    val levelName: String = "普通用户",
+    val expireAt: String = "",
+    val perms: Set<String> = emptySet(), // 可用功能 key 集合（存 Set）
+    val features: List<FeatureInfo> = emptyList()
+) {
+    /** 是否拥有某功能权限 */
+    fun has(key: String): Boolean = perms.contains(key)
+}
+
+/** 功能字典项（features 表） */
+data class FeatureInfo(
+    val key: String = "",
+    val name: String = "",
+    val category: String = "",
+    val sortOrder: Int = 0
+)
+
+/** 套餐（plans.php / pay_create.php） */
+data class PayPlan(
+    val key: String = "",
+    val name: String = "",
+    val price: String = "",
+    val days: Int = 0,
+    val desc: String = "",
+    val hot: Boolean = false
+)
+/** 套餐+收款码（plans.php） */
+data class PlansResp(
+    val plans: List<PayPlan> = emptyList(),
+    val qrcodeWechat: String = "",
+    val qrcodeAlipay: String = ""
+)
+/** 订单（pay_create.php / pay_status.php） */
+data class PayOrder(
+    val id: Int = 0,
+    val levelKey: String = "",
+    val levelName: String = "",
+    val amount: String = "",
+    val days: Int = 0,
+    val payMethod: String = "wechat",
+    val qrcode: String = "",
+    val status: String = "pending",
+    val remark: String = "",
+    val adminRemark: String = "",
+    val createdAt: String = ""
+)
 /** 积分信息（point.php） */
 data class PointInfo(
     val points: Int = 0
@@ -1389,6 +1439,215 @@ object Api {
 
     /** 退出登录（服务端可无视，前端清理本地即可） */
     fun logout(token: String?): Res = post("logout.php", token)
+
+    // ============ 权限网关（my_permissions.php，第15轮 批2D） ============
+    /**
+     * 拉取当前用户权限集合：可用功能 key 列表 + 功能字典。
+     * 返回后 App 端存成 Set，用于各页面门禁判断（灰化/拦截）。
+     * 未登录或异常 → 返回空权限（等同 free）。
+     */
+    fun permissions(token: String?): PermissionInfo {
+        return try {
+            val raw = Net.get(base("my_permissions.php"), token)
+            val d = dataOf(raw) ?: return PermissionInfo()
+            val permArr = d.optJSONArray("perms")
+            val perms = linkedSetOf<String>()
+            if (permArr != null) for (i in 0 until permArr.length()) perms.add(permArr.optString(i))
+            val featArr = d.optJSONArray("features")
+            val feats = ArrayList<FeatureInfo>()
+            if (featArr != null) {
+                for (i in 0 until featArr.length()) {
+                    val f = featArr.optJSONObject(i) ?: continue
+                    feats.add(
+                        FeatureInfo(
+                            key = f.optString("feature_key", ""),
+                            name = f.optString("name", ""),
+                            category = f.optString("category", ""),
+                            sortOrder = f.optInt("sort_order", 0)
+                        )
+                    )
+                }
+            }
+            PermissionInfo(
+                isMember = d.optBoolean("isMember", false),
+                level = d.optString("level", "free"),
+                levelName = d.optString("levelName", "普通用户"),
+                expireAt = d.optString("expireAt", ""),
+                perms = perms,
+                features = feats
+            )
+        } catch (e: Exception) {
+            PermissionInfo()
+        }
+    }
+
+    // ============ 用户反馈（feedback_submit.php，第15轮 批2D） ============
+    /**
+     * 上传单张图片（upload.php，multipart/form-data）。
+     * @param type "feedback"（反馈截图）或 "proof"（支付凭证）
+     * @return 服务器相对路径，如 "/stock_api/uploads/feedback/xxx.png"；失败返回 null
+     */
+    fun uploadImage(token: String?, file: java.io.File, type: String = "feedback"): String? {
+        return try {
+            val url = base("upload.php") + (if (token.isNullOrEmpty()) "" else "?token=" + java.net.URLEncoder.encode(token, "UTF-8"))
+            val body = okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("type", type)
+                .addFormDataPart(
+                    "file", file.name,
+                    okhttp3.RequestBody.create("image/*".toMediaTypeOrNull(), file)
+                ).build()
+                        val req = okhttp3.Request.Builder().url(url).post(body).apply {
+                if (!token.isNullOrEmpty()) addHeader("Authorization", "Bearer $token")
+            }.build()
+            Net.rawClient.newCall(req).execute().use { resp ->
+                val s = resp.body?.string() ?: return null
+                val d = dataOf(s) ?: return null
+                d.optString("url", "").ifEmpty { null }
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 提交反馈（文字 + 图片 URL 列表）。
+     * @param content 反馈正文
+     * @param images 已上传图片的相对路径列表（可空）
+     */
+    fun submitFeedback(token: String?, content: String, images: List<String>): Res {
+        return try {
+            val arr = org.json.JSONArray()
+            images.forEach { arr.put(it) }
+            val json = JSONObject().apply {
+                put("content", content)
+                put("images", arr)
+            }.toString()
+            val raw = Net.postJson(base("feedback_submit.php"), json, token)
+            val o = JSONObject(raw)
+            Res(o.optInt("code", -1) == 0, o.optString("msg", ""))
+        } catch (e: Exception) {
+            Res(false, e.message ?: "网络异常")
+        }
+    }
+
+    private fun String.toMediaTypeOrNull() = okhttp3.MediaType.Companion.toMediaTypeOrNull(this)
+
+    // ============ 会员开通 · 收款页（第15轮 批2D）============
+    /**
+     * 套餐列表 + 收款码（plans.php，可未登录）。失败返回空套餐。
+     */
+    fun plans(token: String?): PlansResp {
+        return try {
+            val raw = Net.get(base("plans.php"), token)
+            val d = dataOf(raw) ?: return PlansResp()
+            val arr = d.optJSONArray("plans")
+            val list = ArrayList<PayPlan>()
+            if (arr != null) for (i in 0 until arr.length()) {
+                val p = arr.optJSONObject(i) ?: continue
+                list.add(
+                    PayPlan(
+                        key = p.optString("key", ""),
+                        name = p.optString("name", ""),
+                        price = p.optString("price", ""),
+                        days = p.optInt("days", 0),
+                        desc = p.optString("desc", ""),
+                        hot = p.optBoolean("hot", false)
+                    )
+                )
+            }
+            val qr = d.optJSONObject("qrcode")
+            PlansResp(
+                plans = list,
+                qrcodeWechat = qr?.optString("wechat", "") ?: "",
+                qrcodeAlipay = qr?.optString("alipay", "") ?: ""
+            )
+        } catch (e: Exception) {
+            PlansResp()
+        }
+    }
+
+    /**
+     * 创建支付订单（pay_create.php）。返回含订单号 + 对应收款码的订单；失败返回 null。
+     */
+    fun payCreate(token: String?, plan: String, payMethod: String): PayOrder? {
+        return try {
+            val raw = Net.postJson(
+                base("pay_create.php"),
+                JSONObject().apply {
+                    put("plan", plan)
+                    put("pay_method", payMethod)
+                }.toString(),
+                token
+            )
+            val o = JSONObject(raw)
+            if (o.optInt("code", -1) != 0) return null
+            val d = o.optJSONObject("data") ?: return null
+            PayOrder(
+                id = d.optInt("orderId", 0),
+                levelKey = d.optString("levelKey", ""),
+                levelName = d.optString("levelName", ""),
+                amount = d.optString("amount", ""),
+                days = d.optInt("days", 0),
+                qrcode = d.optString("qrcode", ""),
+                payMethod = d.optString("payMethod", payMethod)
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 提交支付凭证（pay_submit_proof.php）。proofUrl 为 upload.php(type=proof) 返回的相对路径。
+     */
+    fun paySubmitProof(token: String?, orderId: Int, proofUrl: String, remark: String): Res =
+        post("pay_submit_proof.php", token, "order_id" to orderId, "proof_url" to proofUrl, "remark" to remark)
+
+    /**
+     * 查询订单状态（pay_status.php）。orderId>0 查单笔，否则返回最近 50 笔。
+     */
+    fun payStatus(token: String?, orderId: Int = 0): List<PayOrder> {
+        return try {
+            val url = if (orderId > 0) base("pay_status.php?order_id=$orderId") else base("pay_status.php")
+            val raw = Net.get(url, token)
+            val d = dataOf(raw) ?: return emptyList()
+            val out = ArrayList<PayOrder>()
+            // 单笔：data 直接是订单对象
+            if (orderId > 0) {
+                out.add(
+                    PayOrder(
+                        id = d.optInt("id", 0),
+                        levelKey = d.optString("level_key", ""),
+                        amount = d.optString("amount", ""),
+                        days = d.optInt("days", 0),
+                        payMethod = d.optString("pay_method", "wechat"),
+                        status = d.optString("status", "pending"),
+                        adminRemark = d.optString("admin_remark", ""),
+                        createdAt = d.optString("created_at", "")
+                    )
+                )
+                return out
+            }
+            val arr = d.optJSONArray("orders") ?: return emptyList()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.add(
+                    PayOrder(
+                        id = o.optInt("id", 0),
+                        levelKey = o.optString("level_key", ""),
+                        amount = o.optString("amount", ""),
+                        days = o.optInt("days", 0),
+                        payMethod = o.optString("pay_method", "wechat"),
+                        status = o.optString("status", "pending"),
+                        adminRemark = o.optString("admin_remark", ""),
+                        createdAt = o.optString("created_at", "")
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 
     /**
      * 个股详情（detail.php）

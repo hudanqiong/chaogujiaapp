@@ -1,9 +1,12 @@
 package com.chaogujia.app
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +49,8 @@ fun SubPage(
         "pwd" -> PagePwd(token, onBack)
         "tradeedit" -> PageTradeEdit(token, brokerAccountId, onBack)
         "simulate" -> PageSimulate(token, brokerAccountId, onBack)
+        "feedback" -> PageFeedback(token, onBack)
+        "recharge" -> PageRecharge(token, onBack)
     }
 }
 
@@ -985,4 +990,495 @@ private fun ModeChip(text: String, selected: Boolean, onClick: () -> Unit) {
     ) {
         Text(text, color = if (selected) Color.White else Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
     }
+}
+
+// ===== 意见反馈（第15轮 批2D）=====
+/**
+ * 意见反馈页：文字必填 + 最多 3 张图片。
+ * 图片经 upload.php 上传后拿到相对路径，随文字一并提交 feedback_submit.php。
+ */
+@Composable
+private fun PageFeedback(token: String?, onBack: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var txt by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    // 已成功上传的图片相对路径
+    val imgs = remember { mutableStateListOf<String>() }
+
+    // 选取图库图片 → 复制到缓存临时文件 → 上传
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (imgs.size >= 3) { msg = "最多上传 3 张图片"; return@rememberLauncherForActivityResult }
+        busy = true
+        msg = "图片上传中…"
+        Thread {
+            val saved = try {
+                val tmp = java.io.File(ctx.cacheDir, "fb_${System.currentTimeMillis()}.jpg")
+                ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    tmp.outputStream().use { outs -> ins.copyTo(outs) }
+                }
+                val url = Api.uploadImage(token, tmp, "feedback")
+                tmp.delete()
+                url
+            } catch (e: Exception) {
+                null
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                busy = false
+                if (saved != null) {
+                    imgs.add(saved)
+                    msg = if (imgs.size >= 3) "已上传 3 张（上限）" else "已上传 ${imgs.size} 张"
+                } else {
+                    msg = "图片上传失败，请重试"
+                }
+            }
+        }.start()
+    }
+
+    SubShell("意见反馈", onBack) {
+        CardBox {
+            Column {
+                Text("问题或建议", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = txt,
+                    onValueChange = { if (it.length <= 500) txt = it },
+                    placeholder = { Text("请描述你遇到的问题或想提的建议（必填）", fontSize = 13.sp) },
+                    modifier = Modifier.fillMaxWidth().height(140.dp)
+                )
+                Spacer(Modifier.height(6.dp))
+                Text("${txt.length}/500", color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp)
+
+                Spacer(Modifier.height(14.dp))
+                Text("截图（选填，最多 3 张）", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    imgs.forEachIndexed { idx, _ ->
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFEEEEEE))
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { imgs.removeAt(idx) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("图${idx + 1}\n✕", color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    if (imgs.size < 3) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF0F0F0))
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                    if (!busy) picker.launch("image/*")
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+ 添加", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                if (msg.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(msg, color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                }
+
+                Spacer(Modifier.height(18.dp))
+                BigBtn(if (busy) "请稍候…" else "提交反馈") {
+                    if (busy) return@BigBtn
+                    if (txt.trim().isEmpty()) { msg = "请填写反馈内容"; return@BigBtn }
+                    busy = true
+                    msg = "提交中…"
+                    Thread {
+                        val r = Api.submitFeedback(token, txt.trim(), imgs.toList())
+                        android.os.Handler(android.os.Looper.getMainLooper()).post {
+                            busy = false
+                            if (r.ok) {
+                                txt = ""
+                                imgs.clear()
+                                msg = "提交成功，感谢你的反馈！"
+                            } else {
+                                msg = "提交失败：${r.msg}"
+                            }
+                        }
+                    }.start()
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 网络图片加载（无 coil 依赖）：OkHttp 拉字节流 → BitmapFactory 解码 → Image。
+ * pathOrUrl 既可为后端相对路径（/stock_api/uploads/xxx.png），也可为绝对 URL。
+ * 加载失败或为空时渲染占位提示，不影响页面其余部分。
+ */
+@Composable
+private fun NetImage(pathOrUrl: String, size: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
+    val url = when {
+        pathOrUrl.isBlank() -> ""
+        pathOrUrl.startsWith("http") -> pathOrUrl
+        else -> "http://121.43.178.214:8080" + pathOrUrl
+    }
+    var bmp by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var failed by remember(url) { mutableStateOf(false) }
+    LaunchedEffect(url) {
+        if (url.isEmpty()) { failed = true; return@LaunchedEffect }
+        bmp = withContext(Dispatchers.IO) {
+            try {
+                val resp = Net.rawClient.newCall(
+                    okhttp3.Request.Builder().url(url).build()
+                ).execute()
+                resp.body?.byteStream()?.use { ins ->
+                    android.graphics.BitmapFactory.decodeStream(ins)?.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        if (bmp == null) failed = true
+    }
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFF5F5F5)),
+        contentAlignment = Alignment.Center
+    ) {
+        val b = bmp
+        if (b != null) {
+            Image(
+                bitmap = b,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Text(
+                if (failed) "收款码加载失败" else "加载中…",
+                color = Color(Config.COLOR_TEXT_SUB),
+                fontSize = 11.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+        }
+    }
+}
+
+// ===== 收款页（会员开通 / 续费）=====
+// 流程：拉套餐 → 选套餐 + 选支付方式 → payCreate 下单拿订单号与收款码 →
+//       展示对应收款码 → 用户转账后上传支付凭证（upload.php type=proof）→ paySubmitProof 提交 →
+//       后台审核后生效；可在页面底部查询历史订单状态。
+@Composable
+private fun PageRecharge(token: String?, onBack: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var loading by remember { mutableStateOf(true) }
+    var plans by remember { mutableStateOf<List<PayPlan>>(emptyList()) }
+    var qrWechat by remember { mutableStateOf("") }
+    var qrAlipay by remember { mutableStateOf("") }
+    var selected by remember { mutableStateOf("year") }        // 默认选中「年卡」
+    var payMethod by remember { mutableStateOf("wechat") }     // wechat / alipay
+    var order by remember { mutableStateOf<PayOrder?>(null) }  // 下单结果
+    var msg by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    // 已上传的支付凭证相对路径
+    var proofUrl by remember { mutableStateOf("") }
+    var remark by remember { mutableStateOf("") }
+    // 我的订单
+    var orders by remember { mutableStateOf<List<PayOrder>>(emptyList()) }
+
+    // 首次进入：拉套餐 + 拉订单
+    LaunchedEffect(Unit) {
+        val p = withContext(Dispatchers.IO) { Api.plans(token) }
+        val o = withContext(Dispatchers.IO) { Api.payStatus(token) }
+        plans = p.plans
+        qrWechat = p.qrcodeWechat
+        qrAlipay = p.qrcodeAlipay
+        orders = o
+        // 若后端返回套餐，默认选中带 hot 的档
+        p.plans.firstOrNull { it.hot }?.let { selected = it.key }
+        loading = false
+    }
+
+    // 选图上传支付凭证
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        msg = "凭证上传中…"
+        Thread {
+            val saved = try {
+                val tmp = java.io.File(ctx.cacheDir, "proof_${System.currentTimeMillis()}.jpg")
+                ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    tmp.outputStream().use { outs -> ins.copyTo(outs) }
+                }
+                val url = Api.uploadImage(token, tmp, "proof")
+                tmp.delete()
+                url
+            } catch (e: Exception) {
+                null
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                busy = false
+                if (saved != null) { proofUrl = saved; msg = "凭证已上传，请点「提交支付凭证」" }
+                else msg = "凭证上传失败，请重试"
+            }
+        }.start()
+    }
+
+    SubShell("开通 / 续费会员", onBack) {
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            if (loading) {
+                CardBox { Text("加载中…", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp) }
+            } else {
+                // ---- 1. 套餐选择 ----
+                CardBox {
+                    Column {
+                        Text("选择套餐", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        plans.forEach { p ->
+                            val sel = p.key == selected
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) Color(0xFFFFF0F0) else Color(0xFFF7F7F7))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        selected = p.key; order = null; proofUrl = ""; msg = ""
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(p.name, color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        if (p.hot) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(4.dp))
+                                                    .background(Color(Config.COLOR_PRIMARY))
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                                            ) { Text("热销", color = Color.White, fontSize = 10.sp) }
+                                        }
+                                    }
+                                    if (p.desc.isNotBlank()) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(p.desc, color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp)
+                                    } else if (p.days > 0) {
+                                        Spacer(Modifier.height(2.dp))
+                                        Text("有效期 ${p.days} 天", color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp)
+                                    }
+                                }
+                                Text(
+                                    "¥${p.price}",
+                                    color = Color(Config.COLOR_PRIMARY),
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                // ---- 2. 支付方式 ----
+                CardBox {
+                    Column {
+                        Text("支付方式", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        Row {
+                            PayMethodChip("微信", payMethod == "wechat") { payMethod = "wechat"; order = null }
+                            Spacer(Modifier.width(10.dp))
+                            PayMethodChip("支付宝", payMethod == "alipay") { payMethod = "alipay"; order = null }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(18.dp))
+
+                // ---- 3. 下单按钮 / 收款码 ----
+                if (order == null) {
+                    BigBtn(if (busy) "请稍候…" else "生成订单并显示收款码") {
+                        if (busy) return@BigBtn
+                        if (selected.isBlank()) { msg = "请选择套餐"; return@BigBtn }
+                        busy = true
+                        msg = "下单中…"
+                        Thread {
+                            val o = Api.payCreate(token, selected, payMethod)
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                busy = false
+                                if (o != null) {
+                                    order = o
+                                    msg = "订单号 #${o.id}，请扫码支付 ¥${o.amount}"
+                                } else {
+                                    msg = "下单失败，请重试"
+                                }
+                            }
+                        }.start()
+                    }
+                } else {
+                    val od = order!!
+                    CardBox {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("订单号 #${od.id}", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "${od.levelName.ifBlank { od.levelKey }} · ¥${od.amount} · ${if (od.payMethod == "alipay") "支付宝" else "微信"}",
+                                color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            val qr = od.qrcode.ifBlank { if (payMethod == "alipay") qrAlipay else qrWechat }
+                            NetImage(qr, 200.dp)
+                            Spacer(Modifier.height(8.dp))
+                            Text("请使用${if (payMethod == "alipay") "支付宝" else "微信"}扫码支付 ¥${od.amount}", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+
+                            Spacer(Modifier.height(16.dp))
+                            HDivider()
+                            Spacer(Modifier.height(16.dp))
+                            Text("支付后上传转账截图作为凭证", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (proofUrl.isNotBlank()) {
+                                    NetImage(proofUrl, 80.dp)
+                                    Spacer(Modifier.width(12.dp))
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFF0F0F0))
+                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                            if (!busy) picker.launch("image/*")
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(if (proofUrl.isBlank()) "+ 上传凭证" else "重传", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            InputBox(remark, "备注（选填，如转账尾号）", { remark = it })
+                            Spacer(Modifier.height(14.dp))
+                            BigBtn(if (busy) "请稍候…" else "提交支付凭证") {
+                                if (busy) return@BigBtn
+                                if (proofUrl.isBlank()) { msg = "请先上传支付凭证"; return@BigBtn }
+                                busy = true
+                                msg = "提交中…"
+                                Thread {
+                                    val r = Api.paySubmitProof(token, od.id, proofUrl, remark.trim())
+                                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                        busy = false
+                                        if (r.ok) {
+                                            msg = "凭证已提交，请等待后台审核开通"
+                                            proofUrl = ""
+                                            remark = ""
+                                        } else {
+                                            msg = "提交失败：${r.msg}"
+                                        }
+                                    }
+                                }.start()
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFF2F2F2))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                order = null; proofUrl = ""; remark = ""; msg = ""
+                            }
+                            .padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text("重新选择套餐", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp) }
+                }
+
+                if (msg.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(msg, color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                }
+
+                // ---- 4. 我的订单 ----
+                if (orders.isNotEmpty()) {
+                    Spacer(Modifier.height(24.dp))
+                    CardBox {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("我的订单", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                SmallBtn("刷新") {
+                                    Thread {
+                                        val o = Api.payStatus(token)
+                                        android.os.Handler(android.os.Looper.getMainLooper()).post { orders = o }
+                                    }.start()
+                                }
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            orders.forEach { o ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("#${o.id} · ${o.levelKey} · ¥${o.amount}", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp)
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            "${o.createdAt}${if (o.adminRemark.isNotBlank()) " · ${o.adminRemark}" else ""}",
+                                            color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp
+                                        )
+                                    }
+                                    Text(
+                                        orderStatusText(o.status),
+                                        color = orderStatusColor(o.status),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                HDivider()
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(30.dp))
+            }
+        }
+    }
+}
+
+/** 支付方式小胶囊 */
+@Composable
+private fun PayMethodChip(text: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) Color(Config.COLOR_PRIMARY) else Color(0xFFF0F0F0))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
+            .padding(horizontal = 22.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = if (selected) Color.White else Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** 订单状态文案 */
+private fun orderStatusText(s: String): String = when (s) {
+    "paid", "approved" -> "已开通"
+    "pending" -> "待审核"
+    "rejected" -> "已驳回"
+    else -> s.ifBlank { "未知" }
+}
+
+/** 订单状态颜色 */
+private fun orderStatusColor(s: String): Color = when (s) {
+    "paid", "approved" -> Color(0xFF2FA84F)
+    "pending" -> Color(0xFFE6A23C)
+    "rejected" -> Color(Config.COLOR_PRIMARY)
+    else -> Color(Config.COLOR_TEXT_SUB)
 }

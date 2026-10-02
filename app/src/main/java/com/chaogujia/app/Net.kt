@@ -23,6 +23,12 @@ object Net {
         .build()
 
     /**
+     * 原始 OkHttpClient（供 multipart 上传等高级请求复用连接池）。
+     * 仅供 Api.uploadImage 等内部使用。
+     */
+    val rawClient: OkHttpClient get() = client
+
+    /**
      * 服务器时间校正偏移（毫秒）：
      *   serverTimeOffset = 服务器当前时间 - 本机当前时间
      * 开机/无网络时默认为 0，首次成功请求后即被更新。

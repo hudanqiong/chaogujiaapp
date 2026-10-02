@@ -41,12 +41,36 @@ fun HomeScreen(
     var member by remember { mutableStateOf(MemberInfo()) }
     var points by remember { mutableStateOf(0) }
     var subPage by remember { mutableStateOf<String?>(null) }
+    // 权限网关：进入受限子页前先查 my_permissions.php
+    var perm by remember { mutableStateOf(PermissionInfo()) }
+    // 无权限时展示的开通引导弹窗（null = 不展示）
+    var gateDialog by remember { mutableStateOf<String?>(null) }
     // 外部请求：tick 每次自增表示一次“打开子页”请求（仅变化时触发，不因重进首页重复弹）
     LaunchedEffect(openSubPageTick) {
         if (openSubPageTick > 0 && openSubPageKey.isNotEmpty()) subPage = openSubPageKey
     }
     // 首页资产卡取「默认券商账户」= 列表第一个；下拉切换在交易页
     var brokerAccountId by remember { mutableStateOf(0) }
+
+    /** 子页 key → 权限网关 feature_key 映射（null = 无需会员权限） */
+    fun featureOf(key: String): String? = when (key) {
+        "addstock" -> "add_watch"
+        "groups" -> "watch_group"
+        "simulate" -> "trade_sim"
+        "exchange" -> "exchange_vip"
+        "invite" -> "invite"
+        else -> null
+    }
+
+    /** 统一入口：受限功能先校验权限，无权限弹开通引导；否则直接进入子页 */
+    fun navTo(key: String) {
+        val feat = featureOf(key)
+        if (feat != null && !perm.has(feat)) {
+            gateDialog = key
+        } else {
+            subPage = key
+        }
+    }
 
     LaunchedEffect(token) {
         try {
@@ -55,9 +79,11 @@ fun HomeScreen(
             val a = withContext(Dispatchers.IO) { Api.account(token, brokerAccountId) }
             val m = withContext(Dispatchers.IO) { Api.member(token) }
             val p = withContext(Dispatchers.IO) { Api.point(token) }
+            val pm = withContext(Dispatchers.IO) { Api.permissions(token) }
             account = a
             member = m
             points = p.points
+            perm = pm
             onMemberChanged(m)
         } catch (e: Exception) {
         }
@@ -88,9 +114,9 @@ fun HomeScreen(
     ) {
         HomeAssetCard { subPage = "initial" }
         Spacer(Modifier.height(12.dp))
-        HomePointCard(points) { subPage = it }
+        HomePointCard(points) { navTo(it) }
         Spacer(Modifier.height(12.dp))
-        HomeMenuCard { subPage = it }
+        HomeMenuCard { navTo(it) }
         Spacer(Modifier.height(12.dp))
         HomeLogoutCard(onLogout)
         Spacer(Modifier.height(16.dp))
@@ -102,6 +128,50 @@ fun HomeScreen(
             modifier = Modifier.padding(horizontal = 4.dp)
         )
         Spacer(Modifier.height(20.dp))
+    }
+
+    // 无权限时的开通引导弹窗
+    if (gateDialog != null) {
+        val title = when (gateDialog) {
+            "addstock" -> "添加自选股"
+            "groups" -> "自选分组管理"
+            "simulate" -> "模拟交易"
+            "exchange" -> "积分兑换会员"
+            "invite" -> "邀请好友"
+            else -> "会员功能"
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { gateDialog = null },
+            title = { Text("会员专享", color = Color(Config.COLOR_TEXT_MAIN), fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "「$title」为会员专享功能，开通会员后即可使用。是否前往开通？",
+                    color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Text(
+                    "立即开通",
+                    color = Color(Config.COLOR_PRIMARY), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    modifier = Modifier
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                            gateDialog = null; subPage = "recharge"
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            },
+            dismissButton = {
+                Text(
+                    "取消",
+                    color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp,
+                    modifier = Modifier
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                            gateDialog = null
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        )
     }
 }
 
@@ -223,6 +293,8 @@ private fun HomeMenuCard(onNav: (String) -> Unit) {
             MenuRow("交易记录管理", "修改持仓记录日期与价格") { onNav("tradeedit") }
             HDivider()
             MenuRow("一键模拟", "批量生成买卖T记录") { onNav("simulate") }
+            HDivider()
+            MenuRow("意见反馈", "提交问题与建议") { onNav("feedback") }
             HDivider()
             MenuRow("修改密码", "修改登录密码") { onNav("pwd") }
         }
