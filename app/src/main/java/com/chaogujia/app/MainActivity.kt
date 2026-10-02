@@ -201,6 +201,8 @@ fun ChaoGuJiaApp() {
 
     // 会员信息（5 页共用，由 MainActivity 统一拉）
     var member by remember { mutableStateOf(MemberInfo()) }
+    // 功能权限（个股详情页等共用，由 MainActivity 统一拉）
+    var perm by remember { mutableStateOf(PermissionInfo()) }
 
     // token 变化时重新拉会员信息（登录后立刻刷新）
     LaunchedEffect(token) {
@@ -210,8 +212,14 @@ fun ChaoGuJiaApp() {
             } catch (e: Exception) {
                 member = MemberInfo()
             }
+            try {
+                perm = withContext(Dispatchers.IO) { Api.permissions(token) }
+            } catch (e: Exception) {
+                perm = PermissionInfo()
+            }
         } else {
             member = MemberInfo()
+            perm = PermissionInfo()
         }
     }
 
@@ -222,6 +230,7 @@ fun ChaoGuJiaApp() {
         prefs.edit().remove("token").remove("username").apply()
         current = "watch"
         member = MemberInfo()
+        perm = PermissionInfo()
     }
 
     // ★ 最外层 Box：让全屏搜索页能盖住红条 + 底部导航（铺满整个屏幕）
@@ -376,6 +385,7 @@ fun ChaoGuJiaApp() {
             if (d != null) {
                 StockDetailPage(
                     token = token,
+                    perm = perm,
                     list = d.list,
                     index = detailIdx,
                     showOwnHeader = false,

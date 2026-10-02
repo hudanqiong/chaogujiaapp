@@ -218,6 +218,7 @@ private val CURSOR_BOX_TX = Color(0xFFFFFFFF)     // 十字光标数值框文字
 @Composable
 fun StockDetailPage(
     token: String,
+    perm: PermissionInfo = PermissionInfo(),
     list: List<StockItem>,
     index: Int,
     showOwnHeader: Boolean = true,
@@ -288,6 +289,19 @@ fun StockDetailPage(
     }
     // 下方内容切换栏（看点/资讯/盘口/资金/社区/简况/财务）当前选中下标
     var sectionTab by remember { mutableStateOf(0) }
+    // ===== 会员权限门禁（个股详情页，第16轮）=====
+    // 无权限时弹出的引导标题（null=不弹）；非空即展示 MemberGateDialog
+    var gateTitle by remember { mutableStateOf<String?>(null) }
+    // 内容 tab 下标 → feature_key
+    val sectionFeat = listOf(
+        "sd_section_recap", "sd_section_news", "sd_level2",
+        "sd_section_fund", "sd_section_community", "sd_section_f10", "sd_section_finance"
+    )
+    val sectionName = listOf("看点", "资讯", "盘口", "资金", "社区", "简况(F10)", "财务")
+    /** 受限功能统一入口：有权限执行 action，无权限弹会员引导 */
+    fun guard(feat: String, title: String, action: () -> Unit) {
+        if (perm.has(feat)) action() else gateTitle = title
+    }
     // 筹码峰展开开关（父层持有，MaLegend 按钮与 KLineChart 共用）
     var showChip by remember { mutableStateOf(false) }
     // 所属概念（含实时涨跌幅）
@@ -478,7 +492,11 @@ fun StockDetailPage(
                 // 属于滚动内容，跟随上滑；7 项横排，屏幕一次显示前 6 项，可左右横滑露出第 7 项
                 DetailSectionTabs(
                     selected = sectionTab,
-                    onPick = { sectionTab = it }
+                    onPick = { i ->
+                        guard(sectionFeat.getOrElse(i) { "" }, sectionName.getOrElse(i) { "该功能" }) {
+                            sectionTab = i
+                        }
+                    }
                 )
 
                 // ---- 底部栏占位（防止滚动内容被铉底的底部栏遮挡）----
@@ -530,6 +548,7 @@ fun StockDetailPage(
                 concept = concept,
                 watched = watched,
                 onOrder = {
+                    if (!perm.has("sd_order")) { gateTitle = "下单"; return@DetailBottomBar }
                     showOrderSheet = true
                     // 拉取券商账户列表（默认选中第一个）
                     if (orderBrokers.isEmpty()) {
@@ -540,8 +559,9 @@ fun StockDetailPage(
                         }
                     }
                 },
-                onDiagnose = { /* TODO 诊股 */ },
+                onDiagnose = { guard("sd_diagnose", "诊股") { /* TODO 诊股 */ } },
                 onToggleWatch = {
+                    if (!perm.has("sd_add_watch")) { gateTitle = "加自选"; return@DetailBottomBar }
                     val code = current?.code ?: return@DetailBottomBar
                     scope.launch {
                         val isW = watched == true
@@ -581,6 +601,14 @@ fun StockDetailPage(
                 onSell = { orderSide = "sell" },
                 onCancelOrder = { /* TODO 撤 */ },
                 onDismiss = { showOrderSheet = false; orderSide = "" }
+            )
+        }
+        // 会员专享引导弹窗
+        if (gateTitle != null) {
+            MemberGateDialog(
+                title = gateTitle!!,
+                onDismiss = { gateTitle = null },
+                onOpen = { gateTitle = null }
             )
         }
     }
@@ -2131,7 +2159,10 @@ private fun MinuteVolPicker(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onPick(i) }
+                    .clickable {
+                        // 成交量(0)/成交额(1) 免费；MACD/KDJ/RSI/量MA5 属副图指标(会员)
+                        if (i >= 2) guard("sd_kline_sub", "K线副图指标") { onPick(i) } else onPick(i)
+                    }
                     .padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

@@ -137,7 +137,7 @@ fun HomeScreen(
         Spacer(Modifier.height(20.dp))
     }
 
-    // 无权限时的开通引导弹窗
+    // 无权限时的开通引导弹窗（公共组件，个股页复用）
     if (gateDialog != null) {
         val title = when (gateDialog) {
             "addstock" -> "添加自选股"
@@ -147,42 +147,46 @@ fun HomeScreen(
             "invite" -> "邀请好友"
             else -> "会员功能"
         }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { gateDialog = null },
-            title = { Text("会员专享", color = Color(Config.COLOR_TEXT_MAIN), fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "「$title」为会员专享功能，开通会员后即可使用。是否前往开通？",
-                    color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp
-                )
-            },
-            confirmButton = {
-                Text(
-                    "立即开通",
-                    color = Color(Config.COLOR_PRIMARY), fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                    modifier = Modifier
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                            gateDialog = null; subPage = "recharge"
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            },
-            dismissButton = {
-                Text(
-                    "取消",
-                    color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp,
-                    modifier = Modifier
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                            gateDialog = null
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
+        MemberGateDialog(
+            title = title,
+            onDismiss = { gateDialog = null },
+            onOpen = { gateDialog = null; subPage = "recharge" }
         )
     }
 }
-
 // ===== 通用组件 =====
+/** 会员专享引导弹窗：首页与个股详情页共用。title=功能名；onOpen=前往开通 */
+@Composable
+fun MemberGateDialog(title: String, onDismiss: () -> Unit, onOpen: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("会员专享", color = Color(Config.COLOR_TEXT_MAIN), fontWeight = FontWeight.Bold) },
+        text = {
+            Text(
+                "「$title」为会员专享功能，开通会员后即可使用。是否前往开通？",
+                color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp
+            )
+        },
+        confirmButton = {
+            Text(
+                "立即开通",
+                color = Color(Config.COLOR_PRIMARY), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onOpen() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        },
+        dismissButton = {
+            Text(
+                "取消",
+                color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp,
+                modifier = Modifier
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onDismiss() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            )
+        }
+    )
+}
 @Composable
 fun CardBox(content: @Composable () -> Unit) {
     Box(
