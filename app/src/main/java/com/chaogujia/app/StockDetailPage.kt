@@ -225,7 +225,9 @@ fun StockDetailPage(
     onIndexChange: (Int) -> Unit = {},
     onNameChange: (String) -> Unit = {},
     onClose: () -> Unit,
-    onOpenSearch: () -> Unit = {}
+    onOpenSearch: () -> Unit = {},
+    // 会员引导「立即开通」→ App 级打开「开通/续费会员」页
+    onOpenVipPage: () -> Unit = {}
 ) {
     // 当前下标（受控：以外部 index 为准，内部只做边界保护）
     val idx = index.coerceIn(0, max(0, list.size - 1))
@@ -583,7 +585,7 @@ fun StockDetailPage(
                         if (r.ok) watched = !isW
                     }
                 },
-                onMore = { /* TODO 功能菜单 */ },
+                onMore = { guard("sd_more", "功能") { /* TODO 功能菜单 */ } },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .zIndex(2f)
@@ -620,7 +622,7 @@ fun StockDetailPage(
             MemberGateDialog(
                 title = gateTitle!!,
                 onDismiss = { gateTitle = null },
-                onOpen = { gateTitle = null }
+                onOpen = { gateTitle = null; onOpenVipPage() }
             )
         }
     }

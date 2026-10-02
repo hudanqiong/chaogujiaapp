@@ -85,6 +85,7 @@ fun TradePage(
     onSubTabChange: (String) -> Unit = {},
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
     onOpenMemberCenter: () -> Unit = {},
+    onOpenVipPage: () -> Unit = {},
     onLogout: () -> Unit = {},
     perm: PermissionInfo = PermissionInfo()
 ) {
@@ -99,6 +100,7 @@ fun TradePage(
                 token = token,
                 onOpenDetail = onOpenDetail,
                 onOpenMemberCenter = onOpenMemberCenter,
+                onOpenVipPage = onOpenVipPage,
                 onLogout = onLogout,
                 perm = perm
             )
@@ -113,6 +115,7 @@ private fun ASharePage(
     token: String,
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit,
     onOpenMemberCenter: () -> Unit = {},
+    onOpenVipPage: () -> Unit = {},
     onLogout: () -> Unit = {},
     perm: PermissionInfo = PermissionInfo()
 ) {
@@ -287,7 +290,7 @@ private fun ASharePage(
         MemberGateDialog(
             title = gt,
             onDismiss = { gateTitle = null },
-            onOpen = { gateTitle = null; onOpenMemberCenter() }
+            onOpen = { gateTitle = null; onOpenVipPage() }
         )
     }
     // ===== 意见反馈弹窗（「用户帮助与反馈」栏触发，复用首页意见反馈表单） =====

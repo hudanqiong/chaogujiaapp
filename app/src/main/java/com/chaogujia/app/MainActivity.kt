@@ -85,8 +85,10 @@ fun ChaoGuJiaApp() {
     var targetTab by remember { mutableStateOf("index") }
     // ★ 交易页账户类型（A股/基金/期货/黄金/模拟）：状态提升到 App 级，供顶部红条内切换按钮使用
     var tradeTab by remember { mutableStateOf("A股") }
-    // 银证转账 → 请求首页直接打开会员中心「资金设置」页；每次点击自增以触发
+    // ★ 交易页 → 请求首页打开指定子页（银证转账→"initial"资金设置；会员引导→"recharge"开通会员）
+    //   每次点击 tick 自增以触发一次；memberPageKey 指定要打开的子页 key
     var memberPageTick by remember { mutableStateOf(0) }
+    var memberPageKey by remember { mutableStateOf("initial") }
 
     // ============ 轻量导航栈：详情页状态提升到 App 级 ============
     var detail by remember { mutableStateOf<DetailState?>(null) }
@@ -341,14 +343,16 @@ fun ChaoGuJiaApp() {
                     onLogout = { doLogout() },
                     onMemberChanged = { member = it },
                     openSubPageTick = memberPageTick,
-                    openSubPageKey = "initial"
+                    openSubPageKey = memberPageKey
                 )
                 // ★ 行情页：暂复用自选页同款内容（待开盘后再单独定制行情页）
                 "quote" -> Box(Modifier.fillMaxSize().background(Color.White)) {
                     IndexBar(
                         token = token,
+                        perm = perm,
                         onOpenNews = { current = "news" },
-                        onOpenDetail = { list, index -> openDetail("quote", list, index) }
+                        onOpenDetail = { list, index -> openDetail("quote", list, index) },
+                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
                     )
                 }
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
@@ -358,9 +362,11 @@ fun ChaoGuJiaApp() {
                     // 叠在最上方：顶部工具条 + 分割线 + （展开时）详情面板
                     IndexBar(
                         token = token,
+                        perm = perm,
                         onOpenNews = { current = "news" },
                         // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页
-                        onOpenDetail = { list, index -> openDetail("watch", list, index) }
+                        onOpenDetail = { list, index -> openDetail("watch", list, index) },
+                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
                     )
                 }
                 // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
@@ -371,7 +377,14 @@ fun ChaoGuJiaApp() {
                     onSubTabChange = { tradeTab = it },
                     onOpenDetail = { list, index -> openDetail("trade", list, index) },
                     onOpenMemberCenter = {
-                        // 银证转账：切到首页（会员中心）并直达「资金设置」页
+                        // 银证转账：切到首页并直达「资金设置」页
+                        memberPageKey = "initial"
+                        memberPageTick++
+                        current = "index"
+                    },
+                    // 会员引导「立即开通」：切到首页并直达「开通会员」页（勿复用资金设置）
+                    onOpenVipPage = {
+                        memberPageKey = "recharge"
                         memberPageTick++
                         current = "index"
                     },
@@ -393,7 +406,14 @@ fun ChaoGuJiaApp() {
                     onIndexChange = { detailIdx = it },
                     onNameChange = { detailName = it },
                     onClose = { closeDetail() },
-                    onOpenSearch = { showSearch = true }
+                    onOpenSearch = { showSearch = true },
+                    // 会员引导「立即开通」→ 首页会员中心「开通/续费」页
+                    onOpenVipPage = {
+                        memberPageKey = "recharge"
+                        memberPageTick++
+                        closeDetail()
+                        current = "index"
+                    }
                 )
             }
 

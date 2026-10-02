@@ -142,9 +142,13 @@ private val NumFont = FontFamily(Font(R.font.ths_regular))
 @Composable
 fun IndexBar(
     token: String? = null,
+    // 会员权限（自选页门禁，第19轮接入）
+    perm: PermissionInfo = PermissionInfo(),
     onOpenNews: () -> Unit = {},
     // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页（红条也由 MainActivity 渲染）
-    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
+    // 会员引导「立即开通」→ App 级打开「开通/续费会员」页
+    onOpenVipPage: () -> Unit = {}
 ) {
     // 顶部当前选中指数
     var secid by remember { mutableStateOf("1.000001") }
@@ -165,6 +169,13 @@ fun IndexBar(
     // ===== 自选分组标签 =====
     // 当前选中的分组 key：负数为内置组（-1 自选股 / -2 持仓股），>=0 为用户自建组 id
     var selectedGroup by remember { mutableStateOf(-1) }
+    // ===== 会员权限门禁（自选页，第19轮）=====
+    // 无权限时弹出的引导标题（null=不弹）；非空即展示 MemberGateDialog
+    var gateTitle by remember { mutableStateOf<String?>(null) }
+    /** 受限功能统一入口：有权限执行 action，无权限弹会员引导 */
+    fun guard(feat: String, title: String, action: () -> Unit) {
+        if (perm.has(feat)) action() else gateTitle = title
+    }
     // 用户自建分组（来自后端 watch_group.php）
     var userGroups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
     // 当前分组下的股票列表
@@ -421,7 +432,11 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                 quote = quote,
                 expanded = expanded,
                 onToggle = { expanded = !expanded },
-                onOpenNews = onOpenNews
+                onOpenNews = { guard("watch_news", "资讯") { onOpenNews() } },
+                // 资金/资产/分析：受限功能，无权限 → 弹会员引导
+                onOpenFund = { guard("watch_fund", "资金") { /* TODO 资金 */ } },
+                onOpenAsset = { guard("watch_asset", "资产") { /* TODO 资产 */ } },
+                onOpenAnalysis = { guard("watch_analysis", "分析") { /* TODO 分析 */ } }
             )
 
             if (expanded) {
@@ -703,6 +718,15 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                 onClose = { showColEditor = false }
             )
         }
+
+        // ================= 会员专享引导弹窗（自选页受限功能）=================
+        if (gateTitle != null) {
+            MemberGateDialog(
+                title = gateTitle!!,
+                onDismiss = { gateTitle = null },
+                onOpen = { gateTitle = null; onOpenVipPage() }
+            )
+        }
     }
 }
 
@@ -820,7 +844,15 @@ private fun ColumnEditorDialog(
 /* ---------------- 顶部两排版 ---------------- */
 
 @Composable
-private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, onOpenNews: () -> Unit) {
+private fun TopBar(
+    quote: IndexQuote?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onOpenNews: () -> Unit,
+    onOpenFund: () -> Unit = {},
+    onOpenAsset: () -> Unit = {},
+    onOpenAnalysis: () -> Unit = {}
+) {
     val pct = quote?.changePct ?: 0.0
     val c = colorOf(pct)
     val priceText = quote?.let { fmt(it.price) } ?: "--"
@@ -889,14 +921,14 @@ private fun TopBar(quote: IndexQuote?, expanded: Boolean, onToggle: () -> Unit, 
 
         // ---------- 右侧功能按钮（上图标 + 下文字）----------
         // 注：「多股同列」入口已移到自选列表表头行第二列，此处不再放
-        TopActionButton(R.drawable.btn_fund, "资金", enabled = false)
+        TopActionButton(R.drawable.btn_fund, "资金", enabled = true) { onOpenFund() }
         TopActionButton(R.drawable.btn_news, "资讯", enabled = true) { onOpenNews() }
-        TopActionButton(R.drawable.btn_asset, "资产", enabled = false)
-        TopActionButton(R.drawable.btn_analysis, "分析", enabled = false)
+        TopActionButton(R.drawable.btn_asset, "资产", enabled = true) { onOpenAsset() }
+        TopActionButton(R.drawable.btn_analysis, "分析", enabled = true) { onOpenAnalysis() }
     }
 }
 
-/** 顶部功能按钮：上图标 + 下文字。enabled=false 时暂不绑定功能（点了没反应） */
+/** 顶部功能按钮：上图标 + 下文字。回调由调用方按权限决定（无权限时回调内弹会员引导） */
 @Composable
 private fun TopActionButton(
     iconRes: Int,
