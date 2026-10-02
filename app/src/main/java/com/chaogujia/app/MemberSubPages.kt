@@ -1234,7 +1234,7 @@ private fun PageRecharge(token: String?, onBack: () -> Unit) {
     }
 
     SubShell("开通 / 续费会员", onBack) {
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             if (loading) {
                 CardBox { Text("加载中…", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp) }
             } else {
