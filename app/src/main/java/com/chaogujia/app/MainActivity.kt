@@ -417,7 +417,8 @@ fun ChaoGuJiaApp() {
                 token = token,
                 onClose = { showSearch = false },
                 // ★ 搜索页点股票 → 状态提升到 App 级；返回时先关搜索页再回来源页
-                onOpenDetail = { list, index -> openDetail("search", list, index) }
+                onOpenDetail = { list, index -> openDetail("search", list, index) },
+                perm = perm
             )
         }
         // ★ 水印层：非会员显示斜排文字水印，会员自动隐藏。

@@ -464,10 +464,20 @@ fun StockDetailPage(
                             onCursorChange = { cursorMin = it },
                             onPickPrice = { orderPickPrice = it },
                             canSub = perm.has("sd_kline_sub"),
-                            onLockedSub = { gateTitle = "K线副图指标" }
+                            onLockedSub = { gateTitle = "K线副图指标" },
+                            canBs = perm.has("sd_bs_marks")
                         )
                         "fiveday" -> FiveDayChart(detail)
-                        else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it })
+                        else -> KLineChart(detail, selK, maPeriods, showChip = showChip, onMaPeriodsChange = { maPeriods = it }, onSelect = { selK = it }, canBs = perm.has("sd_bs_marks"), onLockedBs = { gateTitle = "买卖点标记" })
+                    }
+                    // 打开相应图表时判权：无权则提示一次会员引导（仅分时/K线有 BS 标记）
+                    val bsViews = period == "minute" || period == "day" || period == "week" || period == "month"
+                    var bsNotified by remember(current?.code) { mutableStateOf(false) }
+                    LaunchedEffect(period, current?.code) {
+                        if (bsViews && !perm.has("sd_bs_marks") && !bsNotified) {
+                            bsNotified = true
+                            gateTitle = "买卖点标记"
+                        }
                     }
                     // ---- T/B/S 明细提示框：叠加在图表区左上角（均线按钮那行正下方）----
                     if (period == "day" || period == "week" || period == "month") {
@@ -1546,7 +1556,9 @@ private fun MinuteChart(
     onPickPrice: (Double) -> Unit = {},
     // 副图指标权限（sd_kline_sub）：成交量/成交额免费，MACD/KDJ/RSI/量MA5 需会员
     canSub: Boolean = true,
-    onLockedSub: () -> Unit = {}
+    onLockedSub: () -> Unit = {},
+    // BS/T 买卖点权限（sd_bs_marks）：无权则不画逐笔打点
+    canBs: Boolean = true
 ) {
     // 清洗分时点：后端恒返回 267 点，尾部 min>240 为冻结僵尸点，需剔除；
     // 并按 min(0..240) 去重排序，保证 X 轴与真实交易分钟严格对齐。
@@ -1680,7 +1692,7 @@ private fun MinuteChart(
                                 }
                             }
                         }
-                        MinuteTickOverlay(
+                        if (canBs) MinuteTickOverlay(
                             marks = todayMarks,
                             trends = trends,
                             maxP = range.first,
@@ -4137,7 +4149,10 @@ private fun KLineChart(
     maPeriods: List<Int> = MA_DEFAULT_PERIODS,
     showChip: Boolean = false,
     onMaPeriodsChange: (List<Int>) -> Unit = {},
-    onSelect: (Int?) -> Unit = {}
+    onSelect: (Int?) -> Unit = {},
+    // BS/T 买卖点标记权限（sd_bs_marks）：无权则不画徽标 + 打开时弹引导
+    canBs: Boolean = true,
+    onLockedBs: () -> Unit = {}
 ) {
     val line = d?.line ?: emptyList()
     if (line.isEmpty()) {
@@ -4237,6 +4252,7 @@ private fun KLineChart(
             KLineCanvas(
                 line = show,
                 marks = showMarks,
+                canBs = canBs,
                 maList = maPeriods.map { p -> computeMA(line, p).copyOfRange(start, end + 1) }.toTypedArray(),
                 maPeriods = maPeriods,
                 selLocal = null, // fix3: 去掉点击竖线，只保留滑动光标线
@@ -4749,6 +4765,8 @@ private fun MaSettingDialog(
 private fun KLineCanvas(
     line: List<KLinePoint>,
     marks: List<TradeMark> = emptyList(),
+    // BS/T 买卖点标记权限（sd_bs_marks）：无权则不画徽标
+    canBs: Boolean = true,
     maList: Array<DoubleArray> = emptyArray(),
     maPeriods: List<Int> = MA_DEFAULT_PERIODS,
     selLocal: Int? = null,
@@ -4930,7 +4948,7 @@ private fun KLineCanvas(
         // ===== BST 买卖标记徽标：每根有交易的柱子画上/下偏移的小徽标 =====
         // 规则（后端 _marks.php 已定稿）：每交易日至多一条；above=true 画柱上方、false 画下方；
         // color: redB/greyB/blueS/greyS/T → 前端映射；字母取 kind（B/S/T）。
-        if (!tooNarrow && markByDate.isNotEmpty()) {
+        if (!tooNarrow && markByDate.isNotEmpty() && canBs) {
             // 标记方框：边长固定 = 2.5 根牙签（TOOTHPICK=6dp）→ 15dp；不随 K 线缩放变化（Q1：允许与相邻柱重叠）。
             // 缩到最小（n>=K_NARROW_VISIBLE=1500，即"变成一条线"）时整段隐藏（见上方 tooNarrow 门控）
             // （Q2：沿用之前设定的"缩成一条线"阈值）。

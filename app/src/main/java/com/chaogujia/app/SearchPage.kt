@@ -47,7 +47,9 @@ fun SearchPage(
     token: String,
     onClose: () -> Unit,
     // ★ 点结果行 → 状态提升到 App 级，由 MainActivity 统一打开详情页
-    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> }
+    onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
+    // ★ 权限信息：加自选门禁（add_watch）用
+    perm: PermissionInfo = PermissionInfo()
 ) {
     var kw by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<StockItem>>(emptyList()) }
@@ -232,7 +234,9 @@ fun SearchPage(
                             if (i >= 0) onOpenDetail(results, i)
                         },
                         onToggle = {
-                            if (addedCodes.contains(s.code)) {
+                            if (!perm.has("add_watch")) {
+                                toast = "加自选为会员功能，请先开通会员"
+                            } else if (addedCodes.contains(s.code)) {
                                 // 已加 → 点减号：直接从所有分组全局删除
                                 val code = s.code
                                 scope.launch {
@@ -262,6 +266,11 @@ fun SearchPage(
             stockName = stock.name,
             onDismiss = { picking = null },
             onPicked = { gid ->
+                if (!perm.has("add_watch")) {
+                    picking = null
+                    toast = "加自选为会员功能，请先开通会员"
+                    return@GroupPickDialog
+                }
                 val st = stock
                 picking = null
                 scope.launch {
