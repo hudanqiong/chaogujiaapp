@@ -112,6 +112,13 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(12.dp)
     ) {
+        HomeMemberCard(
+            isMember = member.isMember,
+            levelName = if (member.levelName.isNotEmpty()) member.levelName else "普通用户",
+            expireAt = member.expireAt,
+            onOpen = { subPage = "recharge" }
+        )
+        Spacer(Modifier.height(12.dp))
         HomeAssetCard { subPage = "initial" }
         Spacer(Modifier.height(12.dp))
         HomePointCard(points) { navTo(it) }
@@ -240,6 +247,59 @@ fun HDivider() {
 }
 
 // ===== 首页卡片 =====
+/** 会员中心卡：展示当前会员状态，右侧「开通 / 续费」直达收款页 */
+@Composable
+private fun HomeMemberCard(
+    isMember: Boolean,
+    levelName: String,
+    expireAt: String,
+    onOpen: () -> Unit
+) {
+    CardBox {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("会员中心", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (isMember) Color(Config.COLOR_PRIMARY).copy(alpha = 0.12f)
+                                else Color(0xFFEEEEEE)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            if (isMember) levelName else "未开通",
+                            color = if (isMember) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_SUB),
+                            fontSize = 11.sp, fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (isMember && expireAt.isNotEmpty()) "有效期至 $expireAt"
+                    else "开通会员，解锁全部会员专享功能",
+                    color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onOpen() }
+                    .background(Color(Config.COLOR_PRIMARY))
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    if (isMember) "续费" else "开通会员",
+                    color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun HomeAssetCard(onSetInitial: () -> Unit) {
     CardBox {
