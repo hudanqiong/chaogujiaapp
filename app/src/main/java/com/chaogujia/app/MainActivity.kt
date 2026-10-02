@@ -366,6 +366,7 @@ fun ChaoGuJiaApp() {
                 // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
                 "trade" -> TradePage(
                     token = token,
+                    perm = perm,
                     subTab = tradeTab,
                     onSubTabChange = { tradeTab = it },
                     onOpenDetail = { list, index -> openDetail("trade", list, index) },

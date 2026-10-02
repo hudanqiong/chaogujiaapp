@@ -42,6 +42,8 @@ import java.util.Locale
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.OutlinedTextField
 
 /**
  * 交易页（持仓）—— 第二十一轮
@@ -83,7 +85,8 @@ fun TradePage(
     onSubTabChange: (String) -> Unit = {},
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
     onOpenMemberCenter: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    perm: PermissionInfo = PermissionInfo()
 ) {
     Column(
         modifier = Modifier
@@ -96,7 +99,8 @@ fun TradePage(
                 token = token,
                 onOpenDetail = onOpenDetail,
                 onOpenMemberCenter = onOpenMemberCenter,
-                onLogout = onLogout
+                onLogout = onLogout,
+                perm = perm
             )
             else -> PlaceholderPage(subTab)
         }
@@ -109,8 +113,18 @@ private fun ASharePage(
     token: String,
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit,
     onOpenMemberCenter: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    perm: PermissionInfo = PermissionInfo()
 ) {
+    // ===== 交易页会员权限门禁（第18轮） =====
+    // 无权限时弹出的引导标题（null=不弹）；非空即展示 MemberGateDialog
+    var gateTitle by remember { mutableStateOf<String?>(null) }
+    // 「用户帮助与反馈」弹窗开关（该栏不纳入权限，直接弹出意见反馈）
+    var showFeedback by remember { mutableStateOf(false) }
+    // 受限功能统一入口：有权限执行 action，无权限弹会员引导
+    fun guard(feat: String, title: String, action: () -> Unit) {
+        if (perm.has(feat)) action() else gateTitle = title
+    }
     var loading by remember { mutableStateOf(true) }
     var account by remember { mutableStateOf(AccountInfo()) }
     var myBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
@@ -145,20 +159,24 @@ private fun ASharePage(
     var panel by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        // ===== ② 证券账户栏（可切换） =====
+        // ===== ② 证券账户栏（可切换）=====
         AccountBar(
             brokers = myBrokers,
             current = currentBroker,
-            onSwitch = { currentBroker = it }
+            onSwitch = { guard("tp_account_switch", "账户切换") { currentBroker = it } }
         )
         tpDivider()
 
-        // ===== ③ 两行两列统计 =====
+        // ===== ③ 两行两列统计（会员功能 tp_assets） =====
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Color.White)
                 .padding(horizontal = 16.dp, vertical = 14.dp)
+                .then(
+                    if (perm.has("tp_assets")) Modifier
+                    else Modifier.clickable { gateTitle = "资产统计" }
+                )
         ) {
             Row(modifier = Modifier.fillMaxWidth()) {
                 StatCell(
@@ -193,20 +211,38 @@ private fun ASharePage(
         tpDivider()
 
         // ===== ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 刷新 =====
-        ActionBarRow(onAction = { panel = it })
+        ActionBarRow(onAction = { key ->
+            val feat = when (key) {
+                "buy" -> "tp_buy" to "买入"
+                "sell" -> "tp_sell" to "卖出"
+                "pos" -> "tp_position" to "持仓"
+                "order" -> "tp_cancel" to "撤单"
+                "refresh" -> "tp_refresh" to "刷新"
+                else -> "tp_buy" to "交易"
+            }
+            guard(feat.first, feat.second) { panel = key }
+        })
 
         // 灰色间隔：露出页面灰底，把「月度参考盈亏」栏整体下移
         Spacer(Modifier.fillMaxWidth().height(8.dp))
-        // ===== ④.5 月度参考盈亏（新栏） =====
-        MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick, totalAsset = account.total)
+        // ===== ④.5 月度参考盈亏（新栏，会员功能 tp_pnl） =====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (perm.has("tp_pnl")) Modifier else Modifier.clickable { gateTitle = "月度参考盈亏" })
+        ) {
+            MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick, totalAsset = account.total)
+        }
         Spacer(Modifier.fillMaxWidth().height(8.dp))
         // ===== ④.6 功能入口宫格（新栏，月度盈亏下方） =====
-        MenuGrid(brokerName = currentBroker?.broker ?: "光大证券")
+        MenuGrid(brokerName = currentBroker?.broker ?: "光大证券", onCell = { guard("tp_menu_grid", "功能入口") { } })
         Spacer(Modifier.fillMaxWidth().height(8.dp))
         // ===== ④.7 功能列表（6 栏 + 退出按钮，第九轮新增） =====
         MenuListSection(
             onOpenMemberCenter = onOpenMemberCenter,
-            onLogout = onLogout
+            onLogout = onLogout,
+            guard = { f, t, a -> guard(f, t, a) },
+            onFeedback = { showFeedback = true }
         )
         Spacer(Modifier.fillMaxWidth().height(8.dp))
 
@@ -245,6 +281,20 @@ private fun ASharePage(
             }
         }
     }
+    // ===== 会员引导弹窗（受权限限制的功能统一在此提示） =====
+    val gt = gateTitle
+    if (gt != null) {
+        MemberGateDialog(
+            title = gt,
+            onDismiss = { gateTitle = null },
+            onOpen = { gateTitle = null; onOpenMemberCenter() }
+        )
+    }
+    // ===== 意见反馈弹窗（「用户帮助与反馈」栏触发，复用首页意见反馈表单） =====
+    if (showFeedback) {
+        FeedbackDialog(token = token, onDismiss = { showFeedback = false })
+    }
+
 }
 
 /** ③ 统计单元格：标签灰色在上，数值在下 */
@@ -1295,7 +1345,7 @@ data class MenuItem(
 
 /** 功能入口宫格：一行两个、共五行。点击先留占位。 */
 @Composable
-private fun MenuGrid(brokerName: String) {
+private fun MenuGrid(brokerName: String, onCell: () -> Unit) {
     val ctx = LocalContext.current
     val items = listOf(
         MenuItem(R.drawable.ic_menu_01, "新股/债申购", "暂无新股和新债"),
@@ -1324,8 +1374,8 @@ private fun MenuGrid(brokerName: String) {
             ) {
                 val li = r * 2
                 val ri = r * 2 + 1
-                MenuCell(items[li], Modifier.weight(1f)) { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
-                MenuCell(items[ri], Modifier.weight(1f)) { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+                MenuCell(items[li], Modifier.weight(1f)) { onCell() }
+                MenuCell(items[ri], Modifier.weight(1f)) { onCell() }
             }
         }
     }
@@ -1336,7 +1386,9 @@ private fun MenuGrid(brokerName: String) {
 @Composable
 private fun MenuListSection(
     onOpenMemberCenter: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    guard: (String, String, () -> Unit) -> Unit,
+    onFeedback: () -> Unit
 ) {
     val ctx = LocalContext.current
     // 1 牙签 = 月度参考盈亏灰底间隔高 = 8dp；3 牙签 = 24dp；左右各 2 牙签 = 16dp
@@ -1348,15 +1400,15 @@ private fun MenuListSection(
         modifier = Modifier.fillMaxWidth()
     ) {
         // 第1栏：银证转账 → 整行点击跳会员中心（资金设置），右侧 › 图标
-        ListRow(title = "银证转账") { onOpenMemberCenter() }
+        ListRow(title = "银证转账") { guard("tp_transfer", "银证转账") { onOpenMemberCenter() } }
         Spacer(Modifier.fillMaxWidth().height(gap))
 
         // 第2栏：盘后固定价格交易
-        ListRow(title = "盘后固定价格交易") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        ListRow(title = "盘后固定价格交易") { guard("tp_after_price", "盘后固定价格交易") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() } }
         Spacer(Modifier.fillMaxWidth().height(gap))
 
         // 第3栏：融资融券预约开通（右灰小字“借钱借券”）
-        ListRow(title = "融资融券预约开通", rightText = "借钱借券") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        ListRow(title = "融资融券预约开通", rightText = "借钱借券") { guard("tp_margin_reserve", "融资融券预约开通") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() } }
         Spacer(Modifier.fillMaxWidth().height(gap))
 
         // 第4栏：两行式（同一白块内上下两行）
@@ -1368,7 +1420,7 @@ private fun MenuListSection(
                 .background(Color.White)
         ) {
             ListRowInline(title = "人脸/指纹,快捷登录", rightText = "未开启") {
-                Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show()
+                guard("tp_quick_login", "快捷登录") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
             }
             Box(
                 Modifier
@@ -1378,17 +1430,17 @@ private fun MenuListSection(
                     .background(rowDivider)
             )
             ListRowInline(title = "风险评测", rightText = "即将退出敬请期待") {
-                Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show()
+                guard("tp_risk_eval", "风险评测") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
             }
         }
         Spacer(Modifier.fillMaxWidth().height(gap))
 
         // 第5栏：交易设置（右灰小字“买卖预设，交易提醒，修改密码”）
-        ListRow(title = "交易设置", rightText = "买卖预设，交易提醒，修改密码") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        ListRow(title = "交易设置", rightText = "买卖预设，交易提醒，修改密码") { guard("tp_trade_settings", "交易设置") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() } }
         Spacer(Modifier.fillMaxWidth().height(gap))
 
-        // 第6栏：用户帮助与反馈
-        ListRow(title = "用户帮助与反馈") { Toast.makeText(ctx, "功能建设中", Toast.LENGTH_SHORT).show() }
+        // 第6栏：用户帮助与反馈（不纳入权限，弹出意见反馈弹窗）
+        ListRow(title = "用户帮助与反馈") { onFeedback() }
     }
 
     // 3 牙签高 = 24dp 空隙（露出灰底）
@@ -1551,6 +1603,138 @@ private fun MenuCell(item: MenuItem, modifier: Modifier = Modifier, onClick: () 
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+// ================= 意见反馈弹窗（交易页「用户帮助与反馈」栏触发，第18轮） =================
+/**
+ * 意见反馈弹窗：与首页会员中心「意见反馈」子页同源表单（文字必填 ≤500 字 + 最多 3 张图），
+ * 复用 Api.uploadImage / Api.submitFeedback，提交与提示文案保持一致。
+ */
+@Composable
+public fun FeedbackDialog(token: String?, onDismiss: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var txt by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val imgs = remember { mutableStateListOf<String>() }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (imgs.size >= 3) { msg = "最多上传 3 张图片"; return@rememberLauncherForActivityResult }
+        busy = true
+        msg = "图片上传中…"
+        Thread {
+            val saved = try {
+                val tmp = java.io.File(ctx.cacheDir, "fb_${System.currentTimeMillis()}.jpg")
+                ctx.contentResolver.openInputStream(uri)?.use { ins ->
+                    tmp.outputStream().use { outs -> ins.copyTo(outs) }
+                }
+                val url = Api.uploadImage(token, tmp, "feedback")
+                tmp.delete()
+                url
+            } catch (e: Exception) {
+                null
+            }
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                busy = false
+                if (saved != null) {
+                    imgs.add(saved)
+                    msg = if (imgs.size >= 3) "已上传 3 张（上限）" else "已上传 ${imgs.size} 张"
+                } else {
+                    msg = "图片上传失败，请重试"
+                }
+            }
+        }.start()
+    }
+
+    androidx.compose.ui.window.Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .padding(16.dp)
+        ) {
+            Text("意见反馈", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(12.dp))
+            Text("问题或建议", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = txt,
+                onValueChange = { if (it.length <= 500) txt = it },
+                placeholder = { Text("请描述你遇到的问题或想提的建议（必填）", fontSize = 13.sp) },
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+            )
+            Spacer(Modifier.height(6.dp))
+            Text("${txt.length}/500", color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp)
+            Spacer(Modifier.height(14.dp))
+            Text("截图（选填，最多 3 张）", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                imgs.forEachIndexed { idx, _ ->
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFEEEEEE))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { imgs.removeAt(idx) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("图${idx + 1}\n✕", color = Color(Config.COLOR_TEXT_SUB), fontSize = 11.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                }
+                if (imgs.size < 3) {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF0F0F0))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                if (!busy) picker.launch("image/*")
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("+ 添加", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                    }
+                }
+            }
+            if (msg.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text(msg, color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+            BigBtn(if (busy) "请稍候…" else "提交反馈") {
+                if (busy) return@BigBtn
+                if (txt.trim().isEmpty()) { msg = "请填写反馈内容"; return@BigBtn }
+                busy = true
+                msg = "提交中…"
+                Thread {
+                    val r = Api.submitFeedback(token, txt.trim(), imgs.toList())
+                    android.os.Handler(android.os.Looper.getMainLooper()).post {
+                        busy = false
+                        if (r.ok) {
+                            txt = ""
+                            imgs.clear()
+                            msg = "提交成功，感谢你的反馈！"
+                        } else {
+                            msg = "提交失败：${r.msg}"
+                        }
+                    }
+                }.start()
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { if (!busy) onDismiss() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("取消", color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp)
+            }
         }
     }
 }
