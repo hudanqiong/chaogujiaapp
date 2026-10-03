@@ -489,9 +489,9 @@ private fun MiniPnlChart(
         val dotX = if (hasData) maxOf(li * stepX, minSeg) else 0f
         val dotY = if (hasData) yOf(data[li]) else midY
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // ① 零轴线：长期存在的水平浅红虚线（走势基准，红涨蓝跌体系下基准以红系呈现）
+            // ① 零轴线：水平浅灰虚线（走势基准线，保持中性色，不随涨跌变色）
             drawLine(
-                color = TP_RED.copy(alpha = 0.35f),
+                color = TP_GRAY.copy(alpha = 0.45f),
                 start = Offset(0f, midY),
                 end = Offset(w, midY),
                 strokeWidth = 1f,
