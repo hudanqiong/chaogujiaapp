@@ -3,8 +3,13 @@ package com.chaogujia.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -87,6 +93,9 @@ fun PositionPage(
     var cashAccount by remember { mutableStateOf("") }   // 资金账号（可空）
     var brokerId by remember { mutableStateOf(0) }
 
+    // ★ 第 39 轮新增：持仓股票列表（下方 9 栏表格的数据源）
+    var positions by remember { mutableStateOf(listOf<PositionItem>()) }
+
     // ★ 进页时拉一次「我的券商账户」+「账户资金」：
     //   - 券商账户：取第一个，回吐红条两行文字，同时拿到资金账户 id
     //   - 账户资金：拿 total/marketValue/available/floatPn 填 6 格统计；仓位% = 总资产/总持仓
@@ -105,6 +114,8 @@ fun PositionPage(
                     // 账户资金详情
                     val acc = withContext(Dispatchers.IO) { Api.account(token, first.id) }
                     account = acc
+                    // ★ 第 39 轮：持仓列表（下方 9 栏表格数据源），失败留空不影响其它部分
+                    positions = withContext(Dispatchers.IO) { Api.positions(token, first.id) }
                 }
             } catch (_: Throwable) {
             }
@@ -129,15 +140,12 @@ fun PositionPage(
         // ===== ④ 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
         PosStatGrid(account = account)
 
-        // ===== ⑤ 内容区：本轮先空占位（持仓列表留待后续步骤）=====
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            // 持仓列表数据留待后续步骤；此处仅占位（保持空，不误导）
-        }
+        // ===== ⑤ 灰底分隔条（第39轮）：视觉分割上下两块，高度≈一根牙签直径 =====
+        Box(modifier = Modifier.fillMaxWidth().height(4.dp).background(PP_BG))
+
+        // ===== ⑥ 持仓表格（第39轮）：表头(9栏) + 股票列表(每只两行 / 部分单行) =====
+        //   左滑：第一栏(市值)固定，右侧 8 栏整体左滑钻到固定列下方（复用自选页 hScroll 模式）
+        PosHoldTable(positions = positions)
     }
 }
 
@@ -352,16 +360,286 @@ private fun CnrFlagIcon(size: androidx.compose.ui.unit.Dp) {
             .size(size)
             .clip(RoundedCornerShape(1.dp))
             .background(PP_RED),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopStart
     ) {
         Text(
             text = "★",
-            color = Color(0xFFFFDE00),
-            fontSize = 9.sp,
+            color = Color(0xFFFFD200),
+            fontSize = (size.value * 0.5f).sp,
             maxLines = 1
         )
     }
 }
+
+// =====================================================================================
+// 第 39 轮：持仓表格（表头 9 栏 + 股票列表，每只两行；部分栏单行居中）
+//
+//   列顺序（9 栏）：市值 | 盈亏 | 持仓/可用 | 成本/现价 | 当日盈亏 | 个股仓位 | 持仓天数 | 止盈止损 | 证券代码
+//   - 前 5 栏两行（上行说明/金额，下行副值），后 4 栏单行居中
+//   - 左滑：第 1 栏(市值)钉死不动；右侧 8 栏整体左滑钻到固定列下方（复用自选页 hScroll 模式）
+//   - 颜色：盈红亏蓝带 +/-；证券代码黑字；表头文字同「总资产」标签色（浅灰 PP_LABEL）
+//   - 表头每栏文字右侧跟随一对浅灰三角（上尖↑ / 下尖↓ 叠放）
+// =====================================================================================
+
+/** 第 1 栏（市值）固定列宽度 dp —— 左滑时钉死不动 */
+private const val PP_HOLD_FIXED_W = 96
+/** 右侧每栏宽度 dp（8 栏，横滑区） */
+private const val PP_HOLD_COL_W = 78
+/** 表头文字色：与 6 格统计「总资产」标签同色（浅灰 #888888） */
+private val PP_HEAD = Color(0xFF888888)
+/** 分栏竖分隔线（极浅，仅作视觉分栏） */
+private val PP_COLLINE = Color(0xFFF2F2F2)
+/** 表格行高（两行内容） */
+private val PP_ROW_H = 52.dp
+
+/** 表头栏定义：title 标题；twoLine 是否两行数据列 */
+private data class PPCol(val title: String, val twoLine: Boolean)
+
+/** 9 栏定义（顺序即显示顺序） */
+private val PP_COLS: List<PPCol> = listOf(
+    PPCol("市值", true),
+    PPCol("盈亏", true),
+    PPCol("持仓/可用", true),
+    PPCol("成本/现价", true),
+    PPCol("当日盈亏", true),
+    PPCol("个股仓位", false),
+    PPCol("持仓天数", false),
+    PPCol("止盈止损", false),
+    PPCol("证券代码", false)
+)
+
+/**
+ * 持仓表格：表头 + 列表（共享同一个 hScroll 实现左右同步滑动）。
+ */
+@Composable
+private fun PosHoldTable(positions: List<PositionItem>) {
+    // 表头与所有数据行共用同一横向滚动状态 → 左滑同步、第 1 栏钉死
+    val hScroll = rememberScrollState()
+    // 全部持仓市值合计（用于「个股仓位% = 该股市值 / 合计市值」）
+    val totalMv = positions.sumOf { it.marketValue }
+
+    Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+        // ---------- 表头 ----------
+        PosHoldHeader(hScroll = hScroll)
+        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+
+        // ---------- 列表 ----------
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            items(positions) { p ->
+                PosHoldRow(p = p, totalMv = totalMv, hScroll = hScroll)
+                Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+            }
+        }
+    }
+}
+
+/**
+ * 表头行：第 1 栏(市值)钉死；右侧 8 栏铺在横滑层（随 hScroll 左移，钻到固定列下方）。
+ * 表头本身不响应手指拖动（enabled = false），滑动由数据行驱动。
+ */
+@Composable
+private fun PosHoldHeader(hScroll: ScrollState) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(38.dp)
+            .background(Color.White)
+    ) {
+        // 下层：右侧 8 栏（从固定列右缘起铺，随 hScroll 左移）
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = PP_HOLD_FIXED_W.dp)
+                .horizontalScroll(hScroll, enabled = false),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 与固定列对齐留位（数据行同款占位，保证列对齐）
+            for (c in PP_COLS.drop(1)) {
+                Box(
+                    modifier = Modifier
+                        .width(PP_HOLD_COL_W.dp)
+                        .fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = c.title,
+                            color = PP_HEAD,
+                            fontSize = 12.sp,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.width(2.dp))
+                        // 一对浅灰三角（上尖 / 下尖 叠放）
+                        PpSortArrows()
+                    }
+                }
+            }
+        }
+        // 上层：第 1 栏「市值」白底，盖住滑过来的右侧栏
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(PP_HOLD_FIXED_W.dp)
+                .fillMaxHeight()
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = PP_COLS[0].title,
+                    color = PP_HEAD,
+                    fontSize = 12.sp,
+                    maxLines = 1
+                )
+                Spacer(Modifier.width(2.dp))
+                PpSortArrows()
+            }
+        }
+    }
+}
+
+/**
+ * 单只股票数据行：第 1 栏(市值)钉死；右侧 8 栏横滑。
+ * 两行栏：上行 + 下行；单行栏：居中一行。
+ */
+@Composable
+private fun PosHoldRow(p: PositionItem, totalMv: Double, hScroll: ScrollState) {
+    // 个股仓位% = 该股市值 / 全部持仓市值合计
+    val holdPct = if (totalMv > 0.0) (p.marketValue / totalMv) * 100.0 else 0.0
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(PP_ROW_H)
+            .background(Color.White)
+    ) {
+        // 下层：右侧 8 栏
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = PP_HOLD_FIXED_W.dp)
+                .horizontalScroll(hScroll),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // --- 盈亏（两行）---
+            PpCellTwo(
+                top = ppSigned(p.pnl),
+                topColor = ppPnColor(p.pnl),
+                bottom = ppPct(p.pnlPct),
+                bottomColor = ppPnColor(p.pnl)
+            )
+            // --- 持仓/可用（两行）---
+            PpCellTwo(
+                top = ppQty(p.quantity),
+                topColor = PP_BLACK,
+                bottom = ppQty(p.quantity),   // 可用：暂=持仓（T+1 待做）
+                bottomColor = PP_BLACK
+            )
+            // --- 成本/现价（两行）---
+            PpCellTwo(
+                top = ppPrice(p.avgCost),
+                topColor = PP_BLACK,
+                bottom = ppPrice(p.price),
+                bottomColor = ppPnColor(p.price - p.avgCost)   // 现价相对成本红/蓝
+            )
+            // --- 当日盈亏（两行）：暂以总盈亏代入（后端无独立当日字段）---
+            PpCellTwo(
+                top = ppSigned(p.pnl),
+                topColor = ppPnColor(p.pnl),
+                bottom = ppPct(p.pnlPct),
+                bottomColor = ppPnColor(p.pnl)
+            )
+            // --- 个股仓位（单行）：该股市值 / 全部持仓市值合计 ---
+            PpCellOne(text = ppPct(holdPct), color = PP_BLACK)
+            // --- 持仓天数（单行）：后端暂无建仓日字段，-- 占位 ---
+            PpCellOne(text = "--", color = PP_BLACK)
+            // --- 止盈止损（单行）：后端无字段，-- 占位 ---
+            PpCellOne(text = "--", color = PP_BLACK)
+            // --- 证券代码（单行，黑字）---
+            PpCellOne(text = p.code, color = PP_BLACK)
+        }
+        // 上层：第 1 栏「市值」白底（钉死）
+        //   上行 = 股票名称；下行 = 持仓金额(marketValue)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .width(PP_HOLD_FIXED_W.dp)
+                .fillMaxHeight()
+                .background(Color.White),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Column(modifier = Modifier.padding(start = 8.dp)) {
+                Text(
+                    text = p.name,
+                    color = PP_BLACK,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = ppMoney(p.marketValue),
+                    color = ppPnColor(p.pnl),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PPNumFont,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+/** 两行数据栏：上行 + 下行（宽度 = PP_HOLD_COL_W） */
+@Composable
+private fun PpCellTwo(top: String, topColor: Color, bottom: String, bottomColor: Color) {
+    Column(
+        modifier = Modifier
+            .width(PP_HOLD_COL_W.dp)
+            .fillMaxHeight(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = top, color = topColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
+        Spacer(Modifier.height(3.dp))
+        Text(text = bottom, color = bottomColor, fontSize = 11.sp, fontFamily = PPNumFont, maxLines = 1)
+    }
+}
+
+/** 单行数据栏：垂直居中一行（宽度 = PP_HOLD_COL_W） */
+@Composable
+private fun PpCellOne(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .width(PP_HOLD_COL_W.dp)
+            .fillMaxHeight(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = text, color = color, fontSize = 12.sp, fontFamily = PPNumFont, maxLines = 1)
+    }
+}
+
+/** 一对浅灰三角（上尖 / 下尖 叠放），跟在每栏表头文字后面 */
+@Composable
+private fun PpSortArrows() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(text = "▲", color = PP_HEAD, fontSize = 6.sp, maxLines = 1)
+        Text(text = "▼", color = PP_HEAD, fontSize = 6.sp, maxLines = 1)
+    }
+}
+
+/** 百分比：带正负号（+x.xx% / -x.xx%） */
+private fun ppPct(v: Double): String =
+    if (kotlin.math.abs(v) < 5e-3) "0.00%"
+    else String.format(Locale.CHINA, "%+.2f%%", v)
+
+/** 数量（股）：整数带千分位 */
+private fun ppQty(v: Int): String = String.format(Locale.CHINA, "%,d", v)
+
+/** 价格：两位小数 */
+private fun ppPrice(v: Double): String = String.format(Locale.CHINA, "%.2f", v)
 
 /**
  * 顶部 5 切换按钮栏：
