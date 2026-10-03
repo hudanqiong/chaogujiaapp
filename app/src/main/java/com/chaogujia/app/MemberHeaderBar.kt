@@ -261,108 +261,123 @@ private fun PositionHeaderRow(
     onRefresh: () -> Unit
 ) {
     // ★ 尺寸定稿（第 34 轮真机反馈）：
-    //   左返回 55dp、右方框 55dp、放大镜/刷新 66dp；切换三角保持 18dp 不动。
+    //   左返回 55dp、右方框 55dp、放大镜/刷新 66dp；
+    //   中间切换三角：比字号(15sp)略小 → 14dp。
     val backSize = 55.dp
     val squareSize = 55.dp
     val bigIconSize = 66.dp
-    val triSize = 18.dp
+    val triSize = 14.dp
+    // 中间三项文字字号：与底部 5 个切换按钮保持一致（15sp）
+    val midFont = 15.sp
+    // 右侧三图标之间的间距：一根牙签直径（约 1dp）
+    val pickGap = 1.dp
     // 红条本身是「垂直渐变」，遮罩若用纯色必有色差；
     // 因此遮罩直接复用同一条渐变，取右上角区域裁切，做到与红条无缝。
     val barBrush = Brush.verticalGradient(
         listOf(Color(Config.COLOR_PRIMARY), Color(0xFFD0202A))
     )
 
-    Row(
+    // ★ 第 34 轮真机反馈（三段式，位置固定）：
+    //   左  = 返回图标（贴左）
+    //   中  = 证券名 / 账户号 / 切换三角（红条正中央，三者整体居中）
+    //   右  = 方框 + 放大镜 + 刷新（贴右，挨成一簇）
+    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .fillMaxSize()
     ) {
-        // ==== 左：返回 + 两行文字 + 切换三角 ====
+        // ==== 左：返回（贴左，垂直居中）====
         Image(
             painter = painterResource(R.drawable.ic_pos_back),
             contentDescription = "返回",
             modifier = Modifier
+                .align(Alignment.CenterStart)
                 .size(backSize)
                 .clickable { onBack() },
             contentScale = ContentScale.Fit
         )
-        Spacer(Modifier.width(8.dp))
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = name,
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = account,
-                color = Color(0xCCFFFFFF),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Image(
-            painter = painterResource(R.drawable.ic_pos_tri),
-            contentDescription = "切换账户",
-            modifier = Modifier
-                .size(triSize)
-                .clickable { onSwitch() },
-            contentScale = ContentScale.Fit
-        )
-        Spacer(Modifier.width(14.dp))
 
-        // ==== 右：第4格(方框箭头, 带右上角90°遮罩) + 放大镜 + 刷新 ====
-        Box(
-            modifier = Modifier
-                .size(squareSize)
-                .clickable { onSquare() }
+        // ==== 中：证券名 / 账户号 / 三角（红条正中央）====
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = name,
+                    color = Color.White,
+                    fontSize = midFont,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = account,
+                    color = Color.White,
+                    fontSize = midFont,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(pickGap))
             Image(
-                painter = painterResource(R.drawable.ic_pos_sqarrow),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                painter = painterResource(R.drawable.ic_pos_tri),
+                contentDescription = "切换账户",
+                modifier = Modifier
+                    .size(triSize)
+                    .clickable { onSwitch() },
                 contentScale = ContentScale.Fit
             )
-            // ★ 遮挡 v8 图标「右上角连在箭头前端的多余实心块」：
-            //   做成一个 90° 直角的「帽子」，只盖右上角拐角那一小块，
-            //   并向右/上各内缩 1dp，确保方框与箭头的线条完整不断。
-            //   底色调成与红条一致：直接复用红条的垂直渐变，且做垂直偏移，
-            //   让遮罩顶部对齐红条上对应位置，做到零色差。
+        }
+
+        // ==== 右：方框 + 放大镜 + 刷新（贴右，挨成一簇）====
+        Row(
+            modifier = Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    // 帽子尺寸：占方框右上角一小块（宽高各约 1/3）
-                    .fillMaxWidth(0.34f)
-                    .fillMaxHeight(0.34f)
-                    .background(barBrush)
+                    .size(squareSize)
+                    .clickable { onSquare() }
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_pos_sqarrow),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Fit
+                )
+                // ★ 遮挡 v8 图标「右上角连在箭头前端的多余实心块」：
+                //   90° 直角「帽子」，只盖右上角拐角那一小块，保证线条完整不断。
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .fillMaxWidth(0.34f)
+                        .fillMaxHeight(0.34f)
+                        .background(barBrush)
+                )
+            }
+            Spacer(Modifier.width(pickGap))
+            Image(
+                painter = painterResource(R.drawable.ic_pos_search),
+                contentDescription = "搜索",
+                modifier = Modifier
+                    .size(bigIconSize)
+                    .clickable { onSearch() },
+                contentScale = ContentScale.Fit
+            )
+            Spacer(Modifier.width(pickGap))
+            Image(
+                painter = painterResource(R.drawable.ic_pos_refresh),
+                contentDescription = "刷新",
+                modifier = Modifier
+                    .size(bigIconSize)
+                    .clickable { onRefresh() },
+                contentScale = ContentScale.Fit
             )
         }
-        Spacer(Modifier.width(18.dp))
-        Image(
-            painter = painterResource(R.drawable.ic_pos_search),
-            contentDescription = "搜索",
-            modifier = Modifier
-                .size(bigIconSize)
-                .clickable { onSearch() },
-            contentScale = ContentScale.Fit
-        )
-        Spacer(Modifier.width(18.dp))
-        Image(
-            painter = painterResource(R.drawable.ic_pos_refresh),
-            contentDescription = "刷新",
-            modifier = Modifier
-                .size(bigIconSize)
-                .clickable { onRefresh() },
-            contentScale = ContentScale.Fit
-        )
     }
 }
 
