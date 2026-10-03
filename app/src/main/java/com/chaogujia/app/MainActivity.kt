@@ -82,6 +82,12 @@ fun ChaoGuJiaApp() {
     var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var showLogin by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    // ★ 持仓页（第 34 轮新增）：独立页，不在底部导航上。入口 = 交易页「持仓」按钮。
+    //   打开后红条切到 "position" 模式，内容区覆盖 PositionPage；返回 = 红条 [<] 或系统返回键。
+    var showPosition by remember { mutableStateOf(false) }
+    // 持仓页红条两行文字（由 PositionPage 回吐：上行证券名/下行资金账户）
+    var positionName by remember { mutableStateOf("") }
+    var positionAccount by remember { mutableStateOf("") }
     var targetTab by remember { mutableStateOf("index") }
     // ★ 交易页账户类型（A股/基金/期货/黄金/模拟）：状态提升到 App 级，供顶部红条内切换按钮使用
     var tradeTab by remember { mutableStateOf("A股") }
@@ -170,6 +176,7 @@ fun ChaoGuJiaApp() {
                 if (from != null) current = from
             }
             showSearch -> showSearch = false
+            showPosition -> showPosition = false
             showLogin -> showLogin = false
             else -> {
                 val now = System.currentTimeMillis()
@@ -242,6 +249,23 @@ fun ChaoGuJiaApp() {
             // 红色会员顶栏：5 个 Tab 页面统一渲染，高度一致。
             // ★ 详情页打开时，红条切换为 detail 模式（全 App 唯一一条详情红条），
             //   内容 = [←返回] ◀名称/代码▶ [图二][图三]，不再出现第二条红条。
+            // ★ 持仓页打开时（第 34 轮），红条切换为 position 模式，优先级高于 detail/普通页。
+            if (showPosition) {
+                MemberHeaderBar(
+                    current = "position",
+                    username = uname,
+                    isMember = member.isMember,
+                    levelName = member.levelName,
+                    expireAt = member.expireAt,
+                    positionName = positionName,
+                    positionAccount = positionAccount,
+                    onPositionBack = { showPosition = false },
+                    onPositionSwitch = { /* TODO 切换账户 */ },
+                    onPositionSquare = { /* TODO 方框箭头 */ },
+                    onPositionSearch = { showSearch = true },
+                    onPositionRefresh = { /* TODO 刷新持仓 */ }
+                )
+            } else {
             val d = detail
             if (d != null) {
                 MemberHeaderBar(
@@ -273,10 +297,11 @@ fun ChaoGuJiaApp() {
                     compact = (current == "news")
                 )
             }
+            }
         },
         bottomBar = {
-            // 个股详情页打开时隐藏底部导航栏
-            if (detail == null) {
+            // 个股详情页 / 独立持仓页打开时隐藏底部导航栏
+            if (detail == null && !showPosition) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -324,7 +349,7 @@ fun ChaoGuJiaApp() {
         //   Scaffold 的 padding 默认已让出底部导航栏 inset；若详情页仍消费底部 inset，
         //   StockDetailPage 底边会停在按键区上方，黑底无法铺到底。
         //   故详情页时只消费顶部 inset（底部归零），其余页面保持原样。
-        val contentModifier = if (detail != null) {
+        val contentModifier = if (detail != null || showPosition) {
             Modifier
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
@@ -376,6 +401,8 @@ fun ChaoGuJiaApp() {
                     subTab = tradeTab,
                     onSubTabChange = { tradeTab = it },
                     onOpenDetail = { list, index -> openDetail("trade", list, index) },
+                    // ★ 交易页「持仓」按钮 → 打开独立持仓页（第 34 轮）
+                    onOpenPosition = { showPosition = true },
                     onOpenMemberCenter = {
                         // 银证转账：切到首页并直达「资金设置」页
                         memberPageKey = "initial"
@@ -413,6 +440,18 @@ fun ChaoGuJiaApp() {
                         memberPageTick++
                         closeDetail()
                         current = "index"
+                    }
+                )
+            }
+
+            // ★ 持仓页（第 34 轮）：App 级覆盖层（位于红条下方的内容区）。
+            //   红条已由 MainActivity 的 position 模式渲染，这里只铺内容。
+            if (showPosition) {
+                PositionPage(
+                    token = token,
+                    onAccountChange = { nm, acc ->
+                        positionName = nm
+                        positionAccount = acc
                     }
                 )
             }
