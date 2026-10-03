@@ -60,6 +60,15 @@ fun MemberHeaderBar(
     // ===== 交易页模式（current == "trade"）专用参数：账户类型切换按钮 =====
     tradeTab: String = "A股",
     onTradeTabSelect: (String) -> Unit = {},
+    // ===== 持仓页模式（current == "position"）专用参数：第 34 轮新增 =====
+    // 红条内容：[<返回] + 两行文字(证券名/资金账户) + ▼ + 方框箭头 + 放大镜 + 刷新
+    positionName: String = "",        // 上行：证券名称（大字粗体白）
+    positionAccount: String = "",     // 下行：资金账户（小字）
+    onPositionBack: () -> Unit = {},  // 点 [<] 返回交易页
+    onPositionSwitch: () -> Unit = {},// 点 ▼ 切换账户
+    onPositionSquare: () -> Unit = {},// 第 4 格（方框+箭头）
+    onPositionSearch: () -> Unit = {},// 放大镜
+    onPositionRefresh: () -> Unit = {}, // 刷新
     // ===== 资讯页紧凑模式（current == "news"）：红条压矮到仅盖状态栏，
     //       腾出空间给网页自带的频道切换栏，与红条拼成一体。其他页保持 false 零影响。
     compact: Boolean = false
@@ -94,6 +103,17 @@ fun MemberHeaderBar(
             current == "watch" -> WatchHeaderRow(onOpenSearch)
             // ★ 交易页：红条内直接放「账户类型切换按钮」(A股/基金/期货/黄金/模拟)
             current == "trade" -> TradeHeaderRow(cur = tradeTab, onSelect = onTradeTabSelect)
+
+            // ★ 持仓页（第 34 轮）：[<返回] + 两行文字 + ▼ + 方框箭头 + 放大镜 + 刷新
+            current == "position" -> PositionHeaderRow(
+                name = positionName,
+                account = positionAccount,
+                onBack = onPositionBack,
+                onSwitch = onPositionSwitch,
+                onSquare = onPositionSquare,
+                onSearch = onPositionSearch,
+                onRefresh = onPositionRefresh
+            )
 
             // ★ 详情页：唯一红条 [←返回] ◀名称/代码▶ [图二][图三]
             current == "detail" -> DetailHeaderRow(
@@ -216,6 +236,122 @@ private fun DetailHeaderRow(
                 contentScale = ContentScale.FillBounds
             )
         }
+    }
+}
+
+/**
+ * 持仓页顶栏内容（第 34 轮新增，current == "position"）。
+ *
+ * 从左到右：
+ *   [<返回]  两行文字(证券名称 / 资金账户)  ▼   |   方框箭头  放大镜  刷新
+ *   - <   ：返回交易页
+ *   - ▼   ：切换资金账户
+ *   - 第4格(方框+箭头)：ic_pos_sqarrow.png 用 v8 原样，右上角那团多余实心块
+ *                        用红条同色小方块在 App 层遮挡掉（不重画图标，只遮挡）。
+ *   - 放大镜 / 刷新：各自回调
+ */
+@Composable
+private fun PositionHeaderRow(
+    name: String,
+    account: String,
+    onBack: () -> Unit,
+    onSwitch: () -> Unit,
+    onSquare: () -> Unit,
+    onSearch: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    val iconSize = 22.dp
+    // 红条渐变底色（与主 Box 背景顶端一致），用于第 4 格遮挡块
+    val maskColor = Color(Config.COLOR_PRIMARY)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // ==== 左：返回 + 两行文字 + 切换三角 ====
+        Image(
+            painter = painterResource(R.drawable.ic_pos_back),
+            contentDescription = "返回",
+            modifier = Modifier
+                .size(iconSize)
+                .clickable { onBack() },
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = name,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = account,
+                color = Color(0xCCFFFFFF),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Image(
+            painter = painterResource(R.drawable.ic_pos_tri),
+            contentDescription = "切换账户",
+            modifier = Modifier
+                .size(18.dp)
+                .clickable { onSwitch() },
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.width(14.dp))
+
+        // ==== 右：第4格(方框箭头, 带红块遮罩) + 放大镜 + 刷新 ====
+        Box(
+            modifier = Modifier
+                .size(iconSize)
+                .clickable { onSquare() }
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_pos_sqarrow),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Fit
+            )
+            // ★ 遮挡 v8 图标右上角那团多余实心块：
+            //   用红条同色小方块盖住右上角一小块（约 40% 宽 × 40% 高）。
+            //   只遮挡、不重画，方框其余线条原样保留。
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxWidth(0.42f)
+                    .fillMaxHeight(0.42f)
+                    .background(maskColor)
+            )
+        }
+        Spacer(Modifier.width(18.dp))
+        Image(
+            painter = painterResource(R.drawable.ic_pos_search),
+            contentDescription = "搜索",
+            modifier = Modifier
+                .size(iconSize)
+                .clickable { onSearch() },
+            contentScale = ContentScale.Fit
+        )
+        Spacer(Modifier.width(18.dp))
+        Image(
+            painter = painterResource(R.drawable.ic_pos_refresh),
+            contentDescription = "刷新",
+            modifier = Modifier
+                .size(iconSize)
+                .clickable { onRefresh() },
+            contentScale = ContentScale.Fit
+        )
     }
 }
 
