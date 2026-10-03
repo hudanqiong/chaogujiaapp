@@ -437,7 +437,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             centerLabelColor = if (monthPnl == 0.0) TP_BLACK else tpPnColor(monthPct),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 2.dp)
+                .padding(top = 2.dp, end = 14.dp) // 给右侧箭头图标让位，基准线右端不顶到最右
                 .size(width = 108.dp, height = 40.dp)
         )
         Image(
