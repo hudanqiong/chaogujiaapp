@@ -261,11 +261,12 @@ private fun PositionHeaderRow(
     onRefresh: () -> Unit
 ) {
     // ★ 尺寸定稿（第 34 轮真机反馈）：
-    //   左返回 55dp、右方框 55dp、放大镜/刷新 66dp；
-    //   中间切换三角：比字号(15sp)略小 → 14dp。
+    //   屏幕宽 360dp。右侧三图标总宽务必＜1/3 屏宽，
+    //   保证：① 能整排塞进右边 ② 与中间文字之间留出间距 ③ 右端留一点边距。
+    //   36 + 1 + 38 + 1 + 38 = 114dp（约屏宽 32%），右侧尚余约 8~10dp。
     val backSize = 55.dp
-    val squareSize = 55.dp
-    val bigIconSize = 66.dp
+    val squareSize = 36.dp
+    val bigIconSize = 38.dp
     val triSize = 14.dp
     // 中间三项文字字号：与底部 5 个切换按钮保持一致（15sp）
     val midFont = 15.sp
@@ -296,7 +297,7 @@ private fun PositionHeaderRow(
             contentScale = ContentScale.Fit
         )
 
-        // ==== 中：证券名 / 账户号 / 三角（红条正中央）====
+        // ==== 中：证券名 / 账户号 / 三角 ====
         Row(
             modifier = Modifier.align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically
