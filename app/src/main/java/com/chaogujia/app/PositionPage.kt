@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 独立持仓页（PositionPage）—— 第 34 轮新增
@@ -56,7 +58,9 @@ fun PositionPage(
     LaunchedEffect(token) {
         if (token.isNotEmpty()) {
             try {
-                val list = Api.brokerList(token)
+                // 网络请求必须在 IO 线程（与 TradePage/HomeScreen 等保持一致），
+                // 否则主线程抛 NetworkOnMainThreadException 被静默吞掉 → 红条两行文字空白。
+                val list = withContext(Dispatchers.IO) { Api.brokerList(token) }
                 val first = list.firstOrNull()
                 if (first != null) {
                     onAccountChange(first.broker, first.account)
