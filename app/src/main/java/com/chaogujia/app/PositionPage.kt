@@ -45,7 +45,8 @@ private val PP_BG = Color(0xFFF5F5F5)       // 页面灰底
 
 // ★ 第 34 轮新增：中栏 / 6 格统计用色（对齐交易页 TradePage 的色系）
 private val PP_BLUE = Color(0xFF2A7BFF)     // 跌/亏损（蓝）
-private val PP_BLACK = Color(0xFF222222)    // 总资产/总市值/可用/可取 数值色
+private val PP_BLACK = Color(0xFF222222)    // 数值色（深）
+private val PP_LABEL = Color(0xFF888888)    // 标签色（浅灰）：总资产/浮动盈亏/总市值/可用/可取
 private val PP_LINE = Color(0xFFF0F0F0)     // 上下分割细线（第35轮：更细更浅）
 private val PP_TRACK = Color(0xFFFFFFFF)    // 仓位进度条底槽（第35轮：与背景一致=白）
 private val PP_FILL = Color(0xFFEEEEEE)     // 仓位进度条/后缀方框 填充色（第35轮：#EEEEEE）
@@ -206,9 +207,9 @@ private fun PosAccountBar(account: AccountInfo) {
  * ④ 6 格统计（两行三列）：
  *   行1：总资产 / 浮动盈亏 / 当日参考盈亏
  *   行2：总市值 / 可用(逆回购▶) / 可取(转账▶)
- *   标题：交易页标题色（Config.COLOR_TEXT_MAIN）、字号参照交易页 15sp Bold
- *   数值：总资产/总市值/可用/可取用黑色；浮动盈亏/当日参考盈亏红涨蓝跌带加减号
- *   后置小方框：浅灰底 + 橙色字「(逆回购▶)」「(转账▶)」
+ *   标签（总资产/浮动盈亏/总市值/可用/可取）：浅灰 #888888、13sp Bold，在上
+ *   数值：深色 #222222、11sp，在下；浮动盈亏/当日参考盈亏红涨蓝跌带加减号
+ *   后缀小方框：挂在「可用」「可取」标签右侧（浅灰底 + #FF671B 字「逆回购▶」「转账▶」）
  */
 @Composable
 private fun PosStatGrid(account: AccountInfo) {
@@ -286,25 +287,17 @@ private fun PosStatCell(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = label,
-            color = Color(Config.COLOR_TEXT_MAIN),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-        Spacer(Modifier.height(4.dp))
+        // ---- 标签行：固定文字（浅灰）+ 可选方框（逆回购▶/转账▶）----
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = value,
-                color = valueColor,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = PPNumFont,
+                text = label,
+                color = PP_LABEL,          // 标签=浅灰
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             if (suffixText != null) {
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(4.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(2.dp))
@@ -329,6 +322,16 @@ private fun PosStatCell(
                 }
             }
         }
+        Spacer(Modifier.height(4.dp))
+        // ---- 数值行：深色数字 ----
+        Text(
+            text = value,
+            color = valueColor,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = PPNumFont,
+            maxLines = 1
+        )
     }
 }
 
