@@ -272,7 +272,7 @@ private fun PositionHeaderRow(
     //   切换三角：比证券名称字体略小（联动）
     //   资金账户：小一号，且改用价格字体（ths_regular）
     val nameFont = 18.sp
-    val accountFont = 12.sp
+    val accountFont = 11.sp
     // 切换三角：用字符 ▼，字号比证券名称略小
     val triFont = 14.sp
     // 右侧三图标之间的间距：一根牙签直径（约 1dp）
@@ -353,7 +353,7 @@ private fun PositionHeaderRow(
                     fontSize = triFont,
                     fontWeight = FontWeight.Bold,
                     lineHeight = triFont,
-                    modifier = Modifier.offset(y = 1.dp)
+                    modifier = Modifier.offset(y = 3.dp)
                 )
             }
         }
