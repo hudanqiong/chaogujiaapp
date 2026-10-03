@@ -330,17 +330,26 @@ private fun PositionHeaderRow(
                 )
             }
             Spacer(Modifier.width(pickGap))
-            // ★ 第 34 轮：切换三角改为「白色实心倒三角字符 ▼」，
-            //   不再依赖 ic_pos_tri 图片（图片画得偏细像针眼）。
-            //   字号与证券名称联动，比名称略小。
-            Text(
-                text = "▼",
-                color = Color.White,
-                fontSize = triFont,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clickable { onSwitch() }
-            )
+            // ★ 第 34 轮：切换三角改为「白色实心倒三角字符 ▼」。
+            //   位置：放在两行（名称/账户）中间的右侧，且相对两行「上下居中」。
+            //   做法：外层 Box 显式 align(CenterVertically) 锁定垂直居中；
+            //        内层 Text 用 negativeLineHeight 收紧行高，
+            //        并用 offset 做视觉基线补偿，抵消字体底部留白，避免看起来偏下。
+            Box(
+                modifier = Modifier.align(Alignment.CenterVertically),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "▼",
+                    color = Color.White,
+                    fontSize = triFont,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = triFont,
+                    modifier = Modifier
+                        .offset(y = (-1).dp)
+                        .clickable { onSwitch() }
+                )
+            }
         }
 
         // ==== 右：方框 + 放大镜 + 刷新（贴右，挨成一簇）====
