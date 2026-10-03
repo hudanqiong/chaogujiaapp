@@ -273,7 +273,8 @@ private fun PositionHeaderRow(
     //   资金账户：小一号，且改用价格字体（ths_regular）
     val nameFont = 18.sp
     val accountFont = 13.sp
-    val triSize = 16.dp
+    // 切换三角：用字符 ▼，字号比证券名称略小
+    val triFont = 14.sp
     // 右侧三图标之间的间距：一根牙签直径（约 1dp）
     val pickGap = 1.dp
     // 红条本身是「垂直渐变」，遮罩若用纯色必有色差；
@@ -329,13 +330,16 @@ private fun PositionHeaderRow(
                 )
             }
             Spacer(Modifier.width(pickGap))
-            Image(
-                painter = painterResource(R.drawable.ic_pos_tri),
-                contentDescription = "切换账户",
+            // ★ 第 34 轮：切换三角改为「白色实心倒三角字符 ▼」，
+            //   不再依赖 ic_pos_tri 图片（图片画得偏细像针眼）。
+            //   字号与证券名称联动，比名称略小。
+            Text(
+                text = "▼",
+                color = Color.White,
+                fontSize = triFont,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier
-                    .size(triSize)
-                    .clickable { onSwitch() },
-                contentScale = ContentScale.Fit
+                    .clickable { onSwitch() }
             )
         }
 
