@@ -390,6 +390,8 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
     }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
+    // 本月是否产生过真实盈亏变动：所有点均为 0 视为“本月无行情/无数据”，不展示金额与走势线
+    val hasMonthData = series.any { it != 0.0 }
     val base = if (totalAsset - monthPnl != 0.0) totalAsset - monthPnl else 1.0
     val monthPct = monthPnl / base * 100.0
     val excess = last?.excess ?: 0.0
@@ -404,15 +406,15 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = nowMonth.toString() + "月参考盈亏",
-                color = tpPnColor(monthPnl),
+                color = TP_BLACK,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = tpSigned(monthPnl),
-                color = Color(Config.COLOR_TEXT_MAIN),
+                text = if (hasMonthData) tpSigned(monthPnl) else "--",
+                color = if (hasMonthData) tpPnColor(monthPnl) else TP_GRAY,
                 fontSize = 18.sp,
                 fontFamily = TPNumFont,
                 fontWeight = FontWeight.Bold,
@@ -421,22 +423,24 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             Spacer(Modifier.height(6.dp))
             // 第3行：收益率与跑赢上证指数同一行，满宽显示不被走势图挤压
             Text(
-                text = "收益率 " + tpPct(monthPct) + "  跑赢上证指数 " + tpPct(excess),
+                text = if (hasMonthData) "收益率 " + tpPct(monthPct) + "  跑赢上证指数 " + tpPct(excess) else "收益率 --  跑赢上证指数 --",
                 color = TP_GRAY,
                 fontSize = 12.sp,
                 maxLines = 1
             )
         }
-        // 右上角独立小图（绝对定位，不占文字宽度）
-        MiniPnlChart(
-            data = series,
-            centerLabel = tpPct(monthPct),
-            centerLabelColor = tpPnColor(monthPct),
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 2.dp)
-                .size(width = 108.dp, height = 40.dp)
-        )
+        // 右上角独立小图（绝对定位，不占文字宽度）；本月无数据时不绘制
+        if (hasMonthData) {
+            MiniPnlChart(
+                data = series,
+                centerLabel = tpPct(monthPct),
+                centerLabelColor = tpPnColor(monthPct),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 2.dp)
+                    .size(width = 108.dp, height = 40.dp)
+            )
+        }
         Image(
             painter = painterResource(R.drawable.ic_pnl_arrow),
             contentDescription = "展开",
