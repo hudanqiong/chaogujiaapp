@@ -95,7 +95,9 @@ fun TradePage(
     onOpenMemberCenter: () -> Unit = {},
     onOpenVipPage: () -> Unit = {},
     onLogout: () -> Unit = {},
-    perm: PermissionInfo = PermissionInfo()
+    perm: PermissionInfo = PermissionInfo(),
+    // ★ 第 34 轮：「持仓」按钮 → 打开独立持仓页（上抛给 MainActivity）
+    onOpenPosition: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -110,7 +112,8 @@ fun TradePage(
                 onOpenMemberCenter = onOpenMemberCenter,
                 onOpenVipPage = onOpenVipPage,
                 onLogout = onLogout,
-                perm = perm
+                perm = perm,
+                onOpenPosition = onOpenPosition
             )
             else -> PlaceholderPage(subTab)
         }
@@ -125,7 +128,9 @@ private fun ASharePage(
     onOpenMemberCenter: () -> Unit = {},
     onOpenVipPage: () -> Unit = {},
     onLogout: () -> Unit = {},
-    perm: PermissionInfo = PermissionInfo()
+    perm: PermissionInfo = PermissionInfo(),
+    // ★ 第 34 轮：「持仓」按钮 → 打开独立持仓页（上抛给 MainActivity）
+    onOpenPosition: () -> Unit = {}
 ) {
     // ===== 交易页会员权限门禁（第18轮） =====
     // 无权限时弹出的引导标题（null=不弹）；非空即展示 MemberGateDialog
@@ -231,7 +236,12 @@ private fun ASharePage(
                 "refresh" -> "tp_refresh" to "刷新"
                 else -> "tp_buy" to "交易"
             }
-            guard(feat.first, feat.second) { panel = key }
+            // ★ 第 34 轮：「持仓」不再开内嵌面板，改为上抛 → 打开独立持仓页（PositionPage）
+            if (key == "pos") {
+                guard(feat.first, feat.second) { onOpenPosition() }
+            } else {
+                guard(feat.first, feat.second) { panel = key }
+            }
         })
 
         // 灰色间隔：露出页面灰底，把「月度参考盈亏」栏整体下移
