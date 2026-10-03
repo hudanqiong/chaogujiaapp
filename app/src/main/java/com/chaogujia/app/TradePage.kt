@@ -425,7 +425,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             Text(
                 text = "收益率 " + tpPct(monthPct) + "  跑赢上证指数 " + tpPct(excess),
                 color = TP_GRAY,
-                fontSize = 14.sp,
+                fontSize = 15.sp,
                 maxLines = 1
             )
         }
