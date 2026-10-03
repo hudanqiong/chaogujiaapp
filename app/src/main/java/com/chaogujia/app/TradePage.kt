@@ -74,8 +74,14 @@ private fun tpSigned(v: Double): String =
 private fun tpPct(v: Double): String =
     if (kotlin.math.abs(v) < 5e-3) String.format(Locale.CHINA, "%.2f%%", 0.0)
     else String.format(Locale.CHINA, "%+.2f%%", v)
-/** 盈亏颜色：红涨蓝跌，零值归红（对齐同花顺惯例，0.00% 显示为红色） */
+/** 盈亏文字颜色：红涨、蓝跌、平黑（对齐同花顺"平盘黑"惯例） */
 private fun tpPnColor(v: Double): Color = when {
+    v > 1e-9 -> TP_RED
+    v < -1e-9 -> TP_BLUE
+    else -> TP_BLACK
+}
+/** 走势图/收益率颜色：红涨蓝跌，零值归红（同花顺 0.00% 显示为红色） */
+private fun tpChartColor(v: Double): Color = when {
     v < -1e-9 -> TP_BLUE
     else -> TP_RED
 }
@@ -434,7 +440,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         MiniPnlChart(
             data = series,
             centerLabel = tpPct(monthPct),
-            centerLabelColor = tpPnColor(monthPct),
+            centerLabelColor = tpChartColor(monthPct),
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 2.dp, end = 42.dp) // 给右侧箭头图标让位，基准线右端不顶到最右（间距在14dp基础上再增两倍）
@@ -468,7 +474,7 @@ private fun MiniPnlChart(
         }
     }
     val lastVal = data.lastOrNull() ?: 0.0
-    val lineColor = tpPnColor(lastVal)
+    val lineColor = tpChartColor(lastVal)
     BoxWithConstraints(modifier = modifier) {
         val d = LocalDensity.current.density
         val w = constraints.maxWidth.toFloat()
