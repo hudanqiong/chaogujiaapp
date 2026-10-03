@@ -272,7 +272,7 @@ private fun PositionHeaderRow(
     //   切换三角：比证券名称字体略小（联动）
     //   资金账户：小一号，且改用价格字体（ths_regular）
     val nameFont = 18.sp
-    val accountFont = 13.sp
+    val accountFont = 12.sp
     // 切换三角：用字符 ▼，字号比证券名称略小
     val triFont = 14.sp
     // 右侧三图标之间的间距：一根牙签直径（约 1dp）
@@ -303,8 +303,15 @@ private fun PositionHeaderRow(
         )
 
         // ==== 中：证券名 / 账户号 / 三角 ====
+        // ★ 第 34 轮：整块（证券名 + 资金账户 + 三角）都可点击切换，
+        //   命中区域覆盖三者的并集；点击无任何特效（indication = null）。
         Row(
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onSwitch() },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
@@ -333,8 +340,9 @@ private fun PositionHeaderRow(
             // ★ 第 34 轮：切换三角改为「白色实心倒三角字符 ▼」。
             //   位置：放在两行（名称/账户）中间的右侧，且相对两行「上下居中」。
             //   做法：外层 Box 显式 align(CenterVertically) 锁定垂直居中；
-            //        内层 Text 用 negativeLineHeight 收紧行高，
-            //        并用 offset 做视觉基线补偿，抵消字体底部留白，避免看起来偏下。
+            //        用 lineHeight 收紧行高，并用 offset 做视觉基线补偿。
+            //   点击：不再单独 clickable，由父 Row 统一处理（含特效抑制），
+            //        三角本身只负责显示。
             Box(
                 modifier = Modifier.align(Alignment.CenterVertically),
                 contentAlignment = Alignment.Center
@@ -345,9 +353,7 @@ private fun PositionHeaderRow(
                     fontSize = triFont,
                     fontWeight = FontWeight.Bold,
                     lineHeight = triFont,
-                    modifier = Modifier
-                        .offset(y = (-1).dp)
-                        .clickable { onSwitch() }
+                    modifier = Modifier.offset(y = 1.dp)
                 )
             }
         }
