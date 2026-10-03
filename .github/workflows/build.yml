@@ -1,29 +1,23 @@
 name: Build APK
-
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Gradle 8.7
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
-
       - name: Ensure fixed debug keystore
         run: |
           if [ ! -f app/cgj-fixed-debug.keystore ]; then
@@ -38,10 +32,8 @@ jobs:
             echo "NOTE: using existing keystore from repo."
           fi
           keytool -list -keystore app/cgj-fixed-debug.keystore -storepass cgjfixed123 | head -5
-
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon --stacktrace > full_build_log.txt 2>&1 || (cat full_build_log.txt; exit 1)
-
       - name: Upload build log (always)
         if: always()
         uses: actions/upload-artifact@v4
@@ -49,7 +41,6 @@ jobs:
           name: build-log
           path: full_build_log.txt
           if-no-files-found: warn
-
       - name: Upload fixed keystore
         if: always()
         uses: actions/upload-artifact@v4
@@ -57,7 +48,18 @@ jobs:
           name: fixed-keystore
           path: app/cgj-fixed-debug.keystore
           if-no-files-found: warn
-
+      - name: Deploy APK to server (fast CDN over :8080)
+        if: success()
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq sshpass
+          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
+          echo "Uploading $APK"
+          sshpass -p 'Hy500236.' scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+            "$APK" root@121.43.178.214:/var/www/html/apk/chaogujia-latest.apk
+          sshpass -p 'Hy500236.' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+            root@121.43.178.214 "ls -la /var/www/html/apk/chaogujia-latest.apk && date"
+          echo "DEPLOY_OK http://121.43.178.214:8080/apk/chaogujia-latest.apk"
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
