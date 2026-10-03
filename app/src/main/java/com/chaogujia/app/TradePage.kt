@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.lazy.LazyColumn
@@ -73,11 +74,10 @@ private fun tpSigned(v: Double): String =
 private fun tpPct(v: Double): String =
     if (kotlin.math.abs(v) < 5e-3) String.format(Locale.CHINA, "%.2f%%", 0.0)
     else String.format(Locale.CHINA, "%+.2f%%", v)
-/** 盈亏颜色：盈利红、亏损蓝、零灰 */
+/** 盈亏颜色：红涨蓝跌，零值归红（对齐同花顺惯例，0.00% 显示为红色） */
 private fun tpPnColor(v: Double): Color = when {
-    v > 1e-9 -> TP_RED
     v < -1e-9 -> TP_BLUE
-    else -> TP_GRAY
+    else -> TP_RED
 }
 
 @Composable
@@ -414,7 +414,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             Spacer(Modifier.height(6.dp))
             Text(
                 text = tpSigned(monthPnl),
-                color = if (monthPnl == 0.0) TP_BLACK else tpPnColor(monthPnl),
+                color = tpPnColor(monthPnl),
                 fontSize = 18.sp,
                 fontFamily = TPNumFont,
                 fontWeight = FontWeight.Bold,
@@ -434,10 +434,10 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         MiniPnlChart(
             data = series,
             centerLabel = tpPct(monthPct),
-            centerLabelColor = if (monthPnl == 0.0) TP_BLACK else tpPnColor(monthPct),
+            centerLabelColor = tpPnColor(monthPct),
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 2.dp, end = 14.dp) // 给右侧箭头图标让位，基准线右端不顶到最右
+                .padding(top = 2.dp, end = 42.dp) // 给右侧箭头图标让位，基准线右端不顶到最右（间距在14dp基础上再增两倍）
                 .size(width = 108.dp, height = 40.dp)
         )
         Image(
@@ -489,31 +489,45 @@ private fun MiniPnlChart(
         val dotX = if (hasData) maxOf(li * stepX, minSeg) else 0f
         val dotY = if (hasData) yOf(data[li]) else midY
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // ① 零轴线：长期存在的水平浅灰虚线（走势基准）
+            // ① 零轴线：长期存在的水平浅红虚线（走势基准，红涨蓝跌体系下基准以红系呈现）
             drawLine(
-                color = TP_GRAY.copy(alpha = 0.5f),
+                color = TP_RED.copy(alpha = 0.35f),
                 start = Offset(0f, midY),
                 end = Offset(w, midY),
                 strokeWidth = 1f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
             )
             if (hasData) {
-                // ② 走势线：红涨蓝跌实线，从零轴出发逐点连接
-                var prevX = 0f
-                var prevY = midY
+                // ② 走势线路径：红涨蓝跌实线，从零轴最左端出发逐点连接
+                //    首段从 (0, midY) 拉到第一个点，保持"贴着零轴起步"的观感
+                val linePath = Path()
+                linePath.moveTo(0f, midY)
                 for (i in 0 until n) {
                     // 首个点与后续点：横向位置至少推进到 minSeg，避免单点时长度为 0 看不见
                     val x = if (i == 0) dotX else i * stepX
                     val y = yOf(data[i])
-                    if (i == 0) {
-                        drawLine(lineColor, Offset(0f, midY), Offset(x, y), strokeWidth = 2f)
-                    } else {
-                        drawLine(lineColor, Offset(prevX, prevY), Offset(x, y), strokeWidth = 2f)
-                    }
-                    prevX = x; prevY = y
+                    linePath.lineTo(x, y)
                 }
+                // ③ 线下方面积：竖向渐变填充，上端浓、往下逐渐变淡（对标自选页压缩分时图）
+                val areaPath = Path().apply {
+                    addPath(linePath)
+                    lineTo(dotX, h)
+                    lineTo(0f, h)
+                    close()
+                }
+                val areaBrush = Brush.verticalGradient(
+                    colors = listOf(
+                        lineColor.copy(alpha = 0.28f),
+                        lineColor.copy(alpha = 0.04f)
+                    ),
+                    startY = 0f,
+                    endY = h
+                )
+                drawPath(path = areaPath, brush = areaBrush)
+                // ④ 走势线压在面积之上，保证线清晰醒目
+                drawPath(path = linePath, color = lineColor, style = Stroke(width = 2f))
                 // 末端圆点
-                drawCircle(color = lineColor, radius = 3.2f, center = Offset(prevX, prevY))
+                drawCircle(color = lineColor, radius = 3.2f, center = Offset(dotX, dotY))
             }
         }
         // 百分比文字：落在末端圆点旁边，与圆点同水平线（随走势浮动）
