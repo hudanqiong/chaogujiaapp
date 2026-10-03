@@ -260,9 +260,17 @@ private fun PositionHeaderRow(
     onSearch: () -> Unit,
     onRefresh: () -> Unit
 ) {
-    val iconSize = 22.dp
-    // 红条渐变底色（与主 Box 背景顶端一致），用于第 4 格遮挡块
-    val maskColor = Color(Config.COLOR_PRIMARY)
+    // ★ 尺寸定稿（第 34 轮真机反馈）：
+    //   左返回 55dp、右方框 55dp、放大镜/刷新 66dp；切换三角保持 18dp 不动。
+    val backSize = 55.dp
+    val squareSize = 55.dp
+    val bigIconSize = 66.dp
+    val triSize = 18.dp
+    // 红条本身是「垂直渐变」，遮罩若用纯色必有色差；
+    // 因此遮罩直接复用同一条渐变，取右上角区域裁切，做到与红条无缝。
+    val barBrush = Brush.verticalGradient(
+        listOf(Color(Config.COLOR_PRIMARY), Color(0xFFD0202A))
+    )
 
     Row(
         modifier = Modifier
@@ -275,7 +283,7 @@ private fun PositionHeaderRow(
             painter = painterResource(R.drawable.ic_pos_back),
             contentDescription = "返回",
             modifier = Modifier
-                .size(iconSize)
+                .size(backSize)
                 .clickable { onBack() },
             contentScale = ContentScale.Fit
         )
@@ -305,16 +313,16 @@ private fun PositionHeaderRow(
             painter = painterResource(R.drawable.ic_pos_tri),
             contentDescription = "切换账户",
             modifier = Modifier
-                .size(18.dp)
+                .size(triSize)
                 .clickable { onSwitch() },
             contentScale = ContentScale.Fit
         )
         Spacer(Modifier.width(14.dp))
 
-        // ==== 右：第4格(方框箭头, 带红块遮罩) + 放大镜 + 刷新 ====
+        // ==== 右：第4格(方框箭头, 带右上角90°遮罩) + 放大镜 + 刷新 ====
         Box(
             modifier = Modifier
-                .size(iconSize)
+                .size(squareSize)
                 .clickable { onSquare() }
         ) {
             Image(
@@ -323,15 +331,18 @@ private fun PositionHeaderRow(
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Fit
             )
-            // ★ 遮挡 v8 图标右上角那团多余实心块：
-            //   用红条同色小方块盖住右上角一小块（约 40% 宽 × 40% 高）。
-            //   只遮挡、不重画，方框其余线条原样保留。
+            // ★ 遮挡 v8 图标「右上角连在箭头前端的多余实心块」：
+            //   做成一个 90° 直角的「帽子」，只盖右上角拐角那一小块，
+            //   并向右/上各内缩 1dp，确保方框与箭头的线条完整不断。
+            //   底色调成与红条一致：直接复用红条的垂直渐变，且做垂直偏移，
+            //   让遮罩顶部对齐红条上对应位置，做到零色差。
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .fillMaxWidth(0.42f)
-                    .fillMaxHeight(0.42f)
-                    .background(maskColor)
+                    // 帽子尺寸：占方框右上角一小块（宽高各约 1/3）
+                    .fillMaxWidth(0.34f)
+                    .fillMaxHeight(0.34f)
+                    .background(barBrush)
             )
         }
         Spacer(Modifier.width(18.dp))
@@ -339,7 +350,7 @@ private fun PositionHeaderRow(
             painter = painterResource(R.drawable.ic_pos_search),
             contentDescription = "搜索",
             modifier = Modifier
-                .size(iconSize)
+                .size(bigIconSize)
                 .clickable { onSearch() },
             contentScale = ContentScale.Fit
         )
@@ -348,7 +359,7 @@ private fun PositionHeaderRow(
             painter = painterResource(R.drawable.ic_pos_refresh),
             contentDescription = "刷新",
             modifier = Modifier
-                .size(iconSize)
+                .size(bigIconSize)
                 .clickable { onRefresh() },
             contentScale = ContentScale.Fit
         )
