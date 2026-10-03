@@ -79,7 +79,7 @@ fun PositionPage(
     var curTab by remember { mutableStateOf(defaultTab) }
 
     // ★ 第 34 轮新增：中栏与 6 格统计所需数据
-    var account by remember { mutableStateOf(Api.AccountInfo()) }
+    var account by remember { mutableStateOf(AccountInfo()) }
     var cashAccount by remember { mutableStateOf("") }   // 资金账号（可空）
     var brokerId by remember { mutableStateOf(0) }
 
@@ -145,7 +145,7 @@ fun PositionPage(
  *   - 高度≈上方切换按钮栏（44dp）
  */
 @Composable
-private fun PosAccountBar(account: Api.AccountInfo) {
+private fun PosAccountBar(account: AccountInfo) {
     // 仓位% = 总市值 / 总资产（总资产为 0 时置 0），框取 0..1
     val posRatio: Float =
         if (account.total > 0.0) (account.marketValue / account.total).toFloat().coerceIn(0f, 1f)
@@ -209,7 +209,7 @@ private fun PosAccountBar(account: Api.AccountInfo) {
  *   后置小方框：浅灰底 + 橙色字「(逆回购▶)」「(转账▶)」
  */
 @Composable
-private fun PosStatGrid(account: Api.AccountInfo) {
+private fun PosStatGrid(account: AccountInfo) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
