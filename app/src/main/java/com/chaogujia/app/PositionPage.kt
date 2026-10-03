@@ -1,6 +1,7 @@
 package com.chaogujia.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -52,6 +53,7 @@ private val PP_TRACK = Color(0xFFFFFFFF)    // 仓位进度条底槽（第35轮�
 private val PP_FILL = Color(0xFFEEEEEE)     // 仓位进度条/后缀方框 填充色（第35轮：#EEEEEE）
 private val PP_ORANGE = Color(0xFFFF671B)   // 可用/可取后缀方框 文字+三角（第35轮：#FF671B）
 private val PP_BOXBG = Color(0xFFEEEEEE)    // 后缀小方框底（第35轮：#EEEEEE，不填充）
+private val PP_BOXLINE = Color(0xFFDDDDDD)  // 第37轮：仓位框外轮廓线（浅灰细边）
 
 /** 数值字体：与交易页/详情页一致（同花顺金融体） */
 private val PPNumFont = FontFamily(Font(R.font.ths_regular))
@@ -175,14 +177,16 @@ private fun PosAccountBar(account: AccountInfo) {
         Spacer(Modifier.weight(1f))
 
         // ---- 右：仓位百分比框（宽≈一条切换按钮红线宽；此处取按钮宽 = 屏宽/5）----
-        //   宽度取 72dp（约等于 5 等分按钮宽度量级），高 22dp。
+        //   宽度取 72dp（约等于 5 等分按钮宽度量级），高 20dp。
         //   第35轮：底槽=白（与背景一致），仅填充部分为浅灰 #EEEEEE。
+        //   第37轮：加长方形外轮廓线（PP_BOXLINE），高度 22→20，文字 11→10sp。
         Box(
             modifier = Modifier
                 .width(72.dp)
-                .height(22.dp)
+                .height(20.dp)
                 .clip(RoundedCornerShape(2.dp))
                 .background(PP_TRACK)
+                .border(1.dp, PP_BOXLINE, RoundedCornerShape(2.dp))
         ) {
             // 浅灰按百分比填充（自左向右）
             Box(
@@ -195,7 +199,7 @@ private fun PosAccountBar(account: AccountInfo) {
             Text(
                 text = String.format(Locale.CHINA, "仓位 %.0f%%", posPct),
                 color = PP_BLACK,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 maxLines = 1,
                 modifier = Modifier.align(Alignment.Center)
             )
@@ -292,8 +296,8 @@ private fun PosStatCell(
             Text(
                 text = label,
                 color = PP_LABEL,          // 标签=浅灰
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,          // 第37轮：13→14（+1号）
+                fontWeight = FontWeight.Normal,  // 第37轮：去掉加粗
                 maxLines = 1
             )
             if (suffixText != null) {
@@ -327,8 +331,8 @@ private fun PosStatCell(
         Text(
             text = value,
             color = valueColor,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 13.sp,          // 第37轮：11→13（+2号）
+            fontWeight = FontWeight.Bold,   // 第37轮：Medium→Bold（加粗）
             fontFamily = PPNumFont,
             maxLines = 1
         )
