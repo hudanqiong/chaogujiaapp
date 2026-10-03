@@ -46,10 +46,11 @@ private val PP_BG = Color(0xFFF5F5F5)       // 页面灰底
 // ★ 第 34 轮新增：中栏 / 6 格统计用色（对齐交易页 TradePage 的色系）
 private val PP_BLUE = Color(0xFF2A7BFF)     // 跌/亏损（蓝）
 private val PP_BLACK = Color(0xFF222222)    // 总资产/总市值/可用/可取 数值色
-private val PP_LINE = Color(0xFFE5E5E5)     // 上下分割细线（浅灰）
-private val PP_TRACK = Color(0xFFE8E8E8)    // 仓位进度条底槽（浅灰）
-private val PP_ORANGE = Color(0xFFFF8C00)   // 可用/可取后缀小方框文字（橙）
-private val PP_BOXBG = Color(0xFFF2F2F2)    // 后缀小方框底（浅灰）
+private val PP_LINE = Color(0xFFF0F0F0)     // 上下分割细线（第35轮：更细更浅）
+private val PP_TRACK = Color(0xFFFFFFFF)    // 仓位进度条底槽（第35轮：与背景一致=白）
+private val PP_FILL = Color(0xFFEEEEEE)     // 仓位进度条/后缀方框 填充色（第35轮：#EEEEEE）
+private val PP_ORANGE = Color(0xFFFF671B)   // 可用/可取后缀方框 文字+三角（第35轮：#FF671B）
+private val PP_BOXBG = Color(0xFFEEEEEE)    // 后缀小方框底（第35轮：#EEEEEE，不填充）
 
 /** 数值字体：与交易页/详情页一致（同花顺金融体） */
 private val PPNumFont = FontFamily(Font(R.font.ths_regular))
@@ -117,9 +118,9 @@ fun PositionPage(
 
         // ===== ③ 账户信息栏（左：国旗+账户类型；右：仓位百分比框）=====
         //   上下两条浅灰细线分割，高度≈上方切换按钮栏（44dp）。
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(PP_LINE))
+        Box(modifier = Modifier.fillMaxWidth().height(0.8.dp).background(PP_LINE))
         PosAccountBar(account = account)
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(PP_LINE))
+        Box(modifier = Modifier.fillMaxWidth().height(0.8.dp).background(PP_LINE))
 
         // ===== ④ 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
         PosStatGrid(account = account)
@@ -174,6 +175,7 @@ private fun PosAccountBar(account: AccountInfo) {
 
         // ---- 右：仓位百分比框（宽≈一条切换按钮红线宽；此处取按钮宽 = 屏宽/5）----
         //   宽度取 72dp（约等于 5 等分按钮宽度量级），高 22dp。
+        //   第35轮：底槽=白（与背景一致），仅填充部分为浅灰 #EEEEEE。
         Box(
             modifier = Modifier
                 .width(72.dp)
@@ -186,7 +188,7 @@ private fun PosAccountBar(account: AccountInfo) {
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(posRatio)
-                    .background(PP_LINE)
+                    .background(PP_FILL)
             )
             // 框内居中文字
             Text(
@@ -221,14 +223,14 @@ private fun PosStatGrid(account: AccountInfo) {
                 label = "总资产",
                 value = ppMoney(account.total),
                 valueColor = PP_BLACK,
-                suffix = null,
+                suffixText = null,
                 modifier = Modifier.weight(1f)
             )
             PosStatCell(
                 label = "浮动盈亏",
                 value = ppSigned(account.floatPn),
                 valueColor = ppPnColor(account.floatPn),
-                suffix = null,
+                suffixText = null,
                 modifier = Modifier.weight(1f)
             )
             PosStatCell(
@@ -237,7 +239,7 @@ private fun PosStatGrid(account: AccountInfo) {
                 // 后续后端补 dayPnl 字段后替换此处即可。
                 value = ppSigned(account.floatPn),
                 valueColor = ppPnColor(account.floatPn),
-                suffix = null,
+                suffixText = null,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -247,14 +249,14 @@ private fun PosStatGrid(account: AccountInfo) {
                 label = "总市值",
                 value = ppMoney(account.marketValue),
                 valueColor = PP_BLACK,
-                suffix = null,
+                suffixText = null,
                 modifier = Modifier.weight(1f)
             )
             PosStatCell(
                 label = "可用",
                 value = ppMoney(account.available),
                 valueColor = PP_BLACK,
-                suffix = "逆回购▶",
+                suffixText = "逆回购",
                 modifier = Modifier.weight(1f)
             )
             PosStatCell(
@@ -262,7 +264,7 @@ private fun PosStatGrid(account: AccountInfo) {
                 // 后端无独立「可取」字段（模拟盘无 T+1），暂以可用资金代入。
                 value = ppMoney(account.available),
                 valueColor = PP_BLACK,
-                suffix = "转账▶",
+                suffixText = "转账",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -280,14 +282,14 @@ private fun PosStatCell(
     label: String,
     value: String,
     valueColor: Color,
-    suffix: String?,
+    suffixText: String?,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = label,
             color = Color(Config.COLOR_TEXT_MAIN),
-            fontSize = 15.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
         )
@@ -296,25 +298,34 @@ private fun PosStatCell(
             Text(
                 text = value,
                 color = valueColor,
-                fontSize = 17.sp,
+                fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 fontFamily = PPNumFont,
                 maxLines = 1
             )
-            if (suffix != null) {
-                Spacer(Modifier.width(4.dp))
+            if (suffixText != null) {
+                Spacer(Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(2.dp))
                         .background(PP_BOXBG)
-                        .padding(horizontal = 3.dp, vertical = 1.dp)
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
-                    Text(
-                        text = suffix,
-                        color = PP_ORANGE,
-                        fontSize = 10.sp,
-                        maxLines = 1
-                    )
+                    // 文字 + 独立三角（两段，确保 ▶ 不被裁切、且都在框内）
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = suffixText,
+                            color = PP_ORANGE,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "▶",
+                            color = PP_ORANGE,
+                            fontSize = 9.sp,
+                            maxLines = 1
+                        )
+                    }
                 }
             }
         }
