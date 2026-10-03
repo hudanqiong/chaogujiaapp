@@ -69,8 +69,10 @@ private fun tpMoney(v: Double): String =
 private fun tpSigned(v: Double): String =
     if (kotlin.math.abs(v) < 5e-3) String.format(Locale.CHINA, "%,.2f", 0.0)
     else String.format(Locale.CHINA, "%+,.2f", v)
+/** 百分比：带正负号（涨 +、跌 -）；为 0 时不带符号，显示 0.00% */
 private fun tpPct(v: Double): String =
-    String.format(Locale.CHINA, "%+.2f%%", v)
+    if (kotlin.math.abs(v) < 5e-3) String.format(Locale.CHINA, "%.2f%%", 0.0)
+    else String.format(Locale.CHINA, "%+.2f%%", v)
 /** 盈亏颜色：盈利红、亏损蓝、零灰 */
 private fun tpPnColor(v: Double): Color = when {
     v > 1e-9 -> TP_RED
@@ -390,8 +392,6 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
     }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
-    // 本月是否产生过真实盈亏变动：所有点均为 0 视为“本月无行情/无数据”，不展示金额与走势线
-    val hasMonthData = series.any { it != 0.0 }
     val base = if (totalAsset - monthPnl != 0.0) totalAsset - monthPnl else 1.0
     val monthPct = monthPnl / base * 100.0
     val excess = last?.excess ?: 0.0
@@ -406,15 +406,15 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = nowMonth.toString() + "月参考盈亏",
-                color = TP_BLACK,
+                color = TP_GRAY,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = if (hasMonthData) tpSigned(monthPnl) else "--",
-                color = if (hasMonthData) tpPnColor(monthPnl) else TP_GRAY,
+                text = tpSigned(monthPnl),
+                color = if (monthPnl == 0.0) TP_BLACK else tpPnColor(monthPnl),
                 fontSize = 18.sp,
                 fontFamily = TPNumFont,
                 fontWeight = FontWeight.Bold,
@@ -423,24 +423,23 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
             Spacer(Modifier.height(6.dp))
             // 第3行：收益率与跑赢上证指数同一行，满宽显示不被走势图挤压
             Text(
-                text = if (hasMonthData) "收益率 " + tpPct(monthPct) + "  跑赢上证指数 " + tpPct(excess) else "收益率 --  跑赢上证指数 --",
+                text = "收益率 " + tpPct(monthPct) + "  跑赢上证指数 " + tpPct(excess),
                 color = TP_GRAY,
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 maxLines = 1
             )
         }
-        // 右上角独立小图（绝对定位，不占文字宽度）；本月无数据时不绘制
-        if (hasMonthData) {
-            MiniPnlChart(
-                data = series,
-                centerLabel = tpPct(monthPct),
-                centerLabelColor = tpPnColor(monthPct),
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 2.dp)
-                    .size(width = 108.dp, height = 40.dp)
-            )
-        }
+        // 右上角独立小图（绝对定位，不占文字宽度）；始终绘制：即使本月只有 0.00 一个点，
+        // 也会画出一小段贴在零轴的实线 + 贯穿的灰色虚线，端点标 0.00%
+        MiniPnlChart(
+            data = series,
+            centerLabel = tpPct(monthPct),
+            centerLabelColor = if (monthPnl == 0.0) TP_BLACK else tpPnColor(monthPct),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 2.dp)
+                .size(width = 108.dp, height = 40.dp)
+        )
         Image(
             painter = painterResource(R.drawable.ic_pnl_arrow),
             contentDescription = "展开",
@@ -485,7 +484,9 @@ private fun MiniPnlChart(
             (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
         val hasData = n >= 1 && data.isNotEmpty()
         val li = n - 1
-        val dotX = if (hasData) li * stepX else 0f
+        // 单点/起步阶段：保证向右至少有一小段实线（“还没开始走”的可见长度）
+        val minSeg = 16f * d
+        val dotX = if (hasData) maxOf(li * stepX, minSeg) else 0f
         val dotY = if (hasData) yOf(data[li]) else midY
         Canvas(modifier = Modifier.fillMaxSize()) {
             // ① 零轴线：长期存在的水平浅灰虚线（走势基准）
@@ -501,7 +502,8 @@ private fun MiniPnlChart(
                 var prevX = 0f
                 var prevY = midY
                 for (i in 0 until n) {
-                    val x = i * stepX
+                    // 首个点与后续点：横向位置至少推进到 minSeg，避免单点时长度为 0 看不见
+                    val x = if (i == 0) dotX else i * stepX
                     val y = yOf(data[i])
                     if (i == 0) {
                         drawLine(lineColor, Offset(0f, midY), Offset(x, y), strokeWidth = 2f)
