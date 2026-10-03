@@ -120,10 +120,11 @@ fun PositionPage(
         PosTabBar(cur = curTab, onSelect = { curTab = it })
 
         // ===== ③ 账户信息栏（左：国旗+账户类型；右：仓位百分比框）=====
-        //   上下两条浅灰细线分割，高度≈上方切换按钮栏（44dp）。
-        Box(modifier = Modifier.fillMaxWidth().height(0.8.dp).background(PP_LINE))
+        //   上下两条浅灰细线分割，高度 36dp（第38轮：44→36，更紧凑）。
+        //   第38轮：线高 0.8→0.4；上分割线紧贴切换栏底边（与选中红线在同一视觉带上）。
+        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
         PosAccountBar(account = account)
-        Box(modifier = Modifier.fillMaxWidth().height(0.8.dp).background(PP_LINE))
+        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
 
         // ===== ④ 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
         PosStatGrid(account = account)
@@ -160,7 +161,7 @@ private fun PosAccountBar(account: AccountInfo) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .height(44.dp)
+            .height(44.dp)   // 第38轮：与切换栏等高（红线贴底后，上分割线即红线带）
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -221,7 +222,7 @@ private fun PosStatGrid(account: AccountInfo) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
-            .padding(vertical = 10.dp)
+            .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 10.dp)  // 第38轮：左右留边，整体上抬
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             PosStatCell(
@@ -248,7 +249,7 @@ private fun PosStatGrid(account: AccountInfo) {
                 modifier = Modifier.weight(1f)
             )
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(24.dp))  // 第38轮：12→24（上下行间距加大一倍）
         Row(modifier = Modifier.fillMaxWidth()) {
             PosStatCell(
                 label = "总市值",
@@ -290,7 +291,7 @@ private fun PosStatCell(
     suffixText: String?,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.Start) {  // 第38轮：居中→左对齐（三栏各自左对齐）
         // ---- 标签行：固定文字（浅灰）+ 可选方框（逆回购▶/转账▶）----
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -387,7 +388,7 @@ private fun PosTabBar(cur: String, onSelect: (String) -> Unit) {
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { onSelect(t) },
-                verticalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.Bottom,   // 第38轮：Center→Bottom，红线贴切换栏底边
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -399,6 +400,7 @@ private fun PosTabBar(cur: String, onSelect: (String) -> Unit) {
                 )
                 Spacer(Modifier.height(5.dp))
                 // 下划线：仅选中项显示，宽度 = 按钮宽度（即 weight 分到的整格宽）
+                //   第38轮：贴底，与下方账户栏上分割线重叠对齐。
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
