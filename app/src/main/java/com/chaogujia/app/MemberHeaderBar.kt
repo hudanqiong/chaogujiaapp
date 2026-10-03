@@ -267,10 +267,13 @@ private fun PositionHeaderRow(
     val backSize = 55.dp
     val squareSize = 36.dp
     val bigIconSize = 38.dp
-    // ★ 切换三角：之前 14dp 太小像"针眼"，放大到 20dp（比 15sp 略大，清晰可辨）
-    val triSize = 20.dp
-    // 中间三项文字字号：与底部 5 个切换按钮保持一致（15sp）
-    val midFont = 15.sp
+    // ★ 第 34 轮字号分级（按真机反馈）：
+    //   证券名称：加大一档
+    //   切换三角：比证券名称字体略小（联动）
+    //   资金账户：小一号，且改用价格字体（ths_regular）
+    val nameFont = 18.sp
+    val accountFont = 13.sp
+    val triSize = 16.dp
     // 右侧三图标之间的间距：一根牙签直径（约 1dp）
     val pickGap = 1.dp
     // 红条本身是「垂直渐变」，遮罩若用纯色必有色差；
@@ -310,7 +313,7 @@ private fun PositionHeaderRow(
                 Text(
                     text = name,
                     color = Color.White,
-                    fontSize = midFont,
+                    fontSize = nameFont,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -318,7 +321,8 @@ private fun PositionHeaderRow(
                 Text(
                     text = account,
                     color = Color.White,
-                    fontSize = midFont,
+                    fontSize = accountFont,
+                    fontFamily = HSpNumFont,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
