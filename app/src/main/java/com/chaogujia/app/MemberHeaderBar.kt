@@ -267,7 +267,8 @@ private fun PositionHeaderRow(
     val backSize = 55.dp
     val squareSize = 36.dp
     val bigIconSize = 38.dp
-    val triSize = 14.dp
+    // ★ 切换三角：之前 14dp 太小像"针眼"，放大到 20dp（比 15sp 略大，清晰可辨）
+    val triSize = 20.dp
     // 中间三项文字字号：与底部 5 个切换按钮保持一致（15sp）
     val midFont = 15.sp
     // 右侧三图标之间的间距：一根牙签直径（约 1dp）
