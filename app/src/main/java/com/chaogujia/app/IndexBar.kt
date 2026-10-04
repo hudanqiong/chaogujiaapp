@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -512,7 +513,9 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                 // 其后依次是统计列。左滑时整个横滑区内元素一起左移，入口钻到名称列下方被遮住，
                 // 统计列从入口右缘依次露出 —— 名称列/涨幅列始终钉死不动。
                 val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-                val fixedW = WATCH_FIXED_W
+                // 持仓股分组(-2)：顶部是「账户切换器」（图标+完整账户名+展开箭头），
+                // 需要比常规名称列更宽才能容纳四字券商名（如“光大证券”），故单独放宽。
+                val fixedW = if (selectedGroup == -2) 124 else WATCH_FIXED_W
                 val pctW = WATCH_PCT_COL_W
                 val midW = (screenW - fixedW - pctW).coerceAtLeast(80)
                 // 表头：Box 叠放 —— 下层是可横滑的统计列（铺满整宽），上层是固定列（盖在最上面）
@@ -678,30 +681,30 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 BrokerHeaderIcon(
                                     brokerName = curBroker?.broker ?: "",
                                     key = curBroker?.key ?: "",
-                                    sizeDp = 20
+                                    sizeDp = 18
                                 )
-                                Spacer(Modifier.width(6.dp))
+                                Spacer(Modifier.width(5.dp))
+                                // 账户名：完整显示（最多 4 字，超出才省略），不压缩
                                 Text(
                                     text = curBroker?.broker ?: "选择账户",
                                     color = COLOR_TEXT,
                                     fontSize = 13.sp,
                                     maxLines = 1,
+                                    softWrap = false,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
+                                    modifier = Modifier.widthIn(max = 56.dp)
                                 )
                                 Spacer(Modifier.width(3.dp))
-                                // ▼ 向下展开箭头（Canvas 自绘，避免新增资源）
-                                Canvas(modifier = Modifier.size(10.dp)) {
-                                    val w = size.width
-                                    val h = size.height
-                                    val p = Path().apply {
-                                        moveTo(0f, h * 0.32f)
-                                        lineTo(w, h * 0.32f)
-                                        lineTo(w / 2f, h * 0.78f)
-                                        close()
-                                    }
-                                    drawPath(p, color = COLOR_SUB)
-                                }
+                                // 展开箭头：用「┛」顺时针旋转 90°（浅灰），点击整块展开账户列表
+                                Text(
+                                    text = "┛",
+                                    color = Color(0xFFBBBBBB),
+                                    fontSize = 13.sp,
+                                    modifier = Modifier
+                                        .graphicsLayer(rotationZ = 90f)
+                                        .widthIn(max = 12.dp),
+                                    maxLines = 1
+                                )
                             }
                         }
                     }
