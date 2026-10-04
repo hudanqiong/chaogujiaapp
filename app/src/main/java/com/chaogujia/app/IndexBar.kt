@@ -683,7 +683,7 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 BrokerHeaderIcon(
                                     brokerName = curBroker?.broker ?: "",
                                     key = curBroker?.key ?: "",
-                                    sizeDp = 10
+                                    sizeDp = 16
                                 )
                                 Spacer(Modifier.width(5.dp))
                                 // 账户名：完整显示（最多 4 字，超出才省略），不压缩
@@ -701,7 +701,7 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 Text(
                                     text = "┛",
                                     color = Color(0xFF999999),
-                                    fontSize = 14.sp,
+                                    fontSize = 11.sp,
                                     maxLines = 1,
                                     modifier = Modifier
                                         .padding(start = 3.dp)
