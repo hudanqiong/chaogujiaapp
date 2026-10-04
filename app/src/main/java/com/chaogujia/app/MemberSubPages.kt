@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -1074,46 +1075,96 @@ private fun TradeDayField(
                 fontSize = 13.sp
             )
         }
-        // 宫格
+        // 宫格（第41轮：增加月份切换，方便快速跳到对应年月）
         if (expanded && dates.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
+            // 可选月份列表（从 dates 里按 YYYY-MM 去重，保持从新到旧顺序）
+            val months = remember(dates) { dates.map { it.take(7) }.distinct() }
+            var monthIdx by remember(dates) { mutableStateOf(0) }
+            val curMonth = months.getOrElse(monthIdx) { "" }
+            // 当前月份下的日期（从新到旧）
+            val monthDates = remember(dates, curMonth) { dates.filter { it.startsWith(curMonth) } }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 220.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFFFAFAFA))
                     .padding(8.dp)
-                    .verticalScroll(rememberScrollState())
             ) {
-                // 每行 3 个日期格子
-                val rows = (dates.size + 2) / 3
-                for (r in 0 until rows) {
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                        for (c in 0 until 3) {
-                            val idx = r * 3 + c
-                            if (idx < dates.size) {
-                                val d = dates[idx]
-                                val sel = d == value
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(horizontal = 3.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (sel) Color(Config.COLOR_PRIMARY) else Color.White)
-                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onPick(d) }
-                                        .padding(vertical = 9.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        d.substringAfter('-').replace("-", "/"),  // 显示 MM/DD 更紧凑
-                                        color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
-                                        fontSize = 12.sp,
-                                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
-                                    )
+                // ---- 月份切换条 ----
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 上一月
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                if (monthIdx < months.size - 1) monthIdx++
+                            }
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                    ) {
+                        Text("‹ 上月", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
+                    }
+                    Text(
+                        curMonth.replace("-", "年") + "月",
+                        color = Color(Config.COLOR_PRIMARY),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center
+                    )
+                    // 下一月
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                if (monthIdx > 0) monthIdx--
+                            }
+                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                    ) {
+                        Text("下月 ›", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
+                    }
+                }
+                // ---- 该月的日期宫格（可纵向滚动）----
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    // 每行 3 个日期格子
+                    val rows = (monthDates.size + 2) / 3
+                    for (r in 0 until rows) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                            for (c in 0 until 3) {
+                                val idx = r * 3 + c
+                                if (idx < monthDates.size) {
+                                    val d = monthDates[idx]
+                                    val sel = d == value
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(horizontal = 3.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (sel) Color(Config.COLOR_PRIMARY) else Color.White)
+                                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onPick(d) }
+                                            .padding(vertical = 9.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            d.substringAfter('-').replace("-", "/"),  // 显示 MM/DD 更紧凑
+                                            color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
+                                            fontSize = 12.sp,
+                                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                } else {
+                                    Spacer(Modifier.weight(1f).padding(horizontal = 3.dp))
                                 }
-                            } else {
-                                Spacer(Modifier.weight(1f).padding(horizontal = 3.dp))
                             }
                         }
                     }

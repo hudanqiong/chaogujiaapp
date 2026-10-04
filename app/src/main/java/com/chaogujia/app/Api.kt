@@ -838,7 +838,9 @@ object Api {
                         price = p.optDouble("price", 0.0),
                         marketValue = p.optDouble("marketValue", 0.0),
                         pnl = p.optDouble("pnl", 0.0),
-                        pnlPct = p.optDouble("pnlPct", 0.0)
+                        pnlPct = p.optDouble("pnlPct", 0.0),
+                        // 第40轮修复：此前漏读 holdDays → 永远 null → 表格显示「--」
+                        holdDays = if (p.has("holdDays") && !p.isNull("holdDays")) p.optInt("holdDays") else null
                     )
                 )
             }
