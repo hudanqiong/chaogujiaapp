@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -707,18 +708,21 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .padding(end = 14.dp)
+                                .zIndex(10f)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu },
                             contentAlignment = Alignment.Center
                         ) {
-                            // 「┛」顺时针 90° 再逆时针 45° = 净 45°，浅灰
+                            // 「┛」顺时针 90° 再逆时针 45° = 净 45°，深灰、置顶显示
                             Text(
                                 text = "┛",
-                                color = Color(0xFF999999),
-                                fontSize = 14.sp,
-                                modifier = Modifier.graphicsLayer(rotationZ = 45f),
+                                color = Color(0xFF666666),
+                                fontSize = 16.sp,
+                                modifier = Modifier
+                                    .graphicsLayer(rotationZ = 45f)
+                                    .zIndex(10f),
                                 maxLines = 1
                             )
                         }
