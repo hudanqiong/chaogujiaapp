@@ -1096,6 +1096,27 @@ object Api {
             "initial" to amount
         )
 
+    /** 一键重置数据（reset.php）：清空当前账户全部持仓+交易记录，现金重置为初始资金（第43轮） */
+    fun resetData(token: String?, brokerAccountId: Int): Res {
+        return try {
+            val raw = Net.postJson(
+                base("reset.php"),
+                jsonOf(
+                    "broker_account_id" to brokerAccountId,
+                    "token" to (token ?: "")
+                ),
+                token
+            )
+            val o = JSONObject(raw)
+            Res(
+                ok = o.optInt("code", -1) == 0,
+                msg = o.optString("msg", "")
+            )
+        } catch (e: Exception) {
+            Res(false, e.message ?: "网络异常")
+        }
+    }
+
     /** 挂单列表（order_list.php）
      *  status 默认 pending；传 "all" 取全部 */
     fun orderList(

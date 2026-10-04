@@ -88,6 +88,8 @@ fun ChaoGuJiaApp() {
     // 持仓页红条两行文字（由 PositionPage 回吐：上行证券名/下行资金账户）
     var positionName by remember { mutableStateOf("") }
     var positionAccount by remember { mutableStateOf("") }
+    // ★ 第 43 轮：持仓页「切换账户」触发计数。红条 ▼ 点击自增 → PositionPage 弹账户选择浮层。
+    var positionSwitchTick by remember { mutableStateOf(0) }
     var targetTab by remember { mutableStateOf("index") }
     // ★ 交易页账户类型（A股/基金/期货/黄金/模拟）：状态提升到 App 级，供顶部红条内切换按钮使用
     var tradeTab by remember { mutableStateOf("A股") }
@@ -260,7 +262,7 @@ fun ChaoGuJiaApp() {
                     positionName = positionName,
                     positionAccount = positionAccount,
                     onPositionBack = { showPosition = false },
-                    onPositionSwitch = { /* TODO 切换账户 */ },
+                    onPositionSwitch = { positionSwitchTick++ },   // 第43轮：红条 ▼ → 通知 PositionPage 弹账户选择
                     onPositionSquare = { /* TODO 方框箭头 */ },
                     onPositionSearch = { showSearch = true },
                     onPositionRefresh = { /* TODO 刷新持仓 */ }
@@ -449,6 +451,7 @@ fun ChaoGuJiaApp() {
             if (showPosition) {
                 PositionPage(
                     token = token,
+                    switchAccountTick = positionSwitchTick,   // 第43轮：红条 ▼ 触发账户选择
                     onAccountChange = { nm, acc ->
                         positionName = nm
                         positionAccount = acc

@@ -980,6 +980,7 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
     var totalTxt by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
     var running by remember { mutableStateOf(false) }
+    var resetting by remember { mutableStateOf(false) }   // 第43轮：一键重置数据
     // 交易日宫格：当前股票的「有K线柱子的交易日」（从新到旧）+ 当日高低价
     var barDates by remember { mutableStateOf<List<String>>(emptyList()) }
     var barHL by remember { mutableStateOf<Map<String, Pair<Double, Double>>>(emptyMap()) }
@@ -1096,13 +1097,35 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
                     Spacer(Modifier.height(10.dp))
                     Text(msg, color = Color(Config.COLOR_PRIMARY), fontSize = 12.sp)
                 }
-            }
-        }
 
-        Spacer(Modifier.height(12.dp))
-        CardBox {
-            Column {
-                Text("说明", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                // 第43轮：一键重置数据（清空当前账户全部持仓+交易记录，现金重置为初始资金）
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFFF2F2F2))
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                            if (resetting) return@clickable
+                            resetting = true
+                            msg = ""
+                            Thread {
+                                val r = Api.resetData(token, brokerAccountId)
+                                msg = if (r.ok) {
+                                    Config.bumpTradeData()
+                                    r.msg.ifEmpty { "重置完成：已清空持仓与交易记录" }
+                                } else "重置失败：${r.msg}"
+                                resetting = false
+                            }.start()
+                        }
+                        .padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (resetting) "重置中…" else "重置数据（清空持仓与交易记录）",
+                        color = Color(0xFFE23B3B), fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 Text("• 买卖节奏与做T随机生成，不遵循 T+1", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
                 Text("• 生成后会真实写入持仓记录，浮盈浮亏自动计算", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
@@ -1160,28 +1183,44 @@ private fun TradeDayField(
             )
         }
         // 第42轮：年/月胶囊 → 选完年月直接弹出「日历格子」（只显示 1~31 的日号，无数据的日置灰）
+        // 第43轮修复：日期格式归一化。同花顺全历史K线返回 "20260924"（无横线），
+        //   东财/腾讯返回 "2026-09-24"。若不归一化，take(7) 取到 "2026092"、
+        //   substringAfterLast('-') 取不到 '-' 会返回整串 → 月份错乱 + 日期全部点不了。
         if (expanded && dates.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
+            // 归一化：任意日期串 → "YYYY-MM-DD"
+            fun normDate(s: String): String {
+                val t = s.trim()
+                if (t.length >= 10 && t[4] == '-') return t.take(10)
+                val d = t.filter { it.isDigit() }
+                return if (d.length >= 8)
+                    d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8)
+                else t
+            }
+            // 全部归一化后的日期（YYYY-MM-DD，去重）
+            val nd = remember(dates) {
+                dates.map { normDate(it) }.filter { it.length >= 10 }.distinct()
+            }
             // 全部可选年份（YYYY，从新到旧）
-            val years = remember(dates) { dates.map { it.take(4) }.distinct() }
+            val years = remember(nd) { nd.map { it.take(4) }.distinct() }
             // 全部可选月份（YYYY-MM，从新到旧）
-            val allMonths = remember(dates) { dates.map { it.take(7) }.distinct() }
+            val allMonths = remember(nd) { nd.map { it.take(7) }.distinct() }
             // 当前选中的年（默认取最新年，或已选日期所在年）
-            var curYear by remember(dates) {
+            var curYear by remember(nd) {
                 mutableStateOf(if (value.length >= 4) value.take(4) else years.firstOrNull() ?: "")
             }
             // 该年实际有数据的月份（避免点到空月份）
             val monthsOfYear = remember(allMonths, curYear) { allMonths.filter { it.startsWith(curYear) } }
             // 当前选中的月（默认该年最新月，或已选日期所在月）
-            var curMonth by remember(dates, curYear) {
+            var curMonth by remember(nd, curYear) {
                 mutableStateOf(
                     if (value.length >= 7 && value.take(4) == curYear) value.take(7)
                     else monthsOfYear.firstOrNull() ?: ""
                 )
             }
             // 该年月下可选的「日号」集合（1~31 中真正有交易数据的那些）
-            val daySet = remember(dates, curMonth) {
-                dates.filter { it.startsWith(curMonth) }.mapNotNull { it.substringAfterLast('-').toIntOrNull() }.toSet()
+            val daySet = remember(nd, curMonth) {
+                nd.filter { it.startsWith(curMonth) }.mapNotNull { it.substringAfterLast('-').toIntOrNull() }.toSet()
             }
             Column(
                 modifier = Modifier

@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -84,7 +86,14 @@ fun PositionPage(
     /** 默认选中项：按用户要求默认「持仓」 */
     defaultTab: String = "持仓",
     /** 回吐当前资金账户（上行=券商名，下行=账号），供红条两行文字显示 */
-    onAccountChange: (String, String) -> Unit = { _, _ -> }
+    onAccountChange: (String, String) -> Unit = { _, _ -> },
+    /**
+     * ★ 第 43 轮新增：外部「切换账户」触发计数。
+     *   顶部红条 ▼ 被点击时由 MainActivity 自增 → 本页弹出账户选择浮层。
+     *   之所以用 tick 而不是直接的布尔开关：红条在 MainActivity 渲染，本页状态自包含，
+     *   用计数可避免把整页状态提升到父级（改动最小）。
+     */
+    switchAccountTick: Int = 0
 ) {
     var curTab by remember { mutableStateOf(defaultTab) }
 
@@ -96,6 +105,22 @@ fun PositionPage(
     // ★ 第 39 轮新增：持仓股票列表（下方 9 栏表格的数据源）
     var positions by remember { mutableStateOf(listOf<PositionItem>()) }
 
+    // ★ 第 43 轮新增：账户列表 + 账户选择浮层开关
+    var brokerList by remember { mutableStateOf(listOf<MyBroker>()) }
+    var showAccountPicker by remember { mutableStateOf(false) }
+
+    /**
+     * ★ 第 43 轮：按账户 id 加载「资金 + 持仓」并回吐红条两行文字。
+     *   抽成局部函数，供首次进入与切换账户复用。
+     */
+    suspend fun loadBrokerAccount(b: MyBroker) {
+        onAccountChange(b.broker, b.account)
+        brokerId = b.id
+        cashAccount = b.account
+        account = withContext(Dispatchers.IO) { Api.account(token, b.id) }
+        positions = withContext(Dispatchers.IO) { Api.positions(token, b.id) }
+    }
+
     // ★ 进页时拉一次「我的券商账户」+「账户资金」：
     //   - 券商账户：取第一个，回吐红条两行文字，同时拿到资金账户 id
     //   - 账户资金：拿 total/marketValue/available/floatPn 填 6 格统计；仓位% = 总资产/总持仓
@@ -106,22 +131,22 @@ fun PositionPage(
                 // 网络请求必须在 IO 线程（与 TradePage/HomeScreen 等保持一致），
                 // 否则主线程抛 NetworkOnMainThreadException 被静默吞掉 → 红条两行文字空白。
                 val list = withContext(Dispatchers.IO) { Api.brokerList(token) }
+                brokerList = list
                 val first = list.firstOrNull()
                 if (first != null) {
-                    onAccountChange(first.broker, first.account)
-                    brokerId = first.id
-                    cashAccount = first.account
-                    // 账户资金详情
-                    val acc = withContext(Dispatchers.IO) { Api.account(token, first.id) }
-                    account = acc
-                    // ★ 第 39 轮：持仓列表（下方 9 栏表格数据源），失败留空不影响其它部分
-                    positions = withContext(Dispatchers.IO) { Api.positions(token, first.id) }
+                    loadBrokerAccount(first)
                 }
             } catch (_: Throwable) {
             }
         }
     }
 
+    // ★ 第 43 轮新增：红条 ▼ 点击 → 弹出账户选择浮层（tick 初值 0，避免进页即弹）
+    LaunchedEffect(switchAccountTick) {
+        if (switchAccountTick > 0) showAccountPicker = true
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -146,6 +171,78 @@ fun PositionPage(
         // ===== ⑥ 持仓表格（第39轮）：表头(9栏) + 股票列表(每只两行 / 部分单行) =====
         //   左滑：第一栏(市值)固定，右侧 8 栏整体左滑钻到固定列下方（复用自选页 hScroll 模式）
         PosHoldTable(positions = positions, totalAsset = account.total)
+    }
+
+    // ★ 第 43 轮新增：账户选择浮层（盖住整页）。红条 ▼ 点击后出现，
+    //   列出全部券商账户，点选后切换 brokerId 并重新加载资金/持仓，同时更新红条两行文字。
+    if (showAccountPicker) {
+        // 半透明遮罩（点击遮罩也可关闭）
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x66000000))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    showAccountPicker = false
+                }
+        )
+        // 居中卡片
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .width(280.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .padding(vertical = 12.dp)
+        ) {
+            Text(
+                text = "切换账户",
+                color = PP_BLACK,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+            )
+            if (brokerList.isEmpty()) {
+                Text(
+                    text = "暂无券商账户",
+                    color = PP_LABEL,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+                )
+            } else {
+                val scope = rememberCoroutineScope()
+                brokerList.forEach { b ->
+                    val selected = b.id == brokerId
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                showAccountPicker = false
+                                // 已在当前账户则无需重拉
+                                if (b.id != brokerId) {
+                                    // 切换账户需联网 → 用协程在 IO 线程执行（loadBrokerAccount 内部已切 IO）
+                                    scope.launch { try { loadBrokerAccount(b) } catch (_: Throwable) {} }
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = b.broker.ifBlank { "券商账户" },
+                            color = if (selected) PP_RED else PP_BLACK,
+                            fontSize = 14.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = b.account,
+                            color = PP_LABEL,
+                            fontSize = 12.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -562,8 +659,8 @@ private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
             )
             // --- 个股仓位（单行）：该股市值 / 全部持仓市值合计；第40轮：红蓝、去正负号 ---
             PpCellOne(text = ppPctPlain(holdPct), color = ppPnColor(p.pnl))
-            // --- 持仓天数（单行）：第40轮接后端 holdDays（交易日数）---
-            PpCellOne(text = ppDays(p.holdDays), color = PP_BLACK)
+            // --- 持仓天数（单行）：第40轮接后端 holdDays（交易日数）；第43轮：随盈亏红蓝 ---
+            PpCellOne(text = ppDays(p.holdDays), color = ppPnColor(p.pnl))
             // --- 止盈止损（单行）：后端无字段，-- 占位 ---
             PpCellOne(text = "--", color = PP_BLACK)
             // --- 证券代码（单行，黑字）---
