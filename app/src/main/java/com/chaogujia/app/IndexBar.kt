@@ -683,7 +683,7 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 BrokerHeaderIcon(
                                     brokerName = curBroker?.broker ?: "",
                                     key = curBroker?.key ?: "",
-                                    sizeDp = 13
+                                    sizeDp = 10
                                 )
                                 Spacer(Modifier.width(5.dp))
                                 // 账户名：完整显示（最多 4 字，超出才省略），不压缩
@@ -697,10 +697,10 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                     modifier = Modifier.widthIn(max = 58.dp)
                                 )
                                 // 下拉弯箭头：紧跟在账户名右侧，与名称、图标垂直居中对齐。
-                                // 「┛」顺时针 90° 再逆时针 45° = 净 45°，深灰。
+                                // 「┛」顺时针 90° 再逆时针 45° = 净 45°，浅灰。
                                 Text(
                                     text = "┛",
-                                    color = Color(0xFF666666),
+                                    color = Color(0xFF999999),
                                     fontSize = 14.sp,
                                     maxLines = 1,
                                     modifier = Modifier
