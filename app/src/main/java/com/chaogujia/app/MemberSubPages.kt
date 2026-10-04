@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -119,24 +120,103 @@ fun BigBtn(text: String, onClick: () -> Unit) {
     }
 }
 
-// ===== 1. 初始资金 =====
+// ===== 1. 初始资金（第42轮：支持多账户选择）=====
 @Composable
 private fun PageInitial(token: String?, brokerAccountId: Int, account: AccountInfo, onBack: () -> Unit) {
-    var txt by remember { mutableStateOf(account.initial.toInt().toString()) }
+    // 多账户：加载我的全部券商账户，允许切换要修改的账户
+    var brokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    var loadingAcc by remember { mutableStateOf(true) }
+    // 当前选中的账户 id（优先用入口传入的 brokerAccountId）
+    var curId by remember { mutableStateOf(brokerAccountId) }
+    // 当前选中账户对象（找不到就退回入口账户）
+    val curBroker: MyBroker? = brokers.find { it.id == curId }
+    // 初始资金输入框（跟随选中账户变化）
+    var txt by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
+    // 账户数据加载完成后，用当前账户的初始资金填充输入框
+    LaunchedEffect(brokers, curId) {
+        if (brokers.isNotEmpty()) {
+            txt = (curBroker?.initial ?: 0.0).toInt().toString()
+        }
+    }
+    LaunchedEffect(token) {
+        try {
+            val list = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            if (list.isNotEmpty()) {
+                brokers = list
+                if (curId == 0 || list.none { it.id == curId }) curId = list.first().id
+            }
+            loadingAcc = false
+        } catch (e: Exception) { loadingAcc = false }
+    }
     SubShell("设置初始资金", onBack) {
         CardBox {
             Column {
-                Text("当前初始资金：¥${account.initial}", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Text("选择账户", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                if (loadingAcc) {
+                    Text("加载账户中…", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                } else if (brokers.isEmpty()) {
+                    Text("暂无券商账户", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                } else {
+                    // 账户选择行（横向滚动，选中高亮）
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    ) {
+                        brokers.forEach { b ->
+                            val sel = b.id == curId
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) Color(Config.COLOR_PRIMARY) else Color(0xFFF2F2F2))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        curId = b.id
+                                        msg = ""
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        b.broker.ifEmpty { "账户${b.id}" },
+                                        color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (b.account.isNotEmpty()) {
+                                        Text(
+                                            b.account,
+                                            color = if (sel) Color.White else Color(Config.COLOR_TEXT_SUB),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        CardBox {
+            Column {
+                Text(
+                    "当前账户：${curBroker?.broker ?: "—"}${if (curBroker?.account?.isNotEmpty() == true) "（${curBroker.account}）" else ""}",
+                    color = Color(Config.COLOR_TEXT_MAIN), fontSize = 13.sp, fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("当前初始资金：¥${curBroker?.initial ?: account.initial}", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(12.dp))
                 InputBox(txt, "请输入初始资金", { txt = it })
                 Spacer(Modifier.height(16.dp))
                 BigBtn("保存") {
                     val v = txt.toDoubleOrNull()
+                    val targetId = if (curId != 0) curId else brokerAccountId
                     if (v == null || v < 0) { msg = "请输入正确的金额" }
+                    else if (targetId <= 0) { msg = "请先选择账户" }
                     else {
                         Thread {
-                            val r = Api.setInitial(token, brokerAccountId, v)
+                            val r = Api.setInitial(token, targetId, v)
                             msg = if (r.ok) "设置成功" else "失败：${r.msg}"
                         }.start()
                     }
@@ -699,7 +779,9 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
         barDates = emptyList()
         barHL = emptyMap()
         Thread {
-            val d = Api.detail(code, "day", 1)
+            // 第42轮修复：原来 kn=1 被后端夹成 30 根，只够 1 个多月 → 日期选择器不全。
+            // 改为 800 根（约 3 年交易日），保证年份/月份/日期三级都有足够数据可选。
+            val d = Api.detail(code, "day", 800)
             val points = d?.line ?: emptyList()
             val dates = ArrayList<String>()
             val hl = HashMap<String, Pair<Double, Double>>()
@@ -911,7 +993,9 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
         barDates = emptyList()
         barHL = emptyMap()
         Thread {
-            val d = Api.detail(pure, "day", 1)
+            // 第42轮修复：原来 kn=1 被后端夹成 30 根，只够 1 个多月 → 日期选择器不全。
+            // 改为 800 根（约 3 年交易日），保证年份/月份/日期三级都有足够数据可选。
+            val d = Api.detail(pure, "day", 800)
             val points = d?.line ?: emptyList()
             val dates = ArrayList<String>()
             val hl = HashMap<String, Pair<Double, Double>>()
@@ -1075,15 +1159,30 @@ private fun TradeDayField(
                 fontSize = 13.sp
             )
         }
-        // 宫格（第41轮：增加月份切换，方便快速跳到对应年月）
+        // 第42轮：年/月胶囊 → 选完年月直接弹出「日历格子」（只显示 1~31 的日号，无数据的日置灰）
         if (expanded && dates.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
-            // 可选月份列表（从 dates 里按 YYYY-MM 去重，保持从新到旧顺序）
-            val months = remember(dates) { dates.map { it.take(7) }.distinct() }
-            var monthIdx by remember(dates) { mutableStateOf(0) }
-            val curMonth = months.getOrElse(monthIdx) { "" }
-            // 当前月份下的日期（从新到旧）
-            val monthDates = remember(dates, curMonth) { dates.filter { it.startsWith(curMonth) } }
+            // 全部可选年份（YYYY，从新到旧）
+            val years = remember(dates) { dates.map { it.take(4) }.distinct() }
+            // 全部可选月份（YYYY-MM，从新到旧）
+            val allMonths = remember(dates) { dates.map { it.take(7) }.distinct() }
+            // 当前选中的年（默认取最新年，或已选日期所在年）
+            var curYear by remember(dates) {
+                mutableStateOf(if (value.length >= 4) value.take(4) else years.firstOrNull() ?: "")
+            }
+            // 该年实际有数据的月份（避免点到空月份）
+            val monthsOfYear = remember(allMonths, curYear) { allMonths.filter { it.startsWith(curYear) } }
+            // 当前选中的月（默认该年最新月，或已选日期所在月）
+            var curMonth by remember(dates, curYear) {
+                mutableStateOf(
+                    if (value.length >= 7 && value.take(4) == curYear) value.take(7)
+                    else monthsOfYear.firstOrNull() ?: ""
+                )
+            }
+            // 该年月下可选的「日号」集合（1~31 中真正有交易数据的那些）
+            val daySet = remember(dates, curMonth) {
+                dates.filter { it.startsWith(curMonth) }.mapNotNull { it.substringAfterLast('-').toIntOrNull() }.toSet()
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1091,80 +1190,148 @@ private fun TradeDayField(
                     .background(Color(0xFFFAFAFA))
                     .padding(8.dp)
             ) {
-                // ---- 月份切换条 ----
+                // ---- 第一级：年份（横向滚动）----
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 上一月
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White)
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                if (monthIdx < months.size - 1) monthIdx++
-                            }
-                            .padding(horizontal = 12.dp, vertical = 5.dp)
-                    ) {
-                        Text("‹ 上月", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
-                    }
-                    Text(
-                        curMonth.replace("-", "年") + "月",
-                        color = Color(Config.COLOR_PRIMARY),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center
-                    )
-                    // 下一月
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.White)
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                if (monthIdx > 0) monthIdx--
-                            }
-                            .padding(horizontal = 12.dp, vertical = 5.dp)
-                    ) {
-                        Text("下月 ›", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
+                    years.forEach { y ->
+                        val sel = y == curYear
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (sel) Color(Config.COLOR_PRIMARY) else Color.White)
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                    curYear = y
+                                    // 切换年后，自动落到该年最新月份
+                                    curMonth = allMonths.firstOrNull { it.startsWith(y) } ?: ""
+                                }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                y + "年",
+                                color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
+                                fontSize = 12.sp,
+                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
                     }
                 }
-                // ---- 该月的日期宫格（可纵向滚动）----
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 200.dp)
-                        .verticalScroll(rememberScrollState())
+                Spacer(Modifier.height(6.dp))
+                // ---- 第二级：月份（仅显示该年有数据的月份，横向滚动）----
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 每行 3 个日期格子
-                    val rows = (monthDates.size + 2) / 3
-                    for (r in 0 until rows) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                            for (c in 0 until 3) {
-                                val idx = r * 3 + c
-                                if (idx < monthDates.size) {
-                                    val d = monthDates[idx]
-                                    val sel = d == value
-                                    Box(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(horizontal = 3.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (sel) Color(Config.COLOR_PRIMARY) else Color.White)
-                                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onPick(d) }
-                                            .padding(vertical = 9.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            d.substringAfter('-').replace("-", "/"),  // 显示 MM/DD 更紧凑
-                                            color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
-                                            fontSize = 12.sp,
-                                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    }
-                                } else {
-                                    Spacer(Modifier.weight(1f).padding(horizontal = 3.dp))
+                    monthsOfYear.forEach { m ->
+                        val sel = m == curMonth
+                        val mm = m.takeLast(2).trimStart('0').ifEmpty { "0" }
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (sel) Color(Config.COLOR_PRIMARY) else Color.White)
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                    curMonth = m
                                 }
+                                .padding(horizontal = 11.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                mm + "月",
+                                color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
+                                fontSize = 12.sp,
+                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                // ---- 第三级：日历格子（只显示 1~31 的日号；无数据的日置灰不可点）----
+                val firstDow = remember(curMonth) {
+                    // 该月 1 号是周几（周一=0 … 周日=6），用于日历对齐
+                    if (curMonth.length < 7) 0 else {
+                        val ci = curMonth.indexOf('-')
+                        try {
+                            val yy = curMonth.substring(0, ci).toInt()
+                            val mm = curMonth.substring(ci + 1).toInt()
+                            val cal = java.util.Calendar.getInstance()
+                            cal.set(yy, mm - 1, 1)
+                            // Calendar：周日=1 … 周六=7 → 转成周一=0 … 周日=6
+                            ((cal.get(java.util.Calendar.DAY_OF_WEEK) + 5) % 7)
+                        } catch (e: Exception) { 0 }
+                    }
+                }
+                val daysInMonth = remember(curMonth) {
+                    if (curMonth.length < 7) 30 else {
+                        val ci = curMonth.indexOf('-')
+                        try {
+                            val yy = curMonth.substring(0, ci).toInt()
+                            val mm = curMonth.substring(ci + 1).toInt()
+                            val cal = java.util.Calendar.getInstance()
+                            cal.set(yy, mm - 1, 1)
+                            cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+                        } catch (e: Exception) { 30 }
+                    }
+                }
+                // 星期表头（一~日）
+                Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                    listOf("一", "二", "三", "四", "五", "六", "日").forEach { w ->
+                        Text(
+                            w,
+                            color = Color(Config.COLOR_TEXT_SUB),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                // 日期 7 列日历
+                val totalCells = firstDow + daysInMonth
+                val weekRows = (totalCells + 6) / 7
+                for (r in 0 until weekRows) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        for (c in 0 until 7) {
+                            val cellIdx = r * 7 + c
+                            val dayNum = cellIdx - firstDow + 1
+                            if (dayNum in 1..daysInMonth) {
+                                val hasData = daySet.contains(dayNum)
+                                val dStr = curMonth + "-" + (if (dayNum < 10) "0$dayNum" else "$dayNum")
+                                val sel = dStr == value
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 2.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            when {
+                                                sel -> Color(Config.COLOR_PRIMARY)
+                                                hasData -> Color.White
+                                                else -> Color.Transparent
+                                            }
+                                        )
+                                        .then(
+                                            if (hasData) Modifier.clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null
+                                            ) { onPick(dStr) } else Modifier
+                                        )
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "$dayNum",
+                                        color = when {
+                                            sel -> Color.White
+                                            hasData -> Color(Config.COLOR_TEXT_MAIN)
+                                            else -> Color(0xFFCCCCCC)
+                                        },
+                                        fontSize = 13.sp,
+                                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f).padding(horizontal = 2.dp))
                             }
                         }
                     }

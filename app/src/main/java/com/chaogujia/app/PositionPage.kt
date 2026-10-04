@@ -580,11 +580,11 @@ private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
             contentAlignment = Alignment.CenterStart
         ) {
             Column(modifier = Modifier.padding(start = 8.dp)) {
-                // 第41轮：股票名红赚蓝亏 + 字号加大两号(12→14sp)；两行间距加大一倍(3→6dp)
+                // 第42轮：股票名字号再加大一号(14→15sp)；其余保持第41轮口径
                 Text(
                     text = p.name,
                     color = ppPnColor(p.pnl),
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
