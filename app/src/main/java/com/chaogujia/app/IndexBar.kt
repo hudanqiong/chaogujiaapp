@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +58,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -169,6 +171,13 @@ fun IndexBar(
     // ===== 自选分组标签 =====
     // 当前选中的分组 key：负数为内置组（-1 自选股 / -2 持仓股），>=0 为用户自建组 id
     var selectedGroup by remember { mutableStateOf(-1) }
+    // ===== 持仓股分组的「账户切换器」状态 =====
+    // 券商账户列表（brokerList 结果，用于切换器下拉）
+    var brokerAccounts by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    // 当前选中的券商账户 id（0=未选定，自动取首个）
+    var selectedBrokerId by remember { mutableStateOf(0) }
+    // 账户下拉菜单是否展开
+    var showBrokerMenu by remember { mutableStateOf(false) }
     // ===== 会员权限门禁（自选页，第19轮）=====
     // 无权限时弹出的引导标题（null=不弹）；非空即展示 MemberGateDialog
     var gateTitle by remember { mutableStateOf<String?>(null) }
@@ -235,6 +244,17 @@ fun IndexBar(
             if (g.isNotEmpty()) userGroups = g.sortedBy { it.sort }
         } catch (e: Exception) { /* 忽略 */ }
     }
+    // 拉一次券商账户列表（持仓股分组「账户切换器」用）
+    // 若尚未选定账户（selectedBrokerId<=0）或原选中账户已不在列表中，则自动选中首个账户
+    LaunchedEffect(token) {
+        try {
+            val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            brokerAccounts = bs
+            if (bs.isNotEmpty() && bs.none { it.id == selectedBrokerId }) {
+                selectedBrokerId = bs.first().id
+            }
+        } catch (e: Exception) { /* 忽略 */ }
+    }
     // 持仓代码集合：每 3 秒刷新一次（进入持仓股分组时也复用同一集合）
     // 同时在后台对持仓股明细做「预热」：detail.php 冷缓存约 4.3s、热缓存 0.2~0.5s，
     // 这里提前并发打一遍 detail，把后端缓存捂热，用户点持仓分组/进详情页时即为热数据。
@@ -268,14 +288,14 @@ fun IndexBar(
             kotlinx.coroutines.delay(3000)
         }
     }
-    // 切换分组时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 用持仓）
-    LaunchedEffect(selectedGroup, token) {
+    // 切换分组/切换账户时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 用选中账户的持仓）
+    LaunchedEffect(selectedGroup, selectedBrokerId, token) {
         loadingStocks = true
         stocks = emptyList()
         try {
             val gid = if (selectedGroup >= 0) selectedGroup else -1
             if (selectedGroup == -2) {
-                // 持仓股分组：券商账户 -> 持仓 -> 转 StockItem。
+                // 持仓股分组：仅显示「当前选中账户」的持仓（账户由顶部切换器选择）。
                 // ★ 性能根治：watchlist(list) 一次请求即带回全部股票的完整实时行情
                 //   （price/change/changePct），且与 detail 数据一致。
                 //   故先并发拉 watchlist 建 code->行情 映射，命中即用（快），
@@ -289,14 +309,16 @@ fun IndexBar(
                             if (it.code.isNotBlank()) quoteMap[it.code] = it
                         }
                     } catch (e: Exception) { /* 忽略，全部走 detail fallback */ }
-                    val brokers = Api.brokerList(token)
-                    Log.e("CGJ_POS", "token=" + (token?.length ?: -1) + " brokers.size=" + brokers.size + " ids=" + brokers.map { it.id } + " quoteMap.size=" + quoteMap.size)
-                    for (b in brokers) {
+                    // 2) 仅取「当前选中账户」的持仓；选中账户无效时取首个账户
+                    val brokers = try { Api.brokerList(token) } catch (e: Exception) { emptyList() }
+                    val cur = brokers.firstOrNull { it.id == selectedBrokerId } ?: brokers.firstOrNull()
+                    Log.e("CGJ_POS", "token=" + (token?.length ?: -1) + " brokers.size=" + brokers.size + " selectedBrokerId=" + selectedBrokerId + " cur=" + (cur?.id ?: -1))
+                    if (cur != null) {
                         try {
-                            val ps = Api.positions(token, b.id)
-                            Log.e("CGJ_POS", "broker=" + b.id + " positions.size=" + ps.size + " codes=" + ps.map { it.code + ":" + it.quantity })
+                            val ps = Api.positions(token, cur.id)
+                            Log.e("CGJ_POS", "broker=" + cur.id + " positions.size=" + ps.size + " codes=" + ps.map { it.code + ":" + it.quantity })
                             val valid = ps.filter { it.quantity > 0 && it.code.isNotBlank() }
-                            // 2) 未命中批量行情的才需要 fallback detail，仅对它们并发请求
+                            // 3) 未命中批量行情的才需要 fallback detail，仅对它们并发请求
                             val missCodes = valid.filter { quoteMap[it.code] == null }.map { it.code }
                             val dets: Map<String, StockDetail?> = if (missCodes.isEmpty()) emptyMap() else
                                 missCodes.map { code ->
@@ -637,14 +659,50 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 }
                             }
                         } else {
-                            Text(
-                                text = "名称 / 代码",
-                                color = COLOR_TEXT,
-                                fontSize = 13.sp,
+                            // 持仓股分组：顶部改为「账户切换器」= 证券图标 + 证券名称 + ▼
+                            // 点击整块展开账户下拉列表；选中某账户即切到该账户持仓
+                            val curBroker = brokerAccounts.firstOrNull { it.id == selectedBrokerId }
+                                ?: brokerAccounts.firstOrNull()
+                            Row(
                                 modifier = Modifier
                                     .align(Alignment.CenterStart)
-                                    .padding(start = 16.dp)
-                            )
+                                    .fillMaxHeight()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu }
+                                    .padding(start = 10.dp, end = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 证券图标（有 broker_<key>.png 用图片，否则圆圈+首字兜底）
+                                BrokerHeaderIcon(
+                                    brokerName = curBroker?.broker ?: "",
+                                    key = curBroker?.key ?: "",
+                                    sizeDp = 20
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = curBroker?.broker ?: "选择账户",
+                                    color = COLOR_TEXT,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(Modifier.width(3.dp))
+                                // ▼ 向下展开箭头（Canvas 自绘，避免新增资源）
+                                Canvas(modifier = Modifier.size(10.dp)) {
+                                    val w = size.width
+                                    val h = size.height
+                                    val p = Path().apply {
+                                        moveTo(0f, h * 0.32f)
+                                        lineTo(w, h * 0.32f)
+                                        lineTo(w / 2f, h * 0.78f)
+                                        close()
+                                    }
+                                    drawPath(p, color = COLOR_SUB)
+                                }
+                            }
                         }
                     }
                 }
@@ -726,6 +784,133 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                 onDismiss = { gateTitle = null },
                 onOpen = { gateTitle = null; onOpenVipPage() }
             )
+        }
+
+        // ===== 持仓股分组：账户切换下拉弹层 =====
+        if (showBrokerMenu && brokerAccounts.isNotEmpty()) {
+            BrokerSwitchDialog(
+                accounts = brokerAccounts,
+                selectedId = selectedBrokerId,
+                onPick = { id -> selectedBrokerId = id; showBrokerMenu = false },
+                onDismiss = { showBrokerMenu = false }
+            )
+        }
+    }
+}
+
+/* ---------------- 持仓股分组：账户切换器相关 ---------------- */
+
+/** 券商圆形小图标：有 broker_<key>.png 用图片，否则圆圈+首字兜底。sizeDp 控制尺寸 */
+@Composable
+private fun BrokerHeaderIcon(brokerName: String, key: String, sizeDp: Int) {
+    if (key.isNotEmpty()) {
+        val ctx = LocalContext.current
+        val id = ctx.resources.getIdentifier("broker_$key", "drawable", ctx.packageName)
+        if (id != 0) {
+            Image(
+                painter = painterResource(id),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(sizeDp.dp)
+                    .clip(CircleShape)
+            )
+            return
+        }
+    }
+    val ch = if (brokerName.isNotEmpty()) brokerName.substring(0, 1) else "券"
+    Box(
+        modifier = Modifier
+            .size(sizeDp.dp)
+            .clip(CircleShape)
+            .background(fallbackColor(brokerName)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = ch,
+            color = Color.White,
+            fontSize = (sizeDp * 0.55f).sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+/** 兜底圆圈底色：按券商名 hash 稳定取色 */
+private fun fallbackColor(name: String): Color {
+    val palette = listOf(
+        Color(0xFFE23B3B), Color(0xFF2A7BFF), Color(0xFF00A870),
+        Color(0xFFF59A23), Color(0xFF8E44AD), Color(0xFF16A3B0)
+    )
+    var h = 0
+    for (c in name) h = h * 31 + c.code
+    val i = ((h % palette.size) + palette.size) % palette.size
+    return palette[i]
+}
+
+/** 账户切换弹层：列出当前用户全部券商资金账户，每项 = 图标 + 券商名，选中即切 */
+@Composable
+private fun BrokerSwitchDialog(
+    accounts: List<MyBroker>,
+    selectedId: Int,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(240.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .padding(vertical = 6.dp)
+            ) {
+                Text(
+                    text = "选择资金账户",
+                    color = COLOR_SUB,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(start = 14.dp, top = 6.dp, bottom = 6.dp)
+                )
+                accounts.forEach { b ->
+                    val selected = b.id == selectedId
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { onPick(b.id) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        BrokerHeaderIcon(brokerName = b.broker, key = b.key, sizeDp = 24)
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = b.broker,
+                                color = COLOR_TEXT,
+                                fontSize = 14.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = b.account,
+                                color = COLOR_SUB,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (selected) {
+                            Text(text = "✓", color = COLOR_UP, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
         }
     }
 }
