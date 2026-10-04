@@ -981,6 +981,20 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
     var msg by remember { mutableStateOf("") }
     var running by remember { mutableStateOf(false) }
     var resetting by remember { mutableStateOf(false) }   // 第43轮：一键重置数据
+    // ★ 第44轮②：资金账户选择（模拟与重置都作用于所选账户，默认入口账户）
+    var brokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    var selId by remember { mutableStateOf(brokerAccountId) }
+    LaunchedEffect(token, brokerAccountId) {
+        try {
+            val list = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            if (list.isNotEmpty()) {
+                brokers = list
+                if (selId == 0 || list.none { it.id == selId }) selId = list.first().id
+            }
+        } catch (_: Throwable) {}
+    }
+    // ★ 第44轮④：点「重置数据」时弹账户选择浮层（选中的账户才会被清空）
+    var showResetPicker by remember { mutableStateOf(false) }
     // 交易日宫格：当前股票的「有K线柱子的交易日」（从新到旧）+ 当日高低价
     var barDates by remember { mutableStateOf<List<String>>(emptyList()) }
     var barHL by remember { mutableStateOf<Map<String, Pair<Double, Double>>>(emptyMap()) }
@@ -1012,6 +1026,7 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
         }.start()
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     SubShell("一键模拟", onBack) {
         Text(
             "按区间随机生成 买/卖/做T 交易记录，并自动重算资金与持仓（含浮盈浮亏）。生成前会校验账户可用资金，超出则自动缩减规模。",
@@ -1021,6 +1036,45 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
 
         CardBox {
             Column {
+                Text("资金账户", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(8.dp))
+                if (brokers.isEmpty()) {
+                    Text("暂无券商账户", color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+                        brokers.forEach { b ->
+                            val sel = b.id == selId
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 8.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (sel) Color(Config.COLOR_PRIMARY) else Color(0xFFF2F2F2))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        selId = b.id
+                                        msg = ""
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        b.broker.ifEmpty { "账户${b.id}" },
+                                        color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    if (b.account.isNotEmpty()) {
+                                        Text(
+                                            b.account,
+                                            color = if (sel) Color.White else Color(Config.COLOR_TEXT_SUB),
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
                 Text("股票代码", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
                 InputBox(code, "如 600519 / sh600519", {
@@ -1083,7 +1137,7 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
                         // code 前端先归一化：剥离 sh/sz/bj 前缀，只保留 6 位数字（后端虽有归一化，前端统一更稳）
                         val pureCode = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
                         Thread {
-                            val r = Api.simulate(token, brokerAccountId, pureCode, dateStart, dateEnd, mode, tv)
+                            val r = Api.simulate(token, selId, pureCode, dateStart, dateEnd, mode, tv)
                             msg = if (r.ok) {
                                 // ★ 通知全局：交易数据已变更 → K 线详情页会自动重拉 detail，刷新 BST 标记
                                 Config.bumpTradeData()
@@ -1107,16 +1161,9 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
                         .background(Color(0xFFF2F2F2))
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                             if (resetting) return@clickable
-                            resetting = true
+                            // ★ 第44轮④：点重置先弹账户选择浮层，选中哪个账户就清空哪个
                             msg = ""
-                            Thread {
-                                val r = Api.resetData(token, brokerAccountId)
-                                msg = if (r.ok) {
-                                    Config.bumpTradeData()
-                                    r.msg.ifEmpty { "重置完成：已清空持仓与交易记录" }
-                                } else "重置失败：${r.msg}"
-                                resetting = false
-                            }.start()
+                            showResetPicker = true
                         }
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
@@ -1133,6 +1180,87 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
                 Text("• 生成后的记录可在「交易记录管理」中逐条修改", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp, lineHeight = 18.sp)
             }
         }
+    }
+    // ★ 第44轮④：重置数据 — 账户选择浮层（选中的账户才会被清空）
+    if (showResetPicker) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x66000000))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    if (!resetting) showResetPicker = false
+                }
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .width(280.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .padding(vertical = 12.dp)
+        ) {
+            Text(
+                text = "重置哪个账户的数据？",
+                color = Color(0xFF222222),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
+            )
+            Text(
+                text = "将清空该账户全部持仓与交易记录，现金重置为初始资金。不可恢复。",
+                color = Color(0xFF888888),
+                fontSize = 11.sp,
+                lineHeight = 15.sp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)
+            )
+            if (brokers.isEmpty()) {
+                Text(
+                    text = "暂无券商账户",
+                    color = Color(0xFF888888),
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+                )
+            } else {
+                brokers.forEach { b ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                if (resetting) return@clickable
+                                selId = b.id
+                                showResetPicker = false
+                                resetting = true
+                                msg = ""
+                                Thread {
+                                    val r = Api.resetData(token, b.id)
+                                    msg = if (r.ok) {
+                                        Config.bumpTradeData()
+                                        r.msg.ifEmpty { "重置完成：已清空持仓与交易记录" }
+                                    } else "重置失败：${r.msg}"
+                                    resetting = false
+                                }.start()
+                            }
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            text = b.broker.ifBlank { "券商账户" },
+                            color = Color(0xFF222222),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = b.account,
+                            color = Color(0xFF888888),
+                            fontSize = 12.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
     }
 }
 

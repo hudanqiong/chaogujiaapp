@@ -95,6 +95,11 @@ fun PositionPage(
      */
     switchAccountTick: Int = 0
 ) {
+    // ★ 第 44 轮修复：页面级协程作用域。
+    //   之前账户浮层内部用 rememberCoroutineScope()，点击账户先 showAccountPicker=false
+    //   → 浮层分支从组合移除 → 该 scope 立即被取消 → 切换账户的协程被掐断 → account 不更新
+    //   （表现为「切换账户后总资产仍是同一个数据」）。改成页面级 scope 后，浮层销毁不影响切换任务。
+    val pageScope = rememberCoroutineScope()
     var curTab by remember { mutableStateOf(defaultTab) }
 
     // ★ 第 34 轮新增：中栏与 6 格统计所需数据
@@ -209,7 +214,6 @@ fun PositionPage(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
                 )
             } else {
-                val scope = rememberCoroutineScope()
                 brokerList.forEach { b ->
                     val selected = b.id == brokerId
                     Column(
@@ -219,8 +223,8 @@ fun PositionPage(
                                 showAccountPicker = false
                                 // 已在当前账户则无需重拉
                                 if (b.id != brokerId) {
-                                    // 切换账户需联网 → 用协程在 IO 线程执行（loadBrokerAccount 内部已切 IO）
-                                    scope.launch { try { loadBrokerAccount(b) } catch (_: Throwable) {} }
+                                    // 切换账户需联网 → 用页面级协程执行（浮层销毁不会取消它）
+                                    pageScope.launch { try { loadBrokerAccount(b) } catch (_: Throwable) {} }
                                 }
                             }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
@@ -662,8 +666,8 @@ private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
             PpCellOne(text = ppPctPlain(holdPct), color = ppPnColor(p.pnl))
             // --- 持仓天数（单行）：第40轮接后端 holdDays（交易日数）；第43轮：随盈亏红蓝 ---
             PpCellOne(text = ppDays(p.holdDays), color = ppPnColor(p.pnl))
-            // --- 止盈止损（单行）：后端无字段，-- 占位 ---
-            PpCellOne(text = "--", color = PP_BLACK)
+            // --- 止盈止损（单行）：第44轮：由黑色 -- 改为随盈亏红蓝显示（红赚蓝亏）---
+            PpCellOne(text = ppSigned(p.pnl), color = ppPnColor(p.pnl))
             // --- 证券代码（单行，黑字）---
             PpCellOne(text = p.code, color = PP_BLACK)
         }
