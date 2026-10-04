@@ -1007,7 +1007,7 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                                             else {
                                                 msg = ""
                                                 Thread {
-                                                    val r = Api.tradeUpdate(token, brokerAccountId, t.id, pv, eDate)
+                                                    val r = Api.tradeUpdate(token, accId, t.id, pv, eDate)
                                                     msg = if (r.ok) "修改成功，资金与持仓已重算（现金 ¥${r.settle}）" else "失败：${r.msg}"
                                                     if (r.ok) { editId = 0; showPicker = false }
                                                     reload()
