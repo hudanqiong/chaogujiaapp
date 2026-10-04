@@ -513,9 +513,9 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                 // 其后依次是统计列。左滑时整个横滑区内元素一起左移，入口钻到名称列下方被遮住，
                 // 统计列从入口右缘依次露出 —— 名称列/涨幅列始终钉死不动。
                 val screenW = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-                // 持仓股分组(-2)：顶部是「账户切换器」（图标+完整账户名+展开箭头），
-                // 需要比常规名称列更宽才能容纳四字券商名（如“光大证券”），故单独放宽。
-                val fixedW = if (selectedGroup == -2) 124 else WATCH_FIXED_W
+                // 持仓股分组的「账户切换器」图标已移到右侧「多股同列」栏显示，
+                // 名称列回归常规宽度，避免压缩统计列/分时图。
+                val fixedW = WATCH_FIXED_W
                 val pctW = WATCH_PCT_COL_W
                 val midW = (screenW - fixedW - pctW).coerceAtLeast(80)
                 // 表头：Box 叠放 —— 下层是可横滑的统计列（铺满整宽），上层是固定列（盖在最上面）
@@ -550,6 +550,26 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // 持仓股分组：账户切换器的证券图标显示在「多股同列」栏左侧（透明背景，
+                            // 不占用左侧固定列宽度，避免压缩统计列/分时图）。点击展开账户列表。
+                            if (selectedGroup == -2) {
+                                val curBrokerIcon = brokerAccounts.firstOrNull { it.id == selectedBrokerId }
+                                    ?: brokerAccounts.firstOrNull()
+                                Box(
+                                    modifier = Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu }
+                                ) {
+                                    BrokerHeaderIcon(
+                                        brokerName = curBrokerIcon?.broker ?: "",
+                                        key = curBrokerIcon?.key ?: "",
+                                        sizeDp = 20
+                                    )
+                                }
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Spacer(Modifier.weight(1f))
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_multi_stock_columns),
                                 contentDescription = "多股同列",
@@ -677,13 +697,6 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                     .padding(start = 10.dp, end = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // 证券图标（有 broker_<key>.png 用图片，否则圆圈+首字兜底）
-                                BrokerHeaderIcon(
-                                    brokerName = curBroker?.broker ?: "",
-                                    key = curBroker?.key ?: "",
-                                    sizeDp = 18
-                                )
-                                Spacer(Modifier.width(5.dp))
                                 // 账户名：完整显示（最多 4 字，超出才省略），不压缩
                                 Text(
                                     text = curBroker?.broker ?: "选择账户",
@@ -692,16 +705,16 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                     maxLines = 1,
                                     softWrap = false,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.widthIn(max = 56.dp)
+                                    modifier = Modifier.widthIn(max = 58.dp)
                                 )
                                 Spacer(Modifier.width(3.dp))
-                                // 展开箭头：用「┛」顺时针旋转 90°（浅灰），点击整块展开账户列表
+                                // 展开箭头：用「┛」顺时针旋转 90° 再逆时针 45°（净 45°），浅灰
                                 Text(
                                     text = "┛",
                                     color = Color(0xFFBBBBBB),
                                     fontSize = 13.sp,
                                     modifier = Modifier
-                                        .graphicsLayer(rotationZ = 90f)
+                                        .graphicsLayer(rotationZ = 45f)
                                         .widthIn(max = 12.dp),
                                     maxLines = 1
                                 )
