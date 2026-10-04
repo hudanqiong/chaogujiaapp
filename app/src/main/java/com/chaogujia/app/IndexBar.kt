@@ -683,7 +683,7 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 BrokerHeaderIcon(
                                     brokerName = curBroker?.broker ?: "",
                                     key = curBroker?.key ?: "",
-                                    sizeDp = 16
+                                    sizeDp = 13
                                 )
                                 Spacer(Modifier.width(5.dp))
                                 // 账户名：完整显示（最多 4 字，超出才省略），不压缩
