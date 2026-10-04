@@ -754,6 +754,12 @@ private fun PagePwd(token: String?, onBack: () -> Unit) {
 // ===== 9. 交易记录管理（修改持仓记录：只改日期+价格，改后整账户重放） =====
 @Composable
 private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Unit) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    // 第48轮：账户联动——交易记录管理页也读全局当前账户（AccountStore），并可在页内切换。
+    var brokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    var curBroker by remember { mutableStateOf<MyBroker?>(null) }
+    val accId = curBroker?.id ?: brokerAccountId
+    var showAccSheet by remember { mutableStateOf(false) }
     var list by remember { mutableStateOf<List<TradeRecord>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var msg by remember { mutableStateOf("") }
@@ -768,10 +774,24 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
     fun reload() {
         loading = true
         Thread {
-            val l = Api.tradeEditList(token, brokerAccountId)
+            val l = Api.tradeEditList(token, accId)
             list = l
             loading = false
         }.start()
+    }
+    // 第48轮：初始化时拉券商账户列表，并按全局保存的账户定位当前项
+    LaunchedEffect(token) {
+        try {
+            val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            brokers = bs
+            val picked = bs.firstOrNull { it.id == AccountStore.get(ctx) }
+                ?: bs.firstOrNull { it.id == brokerAccountId }
+                ?: bs.firstOrNull()
+            curBroker = picked
+            picked?.let { AccountStore.set(ctx, it.id) }
+        } catch (e: Exception) {
+            // 无账户时保持空
+        }
     }
     // 拉取某股票的 K线，得到「有柱子的日期」+ 当日最高/最低价
     fun loadBars(code: String) {
@@ -787,8 +807,11 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
             val hl = HashMap<String, Pair<Double, Double>>()
             for (p in points) {
                 if (p.date.isNullOrEmpty()) continue
-                dates.add(p.date)
-                hl[p.date] = Pair(p.high, p.low)
+                // 第48轮修复：统一归一化为 YYYY-MM-DD，避免同花顺源 "20260924" 直接提交被后端拒绝
+                val nd = normDateKey(p.date)
+                if (nd.isEmpty()) continue
+                dates.add(nd)
+                hl[nd] = Pair(p.high, p.low)
             }
             // 后端按日期升序返回，选择器从新到旧展示
             dates.reverse()
@@ -797,8 +820,66 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
             barLoading = false
         }.start()
     }
-    LaunchedEffect(brokerAccountId) { reload() }
+    LaunchedEffect(accId) { reload() }
     SubShell("交易记录管理", onBack) {
+        // ===== 第48轮：账户选择栏（可切换，切换后记录列表随账户刷新） =====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFF2F2F2))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    if (brokers.isNotEmpty()) showAccSheet = !showAccSheet
+                }
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        curBroker?.broker ?: "证券账户",
+                        color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold
+                    )
+                    if (!curBroker?.account.isNullOrEmpty()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(curBroker!!.account, color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                    }
+                }
+                if (brokers.isNotEmpty()) Text("∨", color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp)
+            }
+        }
+        if (showAccSheet && brokers.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFAFAFA))
+            ) {
+                for (b in brokers) {
+                    val sel = b.id == curBroker?.id
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                curBroker = b
+                                AccountStore.set(ctx, b.id)
+                                showAccSheet = false
+                            }
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                b.broker + (if (b.account.isNotEmpty()) "  " + b.account else ""),
+                                color = if (sel) Color(Config.COLOR_PRIMARY) else Color(Config.COLOR_TEXT_MAIN),
+                                fontSize = 13.sp,
+                                fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
         Text(
             "仅可修改「成交日期」与「成交价」，数量/方向不可改；保存后资金与持仓会自动重算。日期只能选择该股票有K线柱子的交易日。",
             color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp
@@ -1016,8 +1097,11 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
             val hl = HashMap<String, Pair<Double, Double>>()
             for (p in points) {
                 if (p.date.isNullOrEmpty()) continue
-                dates.add(p.date)
-                hl[p.date] = Pair(p.high, p.low)
+                // 第48轮修复：统一归一化为 YYYY-MM-DD，避免同花顺源 "20260924" 直接提交被后端拒绝
+                val nd = normDateKey(p.date)
+                if (nd.isEmpty()) continue
+                dates.add(nd)
+                hl[nd] = Pair(p.high, p.low)
             }
             dates.reverse()  // 后端升序返回，宫格从新到旧展示
             barDates = dates

@@ -254,6 +254,7 @@ fun StockDetailPage(
     var showOrderSheet by remember { mutableStateOf(false) }
     var orderBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
     var orderBroker by remember { mutableStateOf<MyBroker?>(null) }
+    val sdCtx = LocalContext.current
     var orderSide by remember { mutableStateOf("") }
     // H11：真实持仓（用于卖出页「可卖多少股」）——按当前账户拉取 positions.php
     var orderPositions by remember { mutableStateOf<List<PositionItem>>(emptyList()) }
@@ -328,7 +329,7 @@ fun StockDetailPage(
             }
             if (ls.isNotEmpty()) {
                 orderBrokers = ls
-                if (orderBroker == null) orderBroker = ls.firstOrNull()
+                if (orderBroker == null) orderBroker = AccountStore.pick(sdCtx, ls) { it.id }
             }
         }
     }
@@ -569,7 +570,7 @@ fun StockDetailPage(
                         scope.launch {
                             val ls = withContext(Dispatchers.IO) { Api.brokerList(token) }
                             orderBrokers = ls
-                            if (orderBroker == null) orderBroker = ls.firstOrNull()
+                            if (orderBroker == null) orderBroker = AccountStore.pick(sdCtx, ls) { it.id }
                         }
                     }
                 },
@@ -610,7 +611,7 @@ fun StockDetailPage(
                 onPickPrice = { p -> orderPickPrice = p },
                 pickPrice = orderPickPrice,
                 onBack = { orderSide = "" },
-                onSwitch = { orderBroker = it },
+                onSwitch = { orderBroker = it; AccountStore.set(sdCtx, it.id) },
                 onBuy = { orderSide = "buy" },
                 onSell = { orderSide = "sell" },
                 onCancelOrder = { /* TODO 撤 */ },

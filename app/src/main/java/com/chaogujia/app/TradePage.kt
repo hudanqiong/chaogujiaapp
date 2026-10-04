@@ -141,6 +141,7 @@ private fun ASharePage(
     fun guard(feat: String, title: String, action: () -> Unit) {
         if (perm.has(feat)) action() else gateTitle = title
     }
+    val tpCtx = LocalContext.current
     var loading by remember { mutableStateOf(true) }
     var account by remember { mutableStateOf(AccountInfo()) }
     var myBrokers by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
@@ -165,7 +166,8 @@ private fun ASharePage(
         try {
             val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
             myBrokers = bs
-            if (currentBroker == null) currentBroker = bs.firstOrNull()
+            // 第48轮：账户联动——优先恢复全局保存的账户，而非固定取第一个
+            if (currentBroker == null) currentBroker = AccountStore.pick(tpCtx, bs) { it.id }
         } catch (e: Exception) {
             // 无账户时保持空列表
         }
@@ -179,7 +181,7 @@ private fun ASharePage(
         AccountBar(
             brokers = myBrokers,
             current = currentBroker,
-            onSwitch = { guard("tp_account_switch", "账户切换") { currentBroker = it } }
+            onSwitch = { guard("tp_account_switch", "账户切换") { currentBroker = it; AccountStore.set(tpCtx, it.id) } }
         )
         tpDivider()
 

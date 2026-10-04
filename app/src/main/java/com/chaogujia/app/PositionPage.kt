@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -105,6 +106,7 @@ fun PositionPage(
     // ★ 第 34 轮新增：中栏与 6 格统计所需数据
     var account by remember { mutableStateOf(AccountInfo()) }
     var cashAccount by remember { mutableStateOf("") }   // 资金账号（可空）
+    val ppCtx = LocalContext.current
     var brokerId by remember { mutableStateOf(0) }
 
     // ★ 第 39 轮新增：持仓股票列表（下方 9 栏表格的数据源）
@@ -121,6 +123,8 @@ fun PositionPage(
     suspend fun loadBrokerAccount(b: MyBroker) {
         onAccountChange(b.broker, b.account)
         brokerId = b.id
+        // 第48轮：账户联动——切换/加载账户时同步写入全局存储
+        AccountStore.set(ppCtx, b.id)
         cashAccount = b.account
         account = withContext(Dispatchers.IO) { Api.account(token, b.id) }
         positions = withContext(Dispatchers.IO) { Api.positions(token, b.id) }
@@ -137,9 +141,10 @@ fun PositionPage(
                 // 否则主线程抛 NetworkOnMainThreadException 被静默吞掉 → 红条两行文字空白。
                 val list = withContext(Dispatchers.IO) { Api.brokerList(token) }
                 brokerList = list
-                val first = list.firstOrNull()
-                if (first != null) {
-                    loadBrokerAccount(first)
+                // 第48轮：账户联动——优先恢复全局保存的账户，而非固定取第一个
+                val picked = AccountStore.pick(ppCtx, list) { it.id }
+                if (picked != null) {
+                    loadBrokerAccount(picked)
                 }
             } catch (_: Throwable) {
             }

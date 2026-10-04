@@ -254,7 +254,7 @@ fun IndexBar(
             val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
             brokerAccounts = bs
             if (bs.isNotEmpty() && bs.none { it.id == selectedBrokerId }) {
-                selectedBrokerId = bs.first().id
+                selectedBrokerId = AccountStore.pick(ctx, bs) { it.id }?.id ?: bs.first().id
             }
         } catch (e: Exception) { /* 忽略 */ }
     }
@@ -796,7 +796,7 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
             BrokerSwitchDialog(
                 accounts = brokerAccounts,
                 selectedId = selectedBrokerId,
-                onPick = { id -> selectedBrokerId = id; showBrokerMenu = false },
+                onPick = { id -> selectedBrokerId = id; AccountStore.set(ctx, id); showBrokerMenu = false },
                 onDismiss = { showBrokerMenu = false }
             )
         }
