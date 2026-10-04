@@ -140,8 +140,8 @@ fun PositionPage(
         // ===== ④ 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
         PosStatGrid(account = account)
 
-        // ===== ⑤ 灰底分隔条（第39轮）：视觉分割上下两块，高度≈一根牙签直径 =====
-        Box(modifier = Modifier.fillMaxWidth().height(4.dp).background(PP_BG))
+        // ===== ⑤ 灰底分隔条（第40轮）：视觉分割上下两块，高度较上轮翻倍 =====
+        Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(PP_BG))
 
         // ===== ⑥ 持仓表格（第39轮）：表头(9栏) + 股票列表(每只两行 / 部分单行) =====
         //   左滑：第一栏(市值)固定，右侧 8 栏整体左滑钻到固定列下方（复用自选页 hScroll 模式）
@@ -383,14 +383,20 @@ private fun CnrFlagIcon(size: androidx.compose.ui.unit.Dp) {
 
 /** 第 1 栏（市值）固定列宽度 dp —— 左滑时钉死不动 */
 private const val PP_HOLD_FIXED_W = 96
-/** 右侧每栏宽度 dp（8 栏，横滑区） */
-private const val PP_HOLD_COL_W = 78
+/** 右侧每栏宽度 dp（8 栏，横滑区）—— 第40轮加宽以容纳 14sp 表头 */
+private const val PP_HOLD_COL_W = 86
 /** 表头文字色：与 6 格统计「总资产」标签同色（浅灰 #888888） */
 private val PP_HEAD = Color(0xFF888888)
 /** 分栏竖分隔线（极浅，仅作视觉分栏） */
 private val PP_COLLINE = Color(0xFFF2F2F2)
 /** 表格行高（两行内容） */
 private val PP_ROW_H = 52.dp
+/** 第40轮：表头字号（与上方「总资产」标签一致 = 14sp） */
+private val PP_HEAD_FS = 14.sp
+/** 第40轮：股票名称字号（加大1号：13 → 14sp） */
+private val PP_NAME_FS = 14.sp
+/** 第40轮：表头行高（放大以配合 14sp 文字 + 大三角） */
+private val PP_HEAD_H = 42.dp
 
 /** 表头栏定义：title 标题；twoLine 是否两行数据列 */
 private data class PPCol(val title: String, val twoLine: Boolean)
@@ -442,10 +448,11 @@ private fun PosHoldHeader(hScroll: ScrollState) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(38.dp)
+            .height(PP_HEAD_H)
             .background(Color.White)
     ) {
         // 下层：右侧 8 栏（从固定列右缘起铺，随 hScroll 左移）
+        //   第40轮：文字 + 三角 整体右对齐到栏右边界（与下方数据右对齐同一竖线）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -458,14 +465,15 @@ private fun PosHoldHeader(hScroll: ScrollState) {
                 Box(
                     modifier = Modifier
                         .width(PP_HOLD_COL_W.dp)
-                        .fillMaxHeight(),
-                    contentAlignment = Alignment.Center
+                        .fillMaxHeight()
+                        .padding(end = 4.dp),
+                    contentAlignment = Alignment.CenterEnd
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = c.title,
                             color = PP_HEAD,
-                            fontSize = 12.sp,
+                            fontSize = PP_HEAD_FS,
                             maxLines = 1
                         )
                         Spacer(Modifier.width(2.dp))
@@ -488,7 +496,7 @@ private fun PosHoldHeader(hScroll: ScrollState) {
                 Text(
                     text = PP_COLS[0].title,
                     color = PP_HEAD,
-                    fontSize = 12.sp,
+                    fontSize = PP_HEAD_FS,
                     maxLines = 1
                 )
                 Spacer(Modifier.width(2.dp))
@@ -527,17 +535,17 @@ private fun PosHoldRow(p: PositionItem, totalMv: Double, hScroll: ScrollState) {
                 bottom = ppPct(p.pnlPct),
                 bottomColor = ppPnColor(p.pnl)
             )
-            // --- 持仓/可用（两行）---
+            // --- 持仓/可用（两行）：数量红蓝（正=红，负=蓝；持仓数恒正 → 红）---
             PpCellTwo(
                 top = ppQty(p.quantity),
-                topColor = PP_BLACK,
+                topColor = ppPnColor(p.quantity.toDouble()),
                 bottom = ppQty(p.quantity),   // 可用：暂=持仓（T+1 待做）
-                bottomColor = PP_BLACK
+                bottomColor = ppPnColor(p.quantity.toDouble())
             )
-            // --- 成本/现价（两行）---
+            // --- 成本/现价（两行）：成本红蓝（相对现价）；现价红蓝（相对成本）---
             PpCellTwo(
                 top = ppPrice(p.avgCost),
-                topColor = PP_BLACK,
+                topColor = ppPnColor(p.price - p.avgCost),
                 bottom = ppPrice(p.price),
                 bottomColor = ppPnColor(p.price - p.avgCost)   // 现价相对成本红/蓝
             )
@@ -548,10 +556,10 @@ private fun PosHoldRow(p: PositionItem, totalMv: Double, hScroll: ScrollState) {
                 bottom = ppPct(p.pnlPct),
                 bottomColor = ppPnColor(p.pnl)
             )
-            // --- 个股仓位（单行）：该股市值 / 全部持仓市值合计 ---
-            PpCellOne(text = ppPct(holdPct), color = PP_BLACK)
-            // --- 持仓天数（单行）：后端暂无建仓日字段，-- 占位 ---
-            PpCellOne(text = "--", color = PP_BLACK)
+            // --- 个股仓位（单行）：该股市值 / 全部持仓市值合计；第40轮：红蓝、去正负号 ---
+            PpCellOne(text = ppPctPlain(holdPct), color = ppPnColor(p.pnl))
+            // --- 持仓天数（单行）：第40轮接后端 holdDays（交易日数）---
+            PpCellOne(text = ppDays(p.holdDays), color = PP_BLACK)
             // --- 止盈止损（单行）：后端无字段，-- 占位 ---
             PpCellOne(text = "--", color = PP_BLACK)
             // --- 证券代码（单行，黑字）---
@@ -568,18 +576,19 @@ private fun PosHoldRow(p: PositionItem, totalMv: Double, hScroll: ScrollState) {
             contentAlignment = Alignment.CenterStart
         ) {
             Column(modifier = Modifier.padding(start = 8.dp)) {
+                // 第40轮：第1栏两行（股票名 / 市值）字号字重统一 —— 与全表数据一致 12sp Bold
                 Text(
                     text = p.name,
                     color = PP_BLACK,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
                     text = ppMoney(p.marketValue),
                     color = ppPnColor(p.pnl),
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PPNumFont,
                     maxLines = 1
@@ -589,44 +598,47 @@ private fun PosHoldRow(p: PositionItem, totalMv: Double, hScroll: ScrollState) {
     }
 }
 
-/** 两行数据栏：上行 + 下行（宽度 = PP_HOLD_COL_W） */
+/** 两行数据栏：上行 + 下行（宽度 = PP_HOLD_COL_W）；第40轮：内容右对齐到栏右边界 */
 @Composable
 private fun PpCellTwo(top: String, topColor: Color, bottom: String, bottomColor: Color) {
     Column(
         modifier = Modifier
             .width(PP_HOLD_COL_W.dp)
-            .fillMaxHeight(),
+            .fillMaxHeight()
+            .padding(end = 4.dp),
         verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.End
     ) {
+        // 第40轮：上下两行统一同字号同字重（用户要求「表头下面两行数据一样大、都是粗体」）：均 12sp Bold
         Text(text = top, color = topColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
         Spacer(Modifier.height(3.dp))
-        Text(text = bottom, color = bottomColor, fontSize = 11.sp, fontFamily = PPNumFont, maxLines = 1)
+        Text(text = bottom, color = bottomColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
     }
 }
 
-/** 单行数据栏：垂直居中一行（宽度 = PP_HOLD_COL_W） */
+/** 单行数据栏：垂直居中一行（宽度 = PP_HOLD_COL_W）；第40轮：右对齐 */
 @Composable
 private fun PpCellOne(text: String, color: Color) {
     Box(
         modifier = Modifier
             .width(PP_HOLD_COL_W.dp)
-            .fillMaxHeight(),
-        contentAlignment = Alignment.Center
+            .fillMaxHeight()
+            .padding(end = 4.dp),
+        contentAlignment = Alignment.CenterEnd
     ) {
-        Text(text = text, color = color, fontSize = 12.sp, fontFamily = PPNumFont, maxLines = 1)
+        Text(text = text, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
     }
 }
 
-/** 一对浅灰三角（上尖 / 下尖 叠放），跟在每栏表头文字后面 */
+/** 一对浅灰三角（上尖 / 下尖 叠放），跟在每栏表头文字后面；第40轮：放大且上下贴紧 */
 @Composable
 private fun PpSortArrows() {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center          // Center 让两三角紧贴
     ) {
-        Text(text = "▲", color = PP_HEAD, fontSize = 6.sp, maxLines = 1)
-        Text(text = "▼", color = PP_HEAD, fontSize = 6.sp, maxLines = 1)
+        Text(text = "▲", color = PP_HEAD, fontSize = 8.sp, maxLines = 1)
+        Text(text = "▼", color = PP_HEAD, fontSize = 8.sp, maxLines = 1)
     }
 }
 
@@ -634,6 +646,14 @@ private fun PpSortArrows() {
 private fun ppPct(v: Double): String =
     if (kotlin.math.abs(v) < 5e-3) "0.00%"
     else String.format(Locale.CHINA, "%+.2f%%", v)
+
+/** 百分比：不带正负号（x.xx%），第40轮个股仓位用 */
+private fun ppPctPlain(v: Double): String =
+    String.format(Locale.CHINA, "%.2f%%", v)
+
+/** 持仓天数：后端 holdDays（交易日数）；无数据时显示 -- */
+private fun ppDays(v: Int?): String =
+    if (v == null) "--" else String.format(Locale.CHINA, "%d", v)
 
 /** 数量（股）：整数带千分位 */
 private fun ppQty(v: Int): String = String.format(Locale.CHINA, "%,d", v)

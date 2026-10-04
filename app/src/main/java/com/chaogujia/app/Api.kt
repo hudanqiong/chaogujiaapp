@@ -31,7 +31,8 @@ data class PositionItem(
     val price: Double = 0.0,
     val marketValue: Double = 0.0,
     val pnl: Double = 0.0,
-    val pnlPct: Double = 0.0
+    val pnlPct: Double = 0.0,
+    val holdDays: Int? = null        // 第40轮：持仓交易日数（后端 holdDays；null=暂无）
 )
 /** 月度参考盈亏 - 单日数据点（pnl_history.php 的 data.points[]） */
 data class PnlPoint(

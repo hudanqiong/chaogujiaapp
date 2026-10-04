@@ -897,6 +897,34 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
     var totalTxt by remember { mutableStateOf("") }
     var msg by remember { mutableStateOf("") }
     var running by remember { mutableStateOf(false) }
+    // 交易日宫格：当前股票的「有K线柱子的交易日」（从新到旧）+ 当日高低价
+    var barDates by remember { mutableStateOf<List<String>>(emptyList()) }
+    var barHL by remember { mutableStateOf<Map<String, Pair<Double, Double>>>(emptyMap()) }
+    var barLoading by remember { mutableStateOf(false) }
+    var pickerTarget by remember { mutableStateOf("") }  // ""=不展开; "start"/"end"=展开对应选择器
+    // 拉取某股票的 K线，得到「有柱子的交易日」+ 当日最高/最低价（与交易记录管理同一范式）
+    fun loadBars(c: String) {
+        val pure = c.trim().let { if (it.length >= 6) it.takeLast(6) else it }
+        if (pure.length < 6) { barDates = emptyList(); barHL = emptyMap(); return }
+        barLoading = true
+        barDates = emptyList()
+        barHL = emptyMap()
+        Thread {
+            val d = Api.detail(pure, "day", 1)
+            val points = d?.line ?: emptyList()
+            val dates = ArrayList<String>()
+            val hl = HashMap<String, Pair<Double, Double>>()
+            for (p in points) {
+                if (p.date.isNullOrEmpty()) continue
+                dates.add(p.date)
+                hl[p.date] = Pair(p.high, p.low)
+            }
+            dates.reverse()  // 后端升序返回，宫格从新到旧展示
+            barDates = dates
+            barHL = hl
+            barLoading = false
+        }.start()
+    }
 
     SubShell("一键模拟", onBack) {
         Text(
@@ -909,14 +937,36 @@ private fun PageSimulate(token: String?, brokerAccountId: Int, onBack: () -> Uni
             Column {
                 Text("股票代码", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
-                InputBox(code, "如 600519 / sh600519", { code = it })
+                InputBox(code, "如 600519 / sh600519", {
+                    code = it
+                    // 代码变化即重新拉取该股K线，刷新可交易日宫格
+                    if (it.trim().let { s -> if (s.length >= 6) s.takeLast(6) else s }.length >= 6) loadBars(it)
+                })
 
                 Spacer(Modifier.height(14.dp))
-                Text("日期范围（YYYY-MM-DD）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Text("日期范围（点选该股票真实交易日）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
-                InputBox(dateStart, "开始日期（近期），如 2025-08-01", { dateStart = it })
+                // ---- 开始日期选择器 ----
+                TradeDayField(
+                    label = "开始日期",
+                    value = dateStart,
+                    expanded = pickerTarget == "start",
+                    loading = barLoading,
+                    dates = barDates,
+                    onToggle = { if (barDates.isNotEmpty()) pickerTarget = if (pickerTarget == "start") "" else "start" },
+                    onPick = { d -> dateStart = d; pickerTarget = "" }
+                )
                 Spacer(Modifier.height(8.dp))
-                InputBox(dateEnd, "结束日期（近期），如 2025-09-20", { dateEnd = it })
+                // ---- 结束日期选择器 ----
+                TradeDayField(
+                    label = "结束日期",
+                    value = dateEnd,
+                    expanded = pickerTarget == "end",
+                    loading = barLoading,
+                    dates = barDates,
+                    onToggle = { if (barDates.isNotEmpty()) pickerTarget = if (pickerTarget == "end") "" else "end" },
+                    onPick = { d -> dateEnd = d; pickerTarget = "" }
+                )
 
                 Spacer(Modifier.height(14.dp))
                 Text("规模模式", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
@@ -989,6 +1039,87 @@ private fun ModeChip(text: String, selected: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 14.dp, vertical = 7.dp)
     ) {
         Text(text, color = if (selected) Color.White else Color(Config.COLOR_TEXT_MAIN), fontSize = 12.sp)
+    }
+}
+
+/**
+ * 交易日宫格选择器：点击展开「该股票真实有交易的日期」格子，点一下选定。
+ * 只列出有K线的交易日（自动剔除周末与法定节假日），无效日期不会出现。
+ */
+@Composable
+private fun TradeDayField(
+    label: String,
+    value: String,
+    expanded: Boolean,
+    loading: Boolean,
+    dates: List<String>,
+    onToggle: () -> Unit,
+    onPick: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // 触发器（显示已选日期）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFFF2F2F2))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onToggle() }
+                .padding(horizontal = 12.dp, vertical = 11.dp)
+        ) {
+            Text(
+                if (loading) "加载可交易日…"
+                else if (value.isNotEmpty()) "$label：$value"
+                else "$label：点击选择",
+                color = if (value.isNotEmpty()) Color(Config.COLOR_TEXT_MAIN) else Color(Config.COLOR_TEXT_SUB),
+                fontSize = 13.sp
+            )
+        }
+        // 宫格
+        if (expanded && dates.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 220.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFFAFAFA))
+                    .padding(8.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // 每行 3 个日期格子
+                val rows = (dates.size + 2) / 3
+                for (r in 0 until rows) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        for (c in 0 until 3) {
+                            val idx = r * 3 + c
+                            if (idx < dates.size) {
+                                val d = dates[idx]
+                                val sel = d == value
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(horizontal = 3.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (sel) Color(Config.COLOR_PRIMARY) else Color.White)
+                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onPick(d) }
+                                        .padding(vertical = 9.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        d.substringAfter('-').replace("-", "/"),  // 显示 MM/DD 更紧凑
+                                        color = if (sel) Color.White else Color(Config.COLOR_TEXT_MAIN),
+                                        fontSize = 12.sp,
+                                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f).padding(horizontal = 3.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
