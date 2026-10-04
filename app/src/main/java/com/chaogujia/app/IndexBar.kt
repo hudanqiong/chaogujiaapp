@@ -550,25 +550,6 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // 持仓股分组：账户切换器的证券图标显示在「多股同列」栏左侧（透明背景，
-                            // 不占用左侧固定列宽度，避免压缩统计列/分时图）。点击展开账户列表。
-                            if (selectedGroup == -2) {
-                                val curBrokerIcon = brokerAccounts.firstOrNull { it.id == selectedBrokerId }
-                                    ?: brokerAccounts.firstOrNull()
-                                Box(
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu }
-                                ) {
-                                    BrokerHeaderIcon(
-                                        brokerName = curBrokerIcon?.broker ?: "",
-                                        key = curBrokerIcon?.key ?: "",
-                                        sizeDp = 20
-                                    )
-                                }
-                                Spacer(Modifier.width(6.dp))
-                            }
                             Spacer(Modifier.weight(1f))
                             Icon(
                                 painter = painterResource(id = R.drawable.ic_multi_stock_columns),
@@ -682,7 +663,8 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 }
                             }
                         } else {
-                            // 持仓股分组：顶部改为「账户切换器」= 证券图标 + 证券名称 + ▼
+                            // 持仓股分组：顶部「账户切换器」= 证券图标 + 证券名称
+                            // 弯箭头已移到右侧「多股同列」栏（固定不随横滑），此处不再显示箭头。
                             // 点击整块展开账户下拉列表；选中某账户即切到该账户持仓
                             val curBroker = brokerAccounts.firstOrNull { it.id == selectedBrokerId }
                                 ?: brokerAccounts.firstOrNull()
@@ -694,9 +676,15 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                         interactionSource = remember { MutableInteractionSource() },
                                         indication = null
                                     ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu }
-                                    .padding(start = 10.dp, end = 6.dp),
+                                    .padding(start = 8.dp, end = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                BrokerHeaderIcon(
+                                    brokerName = curBroker?.broker ?: "",
+                                    key = curBroker?.key ?: "",
+                                    sizeDp = 20
+                                )
+                                Spacer(Modifier.width(6.dp))
                                 // 账户名：完整显示（最多 4 字，超出才省略），不压缩
                                 Text(
                                     text = curBroker?.broker ?: "选择账户",
@@ -707,18 +695,33 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.widthIn(max = 58.dp)
                                 )
-                                Spacer(Modifier.width(3.dp))
-                                // 展开箭头：用「┛」顺时针旋转 90° 再逆时针 45°（净 45°），浅灰
-                                Text(
-                                    text = "┛",
-                                    color = Color(0xFFBBBBBB),
-                                    fontSize = 13.sp,
-                                    modifier = Modifier
-                                        .graphicsLayer(rotationZ = 45f)
-                                        .widthIn(max = 12.dp),
-                                    maxLines = 1
-                                )
                             }
+                        }
+                    }
+                    // 持仓股分组：账户下拉「弯箭头」——固定显示在右侧「多股同列」栏末尾，
+                    // 放在「固定层」不属于横滑区，因此列表左滑时它钉死不动（与名称列同理）。
+                    // 仅是个字符、透明背景，略微遮挡「多股同列」文字可接受。
+                    if (selectedGroup == -2) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(end = (pctW + 2).dp)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null
+                                ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // 「┛」顺时针 90° 再逆时针 45° = 净 45°，浅灰（字号调小）
+                            Text(
+                                text = "┛",
+                                color = Color(0xFFBBBBBB),
+                                fontSize = 10.sp,
+                                modifier = Modifier
+                                    .graphicsLayer(rotationZ = 45f)
+                                    .widthIn(max = 14.dp),
+                                maxLines = 1
+                            )
                         }
                     }
                 }
