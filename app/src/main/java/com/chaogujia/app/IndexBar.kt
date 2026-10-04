@@ -699,29 +699,26 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                             }
                         }
                     }
-                    // 持仓股分组：账户下拉「弯箭头」——固定显示在右侧「多股同列」栏末尾，
+                    // 持仓股分组：账户下拉「弯箭头」——固定显示在右侧「多股同列」栏，
                     // 放在「固定层」不属于横滑区，因此列表左滑时它钉死不动（与名称列同理）。
-                    // 仅是个字符、透明背景，略微遮挡「多股同列」文字可接受。
+                    // 点击可展开账户列表；略微遮挡文字可接受。
                     if (selectedGroup == -2) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
-                                .padding(end = (pctW + 2).dp)
-                                .offset(y = 6.dp)
+                                .padding(end = 14.dp)
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
                                 ) { if (brokerAccounts.isNotEmpty()) showBrokerMenu = !showBrokerMenu },
                             contentAlignment = Alignment.Center
                         ) {
-                            // 「┛」顺时针 90° 再逆时针 45° = 净 45°，浅灰（字号调小）
+                            // 「┛」顺时针 90° 再逆时针 45° = 净 45°，浅灰
                             Text(
                                 text = "┛",
-                                color = Color(0xFFBBBBBB),
-                                fontSize = 10.sp,
-                                modifier = Modifier
-                                    .graphicsLayer(rotationZ = 45f)
-                                    .widthIn(max = 14.dp),
+                                color = Color(0xFF999999),
+                                fontSize = 14.sp,
+                                modifier = Modifier.graphicsLayer(rotationZ = 45f),
                                 maxLines = 1
                             )
                         }
