@@ -532,7 +532,7 @@ private const val PP_HOLD_COL_W = 86
 private val PP_HEAD = Color(0xFF888888)
 /** 分栏竖分隔线（极浅，仅作视觉分栏） */
 private val PP_COLLINE = Color(0xFFF2F2F2)
-private val PP_COLLINE_VISIBLE = Color(0xFFBDBDBD)   // 第50轮修正2：灰底上可见的细竖线
+private val PP_COLLINE_VISIBLE = Color(0xFFD9D9D9)   // 第50轮修正3：稍微能看见的浅灰细竖线
 /** 表格行高（两行内容） */
 private val PP_ROW_H = 52.dp
 /** 第40轮：表头字号（与上方「总资产」标签一致 = 14sp） */
