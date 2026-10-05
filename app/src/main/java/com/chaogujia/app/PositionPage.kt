@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -166,22 +167,29 @@ fun PositionPage(
         // ===== ② 5 个切换按钮（固定不滚动）=====
         PosTabBar(cur = curTab, onSelect = { curTab = it })
 
-        // ===== ③ 账户信息栏（左：国旗+账户类型；右：仓位百分比框）=====
-        //   上下两条浅灰细线分割，高度 36dp（第38轮：44→36，更紧凑）。
-        //   第38轮：线高 0.8→0.4；上分割线紧贴切换栏底边（与选中红线在同一视觉带上）。
-        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-        PosAccountBar(account = account)
-        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+        // ===== ③ 切换按钮以下：整体为滚动区域（第50轮修正）=====
+        //   顶部红条 + 切换按钮固定；以下内容随列表行数增减整体滚动，
+        //   列表行数少时底部功能区紧跟最后一行，不留无用白布。
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // ===== 账户信息栏（左：国旗+账户类型；右：仓位百分比框）=====
+            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+            PosAccountBar(account = account)
+            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
 
-        // ===== ④ 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
-        PosStatGrid(account = account)
+            // ===== 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
+            PosStatGrid(account = account)
 
-        // ===== ⑤ 灰底分隔条（第40轮）：视觉分割上下两块，高度较上轮翻倍 =====
-        Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(PP_BG))
+            // ===== 灰底分隔条：视觉分割上下两块 =====
+            Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(PP_BG))
 
-        // ===== ⑥ 持仓表格（第39轮）：表头(9栏) + 股票列表(每只两行 / 部分单行) =====
-        //   左滑：第一栏(市值)固定，右侧 8 栏整体左滑钻到固定列下方（复用自选页 hScroll 模式）
-        PosHoldTable(positions = positions, totalAsset = account.total)
+            // ===== 持仓表格：表头(9栏) + 股票列表(每只两行 / 部分单行) + 底部功能区 =====
+            PosHoldTable(positions = positions, totalAsset = account.total)
+        }
     }
 
     // ★ 第 43 轮新增：账户选择浮层（盖住整页）。红条 ▼ 点击后出现，
@@ -568,15 +576,18 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double) {
         PosHoldHeader(hScroll = hScroll)
         Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
 
-        // ---------- 列表（weight(1f) → 下方功能区天然贴底）----------
-        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-            items(positions) { p ->
+        // ---------- 列表（第50轮修正）----------
+        //   不用 weight(1f)：高度随行数自适应，增一只股自动加一行、清仓一只自动减一行；
+        //   行数少时底部功能区紧跟最后一行，不留无用白布。
+        //   外层已整体 verticalScroll，LazyColumn 嵌套滚动会冲突，故改普通 Column 罗列。
+        Column(modifier = Modifier.fillMaxWidth()) {
+            positions.forEach { p ->
                 PosHoldRow(p = p, denom = denom, hScroll = hScroll)
                 Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
             }
         }
 
-        // ---------- 底部固定功能区（第50轮新增，始终贴屏幕最下）----------
+        // ---------- 底部功能区（第50轮新增，紧随列表）----------
         PosBottomBar()
     }
 }
@@ -588,27 +599,30 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double) {
  */
 @Composable
 private fun PosTableTitleBar() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(30.dp)
-            .background(Color.White)
-            .padding(start = 8.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "持仓股",
-            color = PP_LABEL,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-        Spacer(Modifier.weight(1f))
-        // 占位图标 1：横线上面一个 N 字母
-        PlaceholderIconN()
-        Spacer(Modifier.width(10.dp))
-        // 占位图标 2：正方形里面三条竖线
-        PlaceholderIconLines()
+    Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)                       // 第50轮修正：与底部四个按钮行等高
+                .padding(start = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "持仓股",
+                color = PP_BLACK,                    // 第50轮修正：纯黑色
+                fontSize = 15.sp,                    // 第50轮修正：与股票名称(15sp)同号
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(Modifier.weight(1f))
+            // 占位图标 1：横线上面一个 N 字母
+            PlaceholderIconN()
+            Spacer(Modifier.width(10.dp))
+            // 占位图标 2：正方形里面三条竖线
+            PlaceholderIconLines()
+        }
+        // 第50轮修正：标题行与表头之间加浅浅细细的分割线
+        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
     }
 }
 
@@ -651,8 +665,9 @@ private fun PosBottomBar() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .height(36.dp)                       // 第50轮修正：加高 1/4（原约 28dp → 36dp）
                 .background(PP_BG)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
+                .padding(horizontal = 12.dp),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -714,29 +729,32 @@ private fun PosBottomBar() {
                 .background(PP_BG),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val items3 = listOf("持仓资讯", "资产分析")
-            items3.forEachIndexed { i, t ->
-                if (i > 0) {
-                    // 浅浅细细的竖线，不上下顶到底，居中略高
-                    Box(
-                        modifier = Modifier
-                            .width(0.6.dp)
-                            .height(13.dp)
-                            .background(PP_COLLINE)
-                    )
-                }
+            // 第50轮修正：两个标签紧挨着，中间只留一条同第2行的浅细竖线（不再均分撑开）
+            Row(
+                modifier = Modifier.fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "持仓资讯",
+                    color = PP_BLUE,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = t,
-                        color = PP_BLUE,   // 蓝色字体
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                }
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .width(0.6.dp)
+                        .height(13.dp)
+                        .background(PP_COLLINE)
+                )
+                Text(
+                    text = "资产分析",
+                    color = PP_BLUE,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
             }
         }
     }
