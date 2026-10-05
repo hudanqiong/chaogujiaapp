@@ -219,9 +219,13 @@ private fun ASharePage(
                     modifier = Modifier.weight(1f)
                 )
                 StatCell(
-                    label = "可用资金",
-                    value = tpMoney(account.available),
-                    valueColor = TP_BLACK,
+                    label = "当日参考盈亏",
+                    // 后端暂无独立「当日参考盈亏」字段，暂以浮动盈亏代入（模拟盘日盈亏口径一致）；
+                    // 百分比 = 当日参考盈亏 / 总市值 × 100%（市值>0 时），后续后端补 dayPnl 字段后替换即可。
+                    value = tpSigned(account.floatPn),
+                    valueColor = tpPnColor(account.floatPn),
+                    pctText = if (account.marketValue > 0.0) tpPct(account.floatPn / account.marketValue * 100.0) else null,
+                    pctColor = tpPnColor(account.floatPn),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -326,7 +330,10 @@ private fun StatCell(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: Color = Color(Config.COLOR_TEXT_MAIN)
+    valueColor: Color = Color(Config.COLOR_TEXT_MAIN),
+    // 第50轮：可选百分比副值（小 3-4 号、红蓝带符号、与金额下水平对齐）
+    pctText: String? = null,
+    pctColor: Color = Color(Config.COLOR_TEXT_MAIN)
 ) {
     Column(modifier = modifier) {
         Text(
@@ -335,14 +342,28 @@ private fun StatCell(
             fontSize = 12.sp
         )
         Spacer(Modifier.height(6.dp))
-        Text(
-            text = value,
-            color = valueColor,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = TPNumFont,
-            maxLines = 1
-        )
+        // 金额 + 其后紧跟的小号百分比（同一行，底对齐）
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = value,
+                color = valueColor,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = TPNumFont,
+                maxLines = 1
+            )
+            if (pctText != null) {
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    text = pctText,
+                    color = pctColor,
+                    fontSize = 13.sp,   // 比 17sp 小 4 号
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = TPNumFont,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 

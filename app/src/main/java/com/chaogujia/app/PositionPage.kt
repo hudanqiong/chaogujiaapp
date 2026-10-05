@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
@@ -296,29 +297,37 @@ private fun PosAccountBar(account: AccountInfo) {
         //   宽度取 72dp（约等于 5 等分按钮宽度量级），高 20dp。
         //   第35轮：底槽=白（与背景一致），仅填充部分为浅灰 #EEEEEE。
         //   第37轮：加长方形外轮廓线（PP_BOXLINE），高度 22→20，文字 11→10sp。
-        Box(
+        //   第50轮：去掉实边框（太深），改用上下两条细浅分割线（PP_LINE 风格）。
+        Column(
             modifier = Modifier
                 .width(72.dp)
                 .height(20.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(PP_TRACK)
-                .border(1.dp, PP_BOXLINE, RoundedCornerShape(2.dp))
         ) {
-            // 浅灰按百分比填充（自左向右）
+            Box(modifier = Modifier.fillMaxWidth().height(0.6.dp).background(PP_LINE))
             Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(posRatio)
-                    .background(PP_FILL)
-            )
-            // 框内居中文字
-            Text(
-                text = String.format(Locale.CHINA, "仓位 %.0f%%", posPct),
-                color = PP_BLACK,
-                fontSize = 10.sp,
-                maxLines = 1,
-                modifier = Modifier.align(Alignment.Center)
-            )
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(PP_TRACK)
+            ) {
+                // 浅灰按百分比填充（自左向右）
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(posRatio)
+                        .background(PP_FILL)
+                )
+                // 框内居中文字（第50轮：保留两位小数）
+                Text(
+                    text = String.format(Locale.CHINA, "仓位 %.2f%%", posPct),
+                    color = PP_BLACK,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            Box(modifier = Modifier.fillMaxWidth().height(0.6.dp).background(PP_LINE))
         }
     }
 }
@@ -361,6 +370,9 @@ private fun PosStatGrid(account: AccountInfo) {
                 value = ppSigned(account.floatPn),
                 valueColor = ppPnColor(account.floatPn),
                 suffixText = null,
+                // 第50轮：百分比 = 当日参考盈亏 / 总市值 × 100%（市值>0 时）
+                pctText = if (account.marketValue > 0.0) ppPct(account.floatPn / account.marketValue * 100.0) else null,
+                pctColor = ppPnColor(account.floatPn),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -404,7 +416,10 @@ private fun PosStatCell(
     value: String,
     valueColor: Color,
     suffixText: String?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // 第50轮：可选百分比副值（小 3-4 号、红蓝带符号、与金额下水平对齐）
+    pctText: String? = null,
+    pctColor: Color = PP_BLACK
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.Start) {  // 第38轮：居中→左对齐（三栏各自左对齐）
         // ---- 标签行：固定文字（浅灰）+ 可选方框（逆回购▶/转账▶）----
@@ -443,15 +458,28 @@ private fun PosStatCell(
             }
         }
         Spacer(Modifier.height(4.dp))
-        // ---- 数值行：深色数字 ----
-        Text(
-            text = value,
-            color = valueColor,
-            fontSize = 13.sp,          // 第37轮：11→13（+2号）
-            fontWeight = FontWeight.Bold,   // 第37轮：Medium→Bold（加粗）
-            fontFamily = PPNumFont,
-            maxLines = 1
-        )
+        // ---- 数值行：深色数字（第50轮：金额 + 其后小号百分比，底对齐）----
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = value,
+                color = valueColor,
+                fontSize = 13.sp,          // 第37轮：11→13（+2号）
+                fontWeight = FontWeight.Bold,   // 第37轮：Medium→Bold（加粗）
+                fontFamily = PPNumFont,
+                maxLines = 1
+            )
+            if (pctText != null) {
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    text = pctText,
+                    color = pctColor,
+                    fontSize = 10.sp,      // 比 13sp 小 3 号
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PPNumFont,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
@@ -532,15 +560,183 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double) {
     val denom = totalAsset
 
     Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+        // ---------- 表头上方标题行（第50轮新增）----------
+        //   左：「持仓股」三字标题；右：两个占位图标（后期统一替换）
+        PosTableTitleBar()
+
         // ---------- 表头 ----------
         PosHoldHeader(hScroll = hScroll)
         Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
 
-        // ---------- 列表 ----------
+        // ---------- 列表（weight(1f) → 下方功能区天然贴底）----------
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
             items(positions) { p ->
                 PosHoldRow(p = p, denom = denom, hScroll = hScroll)
                 Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+            }
+        }
+
+        // ---------- 底部固定功能区（第50轮新增，始终贴屏幕最下）----------
+        PosBottomBar()
+    }
+}
+
+/**
+ * 第50轮：表头上方标题行。
+ *   左：「持仓股」三字（PP_LABEL 浅灰，字号略小于总资产）；
+ *   右：两个占位图标（横线+N 字母 / 正方形+三条竖线），后期统一替换。
+ */
+@Composable
+private fun PosTableTitleBar() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(30.dp)
+            .background(Color.White)
+            .padding(start = 8.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "持仓股",
+            color = PP_LABEL,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+        Spacer(Modifier.weight(1f))
+        // 占位图标 1：横线上面一个 N 字母
+        PlaceholderIconN()
+        Spacer(Modifier.width(10.dp))
+        // 占位图标 2：正方形里面三条竖线
+        PlaceholderIconLines()
+    }
+}
+
+/** 占位图标 1：一条横线，上面一个字母 N（用文字绘制，后期替换为真图标） */
+@Composable
+private fun PlaceholderIconN() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = "N", color = PP_LABEL, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Box(modifier = Modifier.width(14.dp).height(1.dp).background(PP_LABEL))
+    }
+}
+
+/** 占位图标 2：一个正方形边框，里面三条竖线（后期替换为真图标） */
+@Composable
+private fun PlaceholderIconLines() {
+    Box(
+        modifier = Modifier
+            .size(14.dp)
+            .border(1.dp, PP_LABEL, RoundedCornerShape(1.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            repeat(3) {
+                Box(modifier = Modifier.width(1.dp).height(8.dp).background(PP_LABEL))
+            }
+        }
+    }
+}
+
+/**
+ * 第50轮：底部固定功能区（三行，始终贴屏幕最下方，随列表行数增减自动上下移动）。
+ *   第1行（灰底）：最右「查看已清仓股票┛」，┛ 逆时针旋转 45°，字号比总资产小两号，PP_LABEL 色。
+ *   第2行（白底）：四个文字按钮「持仓管理丨批量买入丨批量卖出丨止盈止损」，未点亮按钮色，浅浅细细竖线。
+ *   第3行（灰底）：两个蓝色标签「持仓资讯丨资产分析」，浅浅细细竖线。
+ */
+@Composable
+private fun PosBottomBar() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // ---------- 第1行：查看已清仓股票 ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PP_BG)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "查看已清仓股票",
+                color = PP_LABEL,
+                fontSize = 11.sp,      // 比总资产标签小两号
+                maxLines = 1
+            )
+            Spacer(Modifier.width(2.dp))
+            // 「┛」逆时针旋转 45°，与文字垂直居中
+            Text(
+                text = "┛",
+                color = PP_LABEL,
+                fontSize = 11.sp,
+                maxLines = 1,
+                modifier = Modifier.rotate(-45f)
+            )
+        }
+
+        // ---------- 第2行：四个文字按钮 ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .background(Color.White),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val items2 = listOf("持仓管理", "批量买入", "批量卖出", "止盈止损")
+            items2.forEachIndexed { i, t ->
+                if (i > 0) {
+                    // 浅浅细细的竖线，不上下顶到底，居中略高，约字体高度
+                    Box(
+                        modifier = Modifier
+                            .width(0.6.dp)
+                            .height(13.dp)
+                            .background(PP_COLLINE)
+                    )
+                }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = t,
+                        color = PP_GRAY,   // 未点亮切换按钮色
+                        fontSize = 13.sp,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+
+        // ---------- 第3行：两个蓝色标签 ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .background(PP_BG),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val items3 = listOf("持仓资讯", "资产分析")
+            items3.forEachIndexed { i, t ->
+                if (i > 0) {
+                    // 浅浅细细的竖线，不上下顶到底，居中略高
+                    Box(
+                        modifier = Modifier
+                            .width(0.6.dp)
+                            .height(13.dp)
+                            .background(PP_COLLINE)
+                    )
+                }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = t,
+                        color = PP_BLUE,   // 蓝色字体
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
