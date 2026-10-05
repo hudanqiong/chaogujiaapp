@@ -17,6 +17,7 @@ data class AccountInfo(
     val marketValue: Double = 0.0,   // 持仓市值
     val total: Double = 0.0,         // 总资产
     val floatPn: Double = 0.0,       // 浮动盈亏
+    val dayPn: Double = 0.0,         // 当日参考盈亏（R50c）
     val totalPn: Double = 0.0,       // 总盈亏
     val totalPnPct: Double = 0.0,    // 总盈亏率 %
     val initial: Double = 0.0        // 初始资金
@@ -1081,6 +1082,7 @@ object Api {
             marketValue = d.optDouble("marketValue", 0.0),
             total = d.optDouble("total", 0.0),
             floatPn = d.optDouble("floatPnl", 0.0),
+            dayPn = d.optDouble("dayPnl", 0.0),
             totalPn = d.optDouble("totalPnl", 0.0),
             totalPnPct = d.optDouble("totalPnlPct", 0.0),
             initial = d.optDouble("initial", 0.0)

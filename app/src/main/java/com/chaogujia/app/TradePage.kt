@@ -220,12 +220,11 @@ private fun ASharePage(
                 )
                 StatCell(
                     label = "当日参考盈亏",
-                    // 后端暂无独立「当日参考盈亏」字段，暂以浮动盈亏代入（模拟盘日盈亏口径一致）；
-                    // 百分比 = 当日参考盈亏 / 总市值 × 100%（市值>0 时），后续后端补 dayPnl 字段后替换即可。
-                    value = tpSigned(account.floatPn),
-                    valueColor = tpPnColor(account.floatPn),
-                    pctText = if (account.marketValue > 0.0) tpPct(account.floatPn / account.marketValue * 100.0) else null,
-                    pctColor = tpPnColor(account.floatPn),
+                    // R50c: 后端已提供 dayPnl 字段（= Σ 持仓量 ×(现价 - 昨收)），改用真实当日盈亏。
+                    value = tpSigned(account.dayPn),
+                    valueColor = tpPnColor(account.dayPn),
+                    pctText = if (account.marketValue > 0.0) tpPct(account.dayPn / account.marketValue * 100.0) else null,
+                    pctColor = tpPnColor(account.dayPn),
                     modifier = Modifier.weight(1f)
                 )
             }

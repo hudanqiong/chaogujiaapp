@@ -373,14 +373,13 @@ private fun PosStatGrid(account: AccountInfo) {
             )
             PosStatCell(
                 label = "当日参考盈亏",
-                // 后端暂无独立「当日参考盈亏」字段，暂以浮动盈亏代入（模拟盘日盈亏口径一致），
-                // 后续后端补 dayPnl 字段后替换此处即可。
-                value = ppSigned(account.floatPn),
-                valueColor = ppPnColor(account.floatPn),
+                // R50c: 后端已提供 dayPnl 字段（= Σ 持仓量 ×(现价 - 昨收)），改用真实当日盈亏。
+                value = ppSigned(account.dayPn),
+                valueColor = ppPnColor(account.dayPn),
                 suffixText = null,
-                // 第50轮：百分比 = 当日参考盈亏 / 总市值 × 100%（市值>0 时）
-                pctText = if (account.marketValue > 0.0) ppPct(account.floatPn / account.marketValue * 100.0) else null,
-                pctColor = ppPnColor(account.floatPn),
+                // 百分比 = 当日参考盈亏 / 总市值 × 100%（市值>0 时）
+                pctText = if (account.marketValue > 0.0) ppPct(account.dayPn / account.marketValue * 100.0) else null,
+                pctColor = ppPnColor(account.dayPn),
                 modifier = Modifier.weight(1f)
             )
         }
@@ -532,7 +531,7 @@ private const val PP_HOLD_COL_W = 86
 private val PP_HEAD = Color(0xFF888888)
 /** 分栏竖分隔线（极浅，仅作视觉分栏） */
 private val PP_COLLINE = Color(0xFFF2F2F2)
-private val PP_COLLINE_VISIBLE = Color(0xFFD9D9D9)   // 第50轮修正3：稍微能看见的浅灰细竖线
+private val PP_COLLINE_VISIBLE = Color(0xFFE8E8E8)   // 第50轮修正3b：极淡的浅灰细竖线（比 D9 再淡一档）
 /** 表格行高（两行内容） */
 private val PP_ROW_H = 52.dp
 /** 第40轮：表头字号（与上方「总资产」标签一致 = 14sp） */
