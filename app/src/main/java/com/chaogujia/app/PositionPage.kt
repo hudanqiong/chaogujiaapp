@@ -532,6 +532,7 @@ private const val PP_HOLD_COL_W = 86
 private val PP_HEAD = Color(0xFF888888)
 /** 分栏竖分隔线（极浅，仅作视觉分栏） */
 private val PP_COLLINE = Color(0xFFF2F2F2)
+private val PP_COLLINE_VISIBLE = Color(0xFFBDBDBD)   // 第50轮修正2：灰底上可见的细竖线
 /** 表格行高（两行内容） */
 private val PP_ROW_H = 52.dp
 /** 第40轮：表头字号（与上方「总资产」标签一致 = 14sp） */
@@ -727,9 +728,10 @@ private fun PosBottomBar() {
                 .fillMaxWidth()
                 .height(38.dp)
                 .background(PP_BG),
+            horizontalArrangement = Arrangement.Center,   // 第50轮修正2：两标签整体居中
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 第50轮修正：两个标签紧挨着，中间只留一条同第2行的浅细竖线（不再均分撑开）
+            // 第50轮修正2：两个标签整体居中于屏幕底部正中间，中间一条可见的细竖线
             Row(
                 modifier = Modifier.fillMaxHeight(),
                 verticalAlignment = Alignment.CenterVertically
@@ -744,9 +746,9 @@ private fun PosBottomBar() {
                 Box(
                     modifier = Modifier
                         .padding(horizontal = 10.dp)
-                        .width(0.6.dp)
-                        .height(13.dp)
-                        .background(PP_COLLINE)
+                        .width(0.8.dp)
+                        .height(14.dp)
+                        .background(PP_COLLINE_VISIBLE)
                 )
                 Text(
                     text = "资产分析",
