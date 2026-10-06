@@ -1076,7 +1076,7 @@ private fun BuySellPanel(
         // --- 顶部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().height(22.dp).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 均价: 黄色数据
@@ -1103,7 +1103,7 @@ private fun BuySellPanel(
                 Spacer(Modifier.weight(1f))
                 // 右侧：齿轮图标+展开/收起
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("⚙", color = gray, fontSize = 14.sp)
+                    Text("⚙", color = gray, fontSize = 12.sp)
                     Spacer(Modifier.width(2.dp))
                     val expandLabel = if (panelExpanded) "收起" else "展开"
                     // 符号：展开=顺时针45°（▼朝下），收起=逆时针45°（►朝右）
@@ -1456,7 +1456,7 @@ private fun BuySellPanel(
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth().height(24.dp).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("个股", color = labelGray, fontSize = 11.sp)
