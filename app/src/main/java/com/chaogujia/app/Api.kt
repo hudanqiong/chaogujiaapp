@@ -216,7 +216,10 @@ data class MyBroker(
     val key: String = "",
     val cash: Double = 0.0,
     val frozen: Double = 0.0,
-    val initial: Double = 0.0
+    val initial: Double = 0.0,
+    val commRate: Double = 0.00025,
+    val minComm: Double = 5.0,
+    val exemptMin: Int = 0
 ) {
     /** 可用资金 = 现金 - 冻结 */
     val available: Double get() = cash - frozen
@@ -1331,7 +1334,10 @@ object Api {
                         key = keyOfBroker(bname),
                         cash = j.optDouble("cash", 0.0),
                         frozen = j.optDouble("frozen", 0.0),
-                        initial = j.optDouble("initial", 0.0)
+                        initial = j.optDouble("initial", 0.0),
+                        commRate = j.optDouble("commissionRate", 0.00025),
+                        minComm = j.optDouble("minCommission", 5.0),
+                        exemptMin = j.optInt("exemptMin", 0)
                     )
                 )
             }
@@ -1346,13 +1352,39 @@ object Api {
         token: String?,
         broker: String,
         account: String,
-        initial: Double = 1_000_000.0
+        initial: Double = 1_000_000.0,
+        commissionRate: Double = 0.00025,
+        minCommission: Double = 5.0,
+        exemptMin: Int = 0
     ): Res = post(
         "broker.php", token,
         "action" to "add",
         "broker" to broker,
         "account_no" to account,
-        "initial" to initial
+        "initial" to initial,
+        "commission_rate" to commissionRate,
+        "min_commission" to minCommission,
+        "exempt_min" to exemptMin
+    )
+
+    /** 编辑券商账户（action=edit，按 id；券商名/账号/费用参数可改） */
+    fun editBroker(
+        token: String?,
+        id: Int,
+        broker: String,
+        account: String,
+        commissionRate: Double,
+        minCommission: Double,
+        exemptMin: Int
+    ): Res = post(
+        "broker.php", token,
+        "action" to "edit",
+        "id" to id,
+        "broker" to broker,
+        "account_no" to account,
+        "commission_rate" to commissionRate,
+        "min_commission" to minCommission,
+        "exempt_min" to exemptMin
     )
 
     /** 删除券商账户（action=delete，按 id） */
