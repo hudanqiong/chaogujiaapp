@@ -1144,7 +1144,7 @@ private fun BuySellPanel(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (code.isEmpty()) {
-                                    Text("股票代码/简拼", color = lightGray, fontSize = 12.sp)
+                                    Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center)
                                 }
                                 inner()
                             }
@@ -1164,7 +1164,7 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color.White)
+                            .background(Color(0xFFFDF5F3))
 .drawBehind { drawLine(red, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
@@ -1187,7 +1187,7 @@ private fun BuySellPanel(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             decorationBox = { inner ->
                                 if (price.isEmpty()) {
-                                    Text("0.000", color = lightGray, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                                    Text("价格", color = Color(0xFFD4D4D4), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                 }
                                 inner()
                             }
@@ -1197,7 +1197,7 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color.White)
+                            .background(Color(0xFFFDF5F3))
 .drawBehind { drawLine(red, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
@@ -1252,7 +1252,7 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color.White)
+                            .background(Color(0xFFFDF5F3))
 .drawBehind { drawLine(red, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val q = quantity.toIntOrNull() ?: 0
@@ -1274,7 +1274,7 @@ private fun BuySellPanel(
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (quantity.isEmpty()) {
-                                    Text("0", color = lightGray, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                                    Text("数量", color = Color(0xFFD4D4D4), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                 }
                                 inner()
                             }
@@ -1283,7 +1283,7 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color.White)
+                            .background(Color(0xFFFDF5F3))
 .drawBehind { drawLine(red, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val q = quantity.toIntOrNull() ?: 0
@@ -1319,8 +1319,8 @@ private fun BuySellPanel(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(22.dp)
-                                .border(0.5.dp, if (selected) red else veryLightBorder, RoundedCornerShape(2.dp))
-                                .background(if (selected) Color(0xFFFFEEEE) else Color.White, RoundedCornerShape(2.dp))
+                                .border(0.5.dp, veryLightBorder, RoundedCornerShape(2.dp))
+                                .background(Color.White, RoundedCornerShape(2.dp))
                                 .clickable {
                                     quickRatio = idx
                                     val p = price.toDoubleOrNull() ?: 0.0
@@ -1342,7 +1342,7 @@ private fun BuySellPanel(
                                 },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(label, color = if (selected) red else gray, fontSize = 11.sp)
+                            Text(label, color = gray, fontSize = 11.sp)
                         }
                     }
                 }
@@ -1548,15 +1548,16 @@ private fun BSLevelRow(
     }
     val priceStr = if (price > 0) "%.3f".format(price) else "--"
     val volStr = if (vol > 0) vol.toInt().toString() else "--"
+    val bsText = Color(0xFF323232)
 
     Row(
         modifier = modifier.fillMaxWidth().heightIn(min = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = PP_BLACK, fontSize = 10.sp, modifier = Modifier.width(24.dp))
-        Text(priceStr, color = priceColor, fontSize = 11.sp, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-        Text(volStr, color = PP_BLACK, fontSize = 10.sp, fontFamily = PPNumFont, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+        Text(label, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
+        Text(priceStr, color = priceColor, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        Text(volStr, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.width(40.dp), textAlign = TextAlign.End)
     }
 }
 
