@@ -392,8 +392,8 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var reloadFlag by remember { mutableStateOf(0) }
     // 费用参数：佣金费率（万分之几）、最低起收（元）、免五（免5元最低）
-    var feeRateW by remember { mutableStateOf("2.5") }
-    var feeMin by remember { mutableStateOf("5") }
+    var feeRateW by remember { mutableStateOf("0.8") }
+    var feeMin by remember { mutableStateOf("0.1") }
     var feeExempt by remember { mutableStateOf(false) }
     // 正在编辑的账户 id（0=新增模式）
     var editId by remember { mutableStateOf(0) }
@@ -519,14 +519,14 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                 InputBox(account, "请输入资金账号", { account = it })
 
                 Spacer(Modifier.height(14.dp))
-                Text("佣金费率（万分之几，如 2.5 表示万 2.5）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Text("佣金费率（万分之几，如 0.8 表示万 0.8）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
-                InputBox(feeRateW, "2.5", { feeRateW = it })
+                InputBox(feeRateW, "0.8", { feeRateW = it })
 
                 Spacer(Modifier.height(14.dp))
                 Text("最低起收（元）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
                 Spacer(Modifier.height(6.dp))
-                InputBox(feeMin, "5", { feeMin = it })
+                InputBox(feeMin, "0.1", { feeMin = it })
 
                 Spacer(Modifier.height(14.dp))
                 Row(
@@ -546,9 +546,9 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                     if (selected.isEmpty()) { msg = "请选择券商" }
                     else if (account.isEmpty()) { msg = "请输入资金账号" }
                     else {
-                        val rateW = feeRateW.trim().toDoubleOrNull() ?: 2.5
+                        val rateW = feeRateW.trim().toDoubleOrNull() ?: 0.8
                         val rate = rateW / 10000.0
-                        val mc = feeMin.trim().toDoubleOrNull() ?: 5.0
+                        val mc = feeMin.trim().toDoubleOrNull() ?: 0.1
                         val ex = if (feeExempt) 1 else 0
                         Thread {
                             val r = if (editId == 0) {
@@ -559,7 +559,7 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                             msg = if (r.ok) (if (editId == 0) "添加成功" else "已保存") else "失败：${r.msg}"
                             if (r.ok) {
                                 account = ""; selected = ""; expanded = false
-                                editId = 0; feeRateW = "2.5"; feeMin = "5"; feeExempt = false
+                                editId = 0; feeRateW = "0.8"; feeMin = "0.1"; feeExempt = false
                             }
                             reloadFlag++
                         }.start()
@@ -574,7 +574,7 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                             .background(Color(0xFFEEEEEE))
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                 editId = 0; account = ""; selected = ""; expanded = false
-                                feeRateW = "2.5"; feeMin = "5"; feeExempt = false; msg = ""
+                                feeRateW = "0.8"; feeMin = "0.1"; feeExempt = false; msg = ""
                             }
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
@@ -591,7 +591,7 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
     }
 }
 
-/** 万分之几展示：0.00025 -> "2.5"；去掉多余小数 0 */
+/** 万分之几展示：0.00008 -> "0.8"；去掉多余小数 0 */
 private fun fmtRateW(r: Double): String {
     val w = r * 10000.0
     return if (w == w.toLong().toDouble()) w.toLong().toString() else String.format("%.2f", w).trimEnd('0').trimEnd('.')
