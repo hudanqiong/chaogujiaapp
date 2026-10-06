@@ -621,19 +621,40 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
         //   左：「持仓股」三字标题；右：两个占位图标（后期统一替换）
         if (!simple) PosTableTitleBar()
 
+        if (simple) {
+            // 精简模式表头：仅「市值」一栏
+            Row(modifier = Modifier.fillMaxWidth().height(28.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(Modifier.width(PP_HOLD_FIXED_W.dp))
+                Box(Modifier.weight(1f))
+                Text("市值", color = PP_LABEL, fontSize = 11.sp, modifier = Modifier.padding(end = 10.dp))
+            }
+            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+        } else {
         // ---------- 表头 ----------
         PosHoldHeader(hScroll = hScroll)
         Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+        }
 
         // ---------- 列表（第50轮修正）----------
         //   不用 weight(1f)：高度随行数自适应，增一只股自动加一行、清仓一只自动减一行；
         //   行数少时底部功能区紧跟最后一行，不留无用白布。
         //   外层已整体 verticalScroll，LazyColumn 嵌套滚动会冲突，故改普通 Column 罗列。
+        if (simple) {
+            positions.forEach { p ->
+                Row(modifier = Modifier.fillMaxWidth().height(34.dp).background(Color.White), verticalAlignment = Alignment.CenterVertically) {
+                    Text(p.name, color = PP_BLACK, fontSize = 12.sp, maxLines = 1, modifier = Modifier.width(PP_HOLD_FIXED_W.dp).padding(start = 8.dp))
+                    Spacer(Modifier.weight(1f))
+                    Text("%.2f".format(p.marketValue), color = PP_BLACK, fontSize = 12.sp, modifier = Modifier.padding(end = 10.dp))
+                }
+                Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+            }
+        } else {
         Column(modifier = Modifier.fillMaxWidth()) {
             positions.forEach { p ->
                 PosHoldRow(p = p, denom = denom, hScroll = hScroll)
                 Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
             }
+        }
         }
 
         // ---------- 底部功能区（第50轮新增，紧随列表）----------
@@ -1126,7 +1147,7 @@ private fun BuySellPanel(
 
     // 查询五档
     LaunchedEffect(code) {
-        if (code.trim().length >= 6) {
+        if (code.trim().isNotBlank()) {
             try {
                 val ob = Api.orderbook(code.trim())
                 orderBook = ob
@@ -1214,14 +1235,14 @@ private fun BuySellPanel(
                     .weight(0.7f)
                     .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = 4.dp)
             ) {
                 // --- 代码框：无圆角，红边 ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(32.dp)
-                        
+                        .border(1.dp, red)
                         .background(Color.White)
                         .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1510,7 +1531,7 @@ private fun BuySellPanel(
                 modifier = Modifier
                     .weight(0.3f)
                 .fillMaxHeight()
-                .padding(vertical = 4.dp)
+                .padding(top = 4.dp)
                 .border(0.5.dp, veryLightBorder)
                 .background(Color.White)
                 .padding(horizontal = 3.dp)
