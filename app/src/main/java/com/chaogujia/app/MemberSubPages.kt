@@ -391,6 +391,12 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var reloadFlag by remember { mutableStateOf(0) }
+    // 费用参数：佣金费率（万分之几）、最低起收（元）、免五（免5元最低）
+    var feeRateW by remember { mutableStateOf("2.5") }
+    var feeMin by remember { mutableStateOf("5") }
+    var feeExempt by remember { mutableStateOf(false) }
+    // 正在编辑的账户 id（0=新增模式）
+    var editId by remember { mutableStateOf(0) }
 
     // 拉取：券商名单 + 我的账户列表
     LaunchedEffect(reloadFlag) {
@@ -426,6 +432,23 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                                 Text(it.account, color = Color(Config.COLOR_TEXT_SUB), fontSize = 13.sp)
                             }
                             Text(
+                                "编辑",
+                                color = Color(Config.COLOR_PRIMARY),
+                                fontSize = 13.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                        editId = it.id
+                                        selected = it.broker
+                                        account = it.account
+                                        feeRateW = fmtRateW(it.commRate)
+                                        feeMin = fmtNum(it.minComm)
+                                        feeExempt = (it.exemptMin == 1)
+                                        msg = ""
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            )
+                            Text(
                                 "删除",
                                 color = Color(Config.COLOR_PRIMARY),
                                 fontSize = 13.sp,
@@ -449,10 +472,10 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
 
         Spacer(Modifier.height(12.dp))
 
-        // ---------- 新增账户 ----------
+        // ---------- 新增 / 编辑账户 ----------
         CardBox {
             Column {
-                Text("添加证券账户", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(if (editId == 0) "添加证券账户" else "编辑证券账户", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(10.dp))
 
                 Text("选择券商", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
@@ -495,17 +518,68 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
                 Spacer(Modifier.height(6.dp))
                 InputBox(account, "请输入资金账号", { account = it })
 
+                Spacer(Modifier.height(14.dp))
+                Text("佣金费率（万分之几，如 2.5 表示万 2.5）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                InputBox(feeRateW, "2.5", { feeRateW = it })
+
+                Spacer(Modifier.height(14.dp))
+                Text("最低起收（元）", color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                Spacer(Modifier.height(6.dp))
+                InputBox(feeMin, "5", { feeMin = it })
+
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { feeExempt = !feeExempt }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("免五（免 5 元最低起收）", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(if (feeExempt) "开" else "关", color = Color(Config.COLOR_PRIMARY), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                }
+
                 Spacer(Modifier.height(16.dp))
-                BigBtn("添加账户") {
+                BigBtn(if (editId == 0) "添加账户" else "保存修改") {
                     if (selected.isEmpty()) { msg = "请选择券商" }
                     else if (account.isEmpty()) { msg = "请输入资金账号" }
                     else {
+                        val rateW = feeRateW.trim().toDoubleOrNull() ?: 2.5
+                        val rate = rateW / 10000.0
+                        val mc = feeMin.trim().toDoubleOrNull() ?: 5.0
+                        val ex = if (feeExempt) 1 else 0
                         Thread {
-                            val r = Api.addBroker(token, selected, account)
-                            msg = if (r.ok) "添加成功" else "失败：${r.msg}"
-                            if (r.ok) { account = ""; selected = ""; expanded = false }
+                            val r = if (editId == 0) {
+                                Api.addBroker(token, selected, account, 1_000_000.0, rate, mc, ex)
+                            } else {
+                                Api.editBroker(token, editId, selected, account, rate, mc, ex)
+                            }
+                            msg = if (r.ok) (if (editId == 0) "添加成功" else "已保存") else "失败：${r.msg}"
+                            if (r.ok) {
+                                account = ""; selected = ""; expanded = false
+                                editId = 0; feeRateW = "2.5"; feeMin = "5"; feeExempt = false
+                            }
                             reloadFlag++
                         }.start()
+                    }
+                }
+                if (editId != 0) {
+                    Spacer(Modifier.height(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFEEEEEE))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                editId = 0; account = ""; selected = ""; expanded = false
+                                feeRateW = "2.5"; feeMin = "5"; feeExempt = false; msg = ""
+                            }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("取消编辑", color = Color(Config.COLOR_TEXT_MAIN), fontSize = 15.sp)
                     }
                 }
                 if (msg.isNotEmpty()) {
@@ -515,6 +589,16 @@ private fun PageBroker(token: String?, onBack: () -> Unit) {
             }
         }
     }
+}
+
+/** 万分之几展示：0.00025 -> "2.5"；去掉多余小数 0 */
+private fun fmtRateW(r: Double): String {
+    val w = r * 10000.0
+    return if (w == w.toLong().toDouble()) w.toLong().toString() else String.format("%.2f", w).trimEnd('0').trimEnd('.')
+}
+/** 数字展示：5.0 -> "5"；5.5 -> "5.5" */
+private fun fmtNum(v: Double): String {
+    return if (v == v.toLong().toDouble()) v.toLong().toString() else String.format("%.2f", v).trimEnd('0').trimEnd('.')
 }
 
 // ===== 6. 自选分组设置 =====
