@@ -1629,8 +1629,8 @@ private fun BuySellPanel(
                 Text(" / ", color = labelGray, fontSize = 9.sp)
                 Text("总仓位", color = labelGray, fontSize = 9.sp)
                 Text("%.2f%%".format(0.0), color = yellowData, fontSize = 9.sp, fontFamily = PPNumFont)
-                Spacer(Modifier.weight(1f))
-                Text("预估加仓后成本 ", color = labelGray, fontSize = 9.sp)
+                Spacer(Modifier.width(10.dp))
+                Text("预估加仓后成本", color = labelGray, fontSize = 9.sp)
                 // 有持仓显示价格，无持仓显示--
                 val hasPos = positions.any { it.code == code.trim() }
                 Text(if (hasPos) "--" else "--", color = yellowData, fontSize = 9.sp, fontFamily = PPNumFont)
@@ -1638,7 +1638,7 @@ private fun BuySellPanel(
         }
 
         // ===== 下半部分：4标签 + 对应列表 =====
-        Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
+        Box(Modifier.fillMaxWidth().height(6.dp).background(PP_BG))
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -1663,7 +1663,7 @@ private fun BuySellPanel(
                 Column(
                     modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                 ) {
-                    PosHoldTable(positions = positions, totalAsset = account.total, simple = true)
+                    PosHoldTable(positions = positions, totalAsset = account.total)
                 }
             }
             "委托" -> {
