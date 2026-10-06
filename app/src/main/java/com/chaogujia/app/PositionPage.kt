@@ -1295,7 +1295,6 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.7f)
-                    .fillMaxHeight()
                     .padding(start = 8.dp, end = 8.dp, top = 2.dp)
             ) {
                 // --- 代码框：无圆角，红边 ---
