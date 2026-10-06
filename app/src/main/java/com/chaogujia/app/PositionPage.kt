@@ -43,6 +43,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
+
 
 /**
  * 独立持仓页（PositionPage）—— 第 34 轮新增
@@ -229,7 +233,7 @@ fun PositionPage(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(80.dp))
-                    Text("建设中…", color = Color(PP_GRAY), fontSize = 16.sp)
+                    Text("建设中…", color = PP_GRAY, fontSize = 16.sp)
                 }
             }
         }
@@ -1087,7 +1091,7 @@ private fun PosTabBar(cur: String, onSelect: (String) -> Unit) {
  *  右侧：五档盘口(卖5→卖1在上，买1→买5在下)
  */
 @Composable
-fun BuySellPanel(
+private fun BuySellPanel(
     token: String,
     brokerAccountId: Int,
     side: String,         // "buy" or "sell"
@@ -1105,13 +1109,13 @@ fun BuySellPanel(
     var quickRatio by remember { mutableStateOf(0) } // 0=全仓,1=1/2仓,2=1/3仓,3=1/4仓
 
     val scope = rememberCoroutineScope()
-    val red = Color(PP_RED)
-    val gray = Color(PP_GRAY)
-    val labelGray = Color(PP_LABEL)
-    val bgFill = Color(PP_BG)
-    val lineColor = Color(PP_LINE)
-    val black = Color(PP_BLACK)
-    val blue = Color(PP_BLUE)
+    val red = PP_RED
+    val gray = PP_GRAY
+    val labelGray = PP_LABEL
+    val bgFill = PP_BG
+    val lineColor = PP_LINE
+    val black = PP_BLACK
+    val blue = PP_BLUE
 
     // 查询五档
     LaunchedEffect(code) {
@@ -1119,10 +1123,10 @@ fun BuySellPanel(
             try {
                 val ob = Api.orderbook(code.trim())
                 orderBook = ob
-                if (ob.price > 0 && price.isEmpty()) {
+                if (ob != null && ob.price > 0 && price.isEmpty()) {
                     price = "%.3f".format(ob.price)
                 }
-                if (ob.name.isNotBlank() && stockName.isEmpty()) {
+                if (ob != null && ob.name.isNotBlank() && stockName.isEmpty()) {
                     stockName = ob.name
                 }
             } catch (_: Exception) {}
@@ -1147,7 +1151,6 @@ fun BuySellPanel(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .weight(1f)
             .background(Color.White)
     ) {
         // ===== 左侧 70% =====
@@ -1512,16 +1515,16 @@ fun BuySellPanel(
 
 /** R54: 五档单行 */
 @Composable
-fun BSLevelRow(
+private fun BSLevelRow(
     label: String,
     price: Double,
-    vol: Int,
+    vol: Double,
     isBuy: Boolean,
     prevClose: Double
 ) {
-    val red = Color(PP_RED)
+    val red = PP_RED
     val green = Color(0xFF00B800)
-    val labelGray = Color(PP_LABEL)
+    val labelGray = PP_LABEL
 
     val priceColor = when {
         price == 0.0 -> labelGray
@@ -1530,7 +1533,7 @@ fun BSLevelRow(
         else -> green
     }
     val priceStr = if (price > 0) "%.3f".format(price) else "--"
-    val volStr = if (vol > 0) vol.toString() else "--"
+    val volStr = if (vol > 0) vol.toInt().toString() else "--"
 
     Row(
         modifier = Modifier.fillMaxWidth().height(20.dp),
@@ -1545,26 +1548,26 @@ fun BSLevelRow(
 
 /** R54: 撤单列表面板 */
 @Composable
-fun OrderListPanel(
+private fun OrderListPanel(
     token: String,
     brokerAccountId: Int,
     onRefresh: () -> Unit = {}
 ) {
-    var orders by remember { mutableStateOf<List<*>>(emptyList()) }
+    var orders by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
-    val red = Color(PP_RED)
-    val labelGray = Color(PP_LABEL)
-    val black = Color(PP_BLACK)
-    val lineColor = Color(PP_LINE)
+    val red = PP_RED
+    val labelGray = PP_LABEL
+    val black = PP_BLACK
+    val lineColor = PP_LINE
 
     // 加载委托列表
-    suspend fun loadOrders() {
+    fun loadOrders() {
         isLoading = true
         msg = ""
         try {
-            orders = Api.pendingOrders(token, brokerAccountId)
+            orders = Api.orderList(token, brokerAccountId)
         } catch (e: Exception) {
             msg = "加载失败: ${e.message}"
         } finally {
@@ -1605,7 +1608,7 @@ fun OrderListPanel(
         } else {
             // 表头
             Row(
-                modifier = Modifier.fillMaxWidth().background(Color(PP_BG)).padding(vertical = 6.dp, horizontal = 8.dp),
+                modifier = Modifier.fillMaxWidth().background(PP_BG).padding(vertical = 6.dp, horizontal = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("股票", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(1f))
@@ -1614,14 +1617,13 @@ fun OrderListPanel(
                 Text("数量", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
                 Text("操作", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
             }
-            orders.forEach { ord ->
-                val om = ord as? Map<*, *> ?: return@forEach
-                val oCode = om["code"]?.toString() ?: ""
-                val oName = om["name"]?.toString() ?: ""
-                val oSide = om["side"]?.toString() ?: ""
-                val oPrice = om["price"]?.toString() ?: ""
-                val oQty = om["quantity"]?.toString() ?: ""
-                val oId = om["id"]?.toString() ?: ""
+            orders.forEach { om ->
+                val oCode = om.code
+                val oName = om.name
+                val oSide = if (om.direction == 1) "买" else "卖"
+                val oPrice = "%.3f".format(om.price)
+                val oQty = om.quantity.toString()
+                val oId = om.id.toString()
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -1637,7 +1639,7 @@ fun OrderListPanel(
                         modifier = Modifier.weight(0.4f).clickable {
                             scope.launch {
                                 try {
-                                    val res = Api.cancelOrder(token, brokerAccountId, oId.toInt())
+                                    val res = Api.orderCancel(token, oId.toInt())
                                     if (res.ok) loadOrders() else msg = "撤单失败: ${res.msg}"
                                 } catch (e: Exception) {
                                     msg = "错误: ${e.message}"
