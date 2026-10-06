@@ -33,6 +33,7 @@ data class PositionItem(
     val marketValue: Double = 0.0,
     val pnl: Double = 0.0,
     val pnlPct: Double = 0.0,
+    val dayPnl: Double = 0.0,        // R51：当日盈亏（= (现价-昨收)×数量，Σ 后与顶部当日参考盈亏一致）
     val holdDays: Int? = null        // 第40轮：持仓交易日数（后端 holdDays；null=暂无）
 )
 /** 月度参考盈亏 - 单日数据点（pnl_history.php 的 data.points[]） */
@@ -840,6 +841,8 @@ object Api {
                         marketValue = p.optDouble("marketValue", 0.0),
                         pnl = p.optDouble("pnl", 0.0),
                         pnlPct = p.optDouble("pnlPct", 0.0),
+                        // R51：逐股当日盈亏（后端 dayPnl），列表「当日盈亏」列改用此字段
+                        dayPnl = p.optDouble("dayPnl", 0.0),
                         // 第40轮修复：此前漏读 holdDays → 永远 null → 表格显示「--」
                         holdDays = if (p.has("holdDays") && !p.isNull("holdDays")) p.optInt("holdDays") else null
                     )
