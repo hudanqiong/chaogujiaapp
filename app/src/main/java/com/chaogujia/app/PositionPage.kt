@@ -37,6 +37,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+
 /**
  * 独立持仓页（PositionPage）—— 第 34 轮新增
  *
@@ -170,25 +177,61 @@ fun PositionPage(
         // ===== ③ 切换按钮以下：整体为滚动区域（第50轮修正）=====
         //   顶部红条 + 切换按钮固定；以下内容随列表行数增减整体滚动，
         //   列表行数少时底部功能区紧跟最后一行，不留无用白布。
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-        ) {
-            // ===== 账户信息栏（左：国旗+账户类型；右：仓位百分比框）=====
-            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-            PosAccountBar(account = account)
-            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-
-            // ===== 6 格统计（两行三列）：总资产/浮动盈亏/当日参考盈亏 · 总市值/可用/可取 =====
-            PosStatGrid(account = account)
-
-            // ===== 灰底分隔条：视觉分割上下两块 =====
-            Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(PP_BG))
-
-            // ===== 持仓表格：表头(9栏) + 股票列表(每只两行 / 部分单行) + 底部功能区 =====
-            PosHoldTable(positions = positions, totalAsset = account.total)
+        when (curTab) {
+            "买入" -> {
+                BuySellPanel(
+                    token = token,
+                    brokerAccountId = brokerId,
+                    side = "buy",
+                    positions = positions,
+                    account = account
+                )
+            }
+            "卖出" -> {
+                BuySellPanel(
+                    token = token,
+                    brokerAccountId = brokerId,
+                    side = "sell",
+                    positions = positions,
+                    account = account
+                )
+            }
+            "撤单" -> {
+                OrderListPanel(
+                    token = token,
+                    brokerAccountId = brokerId,
+                    onRefresh = {
+                        // 刷新撤单列表的逻辑在 OrderListPanel 内部处理
+                    }
+                )
+            }
+            "持仓" -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+                    PosAccountBar(account = account)
+                    Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+                    PosStatGrid(account = account)
+                    Box(modifier = Modifier.fillMaxWidth().height(8.dp).background(PP_BG))
+                    PosHoldTable(positions = positions, totalAsset = account.total)
+                }
+            }
+            else -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(80.dp))
+                    Text("建设中…", color = Color(PP_GRAY), fontSize = 16.sp)
+                }
+            }
         }
     }
 
@@ -1034,6 +1077,575 @@ private fun PosTabBar(cur: String, onSelect: (String) -> Unit) {
                         .clip(RoundedCornerShape(topStart = 2.dp, topEnd = 2.dp))
                         .background(if (selected) PP_RED else Color.Transparent)
                 )
+            }
+        }
+    }
+}
+/** R54: 买入/卖出面板 —— 左右7:3分栏
+ *  左侧：股票代码框、价格框(带+/-)、涨跌提示、数量框(带+/-)、
+ *        快捷仓位按钮(全仓/1-2仓/1-3仓/1-4仓)、齿轮+买卖按钮
+ *  右侧：五档盘口(卖5→卖1在上，买1→买5在下)
+ */
+@Composable
+fun BuySellPanel(
+    token: String,
+    brokerAccountId: Int,
+    side: String,         // "buy" or "sell"
+    positions: List<PositionItem>,
+    account: AccountInfo
+) {
+    var code by remember { mutableStateOf("") }
+    var stockName by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("") }
+    var orderBook by remember { mutableStateOf<OrderBook?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var resultMsg by remember { mutableStateOf("") }
+    var showGear by remember { mutableStateOf(false) }
+    var quickRatio by remember { mutableStateOf(0) } // 0=全仓,1=1/2仓,2=1/3仓,3=1/4仓
+
+    val scope = rememberCoroutineScope()
+    val red = Color(PP_RED)
+    val gray = Color(PP_GRAY)
+    val labelGray = Color(PP_LABEL)
+    val bgFill = Color(PP_BG)
+    val lineColor = Color(PP_LINE)
+    val black = Color(PP_BLACK)
+    val blue = Color(PP_BLUE)
+
+    // 查询五档
+    LaunchedEffect(code) {
+        if (code.length >= 1) {
+            try {
+                val ob = Api.orderbook(code.trim())
+                orderBook = ob
+                if (ob.price > 0 && price.isEmpty()) {
+                    price = "%.3f".format(ob.price)
+                }
+                if (ob.name.isNotBlank() && stockName.isEmpty()) {
+                    stockName = ob.name
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    // 计算涨跌停价
+    val prevClose = orderBook?.prevClose ?: 0.0
+    val upperLimit = if (prevClose > 0) "%.3f".format(prevClose * 1.1) else ""
+    val lowerLimit = if (prevClose > 0) "%.3f".format(prevClose * 0.9) else ""
+    val availStr = if (side == "buy") {
+        val avail = account.available
+        val p = price.toDoubleOrNull() ?: 0.0
+        if (p > 0) "可买 ${avail / p / 100L}" else ""
+    } else {
+        // 卖出：从持仓找该股票的可用数量
+        val pos = positions.find { it.code == code.trim() }
+        val availQty = (pos?.quantity ?: 0) - 0 // 可用=持仓-冻结(暂无冻结)
+        "可卖 $availQty"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .background(Color.White)
+    ) {
+        // ===== 左侧 70% =====
+        Column(
+            modifier = Modifier
+                .weight(0.7f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            // --- 股票代码/简拼 输入框 ---
+            Text("股票代码", color = labelGray, fontSize = 11.sp, modifier = Modifier.padding(bottom = 2.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .border(1.dp, red, RoundedCornerShape(4.dp))
+                    .background(Color.White, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                BasicTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    modifier = Modifier.weight(1f),
+                    textStyle = TextStyle(color = black, fontSize = 14.sp, fontFamily = PPNumFont),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    decorationBox = { inner ->
+                        if (code.isEmpty()) {
+                            Text("输入代码/简拼", color = Color(0xFFCCCCCC), fontSize = 13.sp)
+                        }
+                        inner()
+                    }
+                )
+                if (stockName.isNotBlank()) {
+                    Text(stockName, color = red, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // --- 价格框（带 +/- 按钮）---
+            Text("价格", color = labelGray, fontSize = 11.sp, modifier = Modifier.padding(bottom = 2.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // - 按钮
+                Box(
+                    modifier = Modifier
+                        .size(36.dp, 36.dp)
+                        .border(1.dp, red, RoundedCornerShape(2.dp))
+                        .background(Color.White)
+                        .clickable {
+                            val p = price.toDoubleOrNull() ?: 0.0
+                            if (p > 0.01) price = "%.3f".format(p - 0.01)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("−", color = red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+                // 价格输入
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                        .border(1.dp, red)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicTextField(
+                        value = price,
+                        onValueChange = { price = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                        textStyle = TextStyle(
+                            color = black, fontSize = 15.sp,
+                            fontFamily = PPNumFont, textAlign = TextAlign.Center
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        decorationBox = { inner ->
+                            if (price.isEmpty()) {
+                                Text("0.000", color = Color(0xFFCCCCCC), fontSize = 15.sp, textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth())
+                            }
+                            inner()
+                        }
+                    )
+                }
+                // + 按钮
+                Box(
+                    modifier = Modifier
+                        .size(36.dp, 36.dp)
+                        .border(1.dp, red, RoundedCornerShape(2.dp))
+                        .background(Color.White)
+                        .clickable {
+                            val p = price.toDoubleOrNull() ?: 0.0
+                            price = "%.3f".format(p + 0.01)
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("+", color = red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            // --- 涨跌停 / 可买提示 ---
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (upperLimit.isNotEmpty()) {
+                    Text("涨停 $upperLimit", color = labelGray, fontSize = 10.sp)
+                }
+                if (lowerLimit.isNotEmpty()) {
+                    Text("跌停 $lowerLimit", color = labelGray, fontSize = 10.sp)
+                }
+                if (availStr.isNotEmpty()) {
+                    Text(availStr, color = labelGray, fontSize = 10.sp)
+                }
+            }
+
+            // --- 数量框（带 +/- 按钮）---
+            Text("数量", color = labelGray, fontSize = 11.sp, modifier = Modifier.padding(bottom = 2.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(36.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp, 36.dp)
+                        .border(1.dp, red, RoundedCornerShape(2.dp))
+                        .background(Color.White)
+                        .clickable {
+                            val q = quantity.toIntOrNull() ?: 0
+                            if (q >= 100) quantity = (q - 100).toString()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("−", color = red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(36.dp)
+                        .border(1.dp, red)
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    BasicTextField(
+                        value = quantity,
+                        onValueChange = { quantity = it },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp),
+                        textStyle = TextStyle(
+                            color = black, fontSize = 15.sp,
+                            fontFamily = PPNumFont, textAlign = TextAlign.Center
+                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        decorationBox = { inner ->
+                            if (quantity.isEmpty()) {
+                                Text("0", color = Color(0xFFCCCCCC), fontSize = 15.sp, textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth())
+                            }
+                            inner()
+                        }
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(36.dp, 36.dp)
+                        .border(1.dp, red, RoundedCornerShape(2.dp))
+                        .background(Color.White)
+                        .clickable {
+                            val q = quantity.toIntOrNull() ?: 0
+                            quantity = (q + 100).toString()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("+", color = red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // --- 快捷仓位按钮 ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val ratios = listOf("全仓" to 0, "1/2仓" to 1, "1/3仓" to 2, "1/4仓" to 3)
+                ratios.forEach { (label, idx) ->
+                    val selected = quickRatio == idx
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(30.dp)
+                            .border(1.dp, if (selected) red else Color(0xFFCCCCCC), RoundedCornerShape(4.dp))
+                            .background(if (selected) Color(0xFFFFEEEE) else Color.White, RoundedCornerShape(4.dp))
+                            .clickable {
+                                quickRatio = idx
+                                // 计算快捷仓位数量
+                                val p = price.toDoubleOrNull() ?: 0.0
+                                if (p > 0) {
+                                    val avail = if (side == "buy") account.available else {
+                                        val pos = positions.find { it.code == code.trim() }
+                                        (pos?.quantity ?: 0).toDouble()
+                                    }
+                                    val maxQty = (avail / p / 100).toInt() * 100  // 取整到百股
+                                    val qty = when (idx) {
+                                        0 -> maxQty
+                                        1 -> maxQty / 2 / 100 * 100
+                                        2 -> maxQty / 3 / 100 * 100
+                                        3 -> maxQty / 4 / 100 * 100
+                                        else -> 0
+                                    }
+                                    quantity = qty.toString()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(label, color = if (selected) red else gray, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // --- 齿轮 + 买入/卖出按钮 ---
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // 齿轮按钮
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(4.dp))
+                        .background(Color.White, RoundedCornerShape(4.dp))
+                        .clickable { showGear = !showGear },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 简易齿轮图标（用 ⚙ 文字代替）
+                    Text("⚙", color = gray, fontSize = 20.sp)
+                }
+                // 买入/卖出按钮
+                val btnLabel = if (side == "buy") "买入" else "卖出"
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .background(red, RoundedCornerShape(4.dp))
+                        .clickable {
+                            // 提交订单
+                            val p = price.toDoubleOrNull() ?: 0.0
+                            val q = quantity.toIntOrNull() ?: 0
+                            if (code.isNotBlank() && p > 0 && q > 0) {
+                                scope.launch {
+                                    isLoading = true
+                                    resultMsg = ""
+                                    try {
+                                        val res = if (side == "buy") {
+                                            Api.buy(token, brokerAccountId, code.trim(), stockName, q, "quick", p)
+                                        } else {
+                                            Api.sell(token, brokerAccountId, code.trim(), q, "quick", p)
+                                        }
+                                        resultMsg = if (res.ok) "委托成功 ${res.orderId}" else "失败: ${res.msg}"
+                                    } catch (e: Exception) {
+                                        resultMsg = "错误: ${e.message}"
+                                    } finally {
+                                        isLoading = false
+                                    }
+                                }
+                            } else {
+                                resultMsg = "请填写完整"
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text(btnLabel, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // 结果消息
+            if (resultMsg.isNotEmpty()) {
+                Text(
+                    resultMsg,
+                    color = if (resultMsg.contains("成功")) blue else red,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            // 齿轮展开面板（简易）
+            if (showGear) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp)
+                        .border(1.dp, lineColor, RoundedCornerShape(4.dp))
+                        .background(bgFill, RoundedCornerShape(4.dp))
+                        .padding(8.dp)
+                ) {
+                    Text("委托设置", color = black, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("有效期：当日有效", color = labelGray, fontSize = 11.sp)
+                    Text("委托方式：限价委托", color = labelGray, fontSize = 11.sp)
+                }
+            }
+        }
+
+        // ===== 右侧 30%：五档盘口 =====
+        Column(
+            modifier = Modifier
+                .weight(0.3f)
+                .fillMaxHeight()
+                .background(Color.White)
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text("盘口", color = labelGray, fontSize = 10.sp, modifier = Modifier.padding(bottom = 4.dp))
+
+            val ob = orderBook
+            if (ob != null) {
+                // 卖5→卖1（从上到下）
+                ob.asks.reversed().forEachIndexed { idx, level ->
+                    BSLevelRow(label = "卖${5 - idx}", price = level.price, vol = level.vol, isBuy = false, prevClose = ob.prevClose)
+                }
+                // 分隔：现价
+                val priceColor = if (ob.price >= ob.prevClose) red else Color(0xFF00B800)
+                Text(
+                    "%.3f".format(ob.price),
+                    color = priceColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PPNumFont,
+                    modifier = Modifier.padding(vertical = 3.dp)
+                )
+                // 买1→买5（从上到下）
+                ob.bids.forEachIndexed { idx, level ->
+                    BSLevelRow(label = "买${idx + 1}", price = level.price, vol = level.vol, isBuy = true, prevClose = ob.prevClose)
+                }
+            } else {
+                // 无数据：占位灰--
+                for (i in 5 downTo 1) {
+                    BSLevelRow(label = "卖$i", price = 0.0, vol = 0, isBuy = false, prevClose = 0.0)
+                }
+                Text("--", color = labelGray, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 3.dp))
+                for (i in 1..5) {
+                    BSLevelRow(label = "买$i", price = 0.0, vol = 0, isBuy = true, prevClose = 0.0)
+                }
+            }
+        }
+    }
+}
+
+/** R54: 五档单行 */
+@Composable
+fun BSLevelRow(
+    label: String,
+    price: Double,
+    vol: Int,
+    isBuy: Boolean,
+    prevClose: Double
+) {
+    val red = Color(PP_RED)
+    val green = Color(0xFF00B800)
+    val labelGray = Color(PP_LABEL)
+
+    val priceColor = when {
+        price == 0.0 -> labelGray
+        prevClose == 0.0 -> if (isBuy) red else green
+        price >= prevClose -> red
+        else -> green
+    }
+    val priceStr = if (price > 0) "%.3f".format(price) else "--"
+    val volStr = if (vol > 0) vol.toString() else "--"
+
+    Row(
+        modifier = Modifier.fillMaxWidth().height(20.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, color = labelGray, fontSize = 9.sp, modifier = Modifier.width(24.dp))
+        Text(priceStr, color = priceColor, fontSize = 10.sp, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        Text(volStr, color = labelGray, fontSize = 9.sp, fontFamily = PPNumFont, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
+    }
+}
+
+/** R54: 撤单列表面板 */
+@Composable
+fun OrderListPanel(
+    token: String,
+    brokerAccountId: Int,
+    onRefresh: () -> Unit = {}
+) {
+    var orders by remember { mutableStateOf<List<*>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(false) }
+    var msg by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    val red = Color(PP_RED)
+    val labelGray = Color(PP_LABEL)
+    val black = Color(PP_BLACK)
+    val lineColor = Color(PP_LINE)
+
+    // 加载委托列表
+    suspend fun loadOrders() {
+        isLoading = true
+        msg = ""
+        try {
+            orders = Api.pendingOrders(token, brokerAccountId)
+        } catch (e: Exception) {
+            msg = "加载失败: ${e.message}"
+        } finally {
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) { loadOrders() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .verticalScroll(rememberScrollState())
+            .background(Color.White)
+    ) {
+        // 刷新按钮
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(8.dp),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text("刷新", color = red, fontSize = 13.sp,
+                modifier = Modifier.clickable { scope.launch { loadOrders() } })
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = red, modifier = Modifier.size(24.dp))
+            }
+        } else if (msg.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(msg, color = red, fontSize = 13.sp)
+            }
+        } else if (orders.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text("暂无委托", color = labelGray, fontSize = 14.sp)
+            }
+        } else {
+            // 表头
+            Row(
+                modifier = Modifier.fillMaxWidth().background(Color(PP_BG)).padding(vertical = 6.dp, horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("股票", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                Text("买卖", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
+                Text("价格", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                Text("数量", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
+                Text("操作", color = labelGray, fontSize = 11.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
+            }
+            orders.forEach { ord ->
+                val om = ord as? Map<*, *> ?: return@forEach
+                val oCode = om["code"]?.toString() ?: ""
+                val oName = om["name"]?.toString() ?: ""
+                val oSide = om["side"]?.toString() ?: ""
+                val oPrice = om["price"]?.toString() ?: ""
+                val oQty = om["quantity"]?.toString() ?: ""
+                val oId = om["id"]?.toString() ?: ""
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp, horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(oName, color = black, fontSize = 12.sp)
+                        Text(oCode, color = labelGray, fontSize = 10.sp)
+                    }
+                    Text(oSide, color = if (oSide == "买") red else Color(0xFF00B800), fontSize = 12.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
+                    Text(oPrice, color = black, fontSize = 12.sp, fontFamily = PPNumFont, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
+                    Text(oQty, color = black, fontSize = 12.sp, fontFamily = PPNumFont, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
+                    Text("撤单", color = red, fontSize = 12.sp,
+                        modifier = Modifier.weight(0.4f).clickable {
+                            scope.launch {
+                                try {
+                                    val res = Api.cancelOrder(token, brokerAccountId, oId.toInt())
+                                    if (res.ok) loadOrders() else msg = "撤单失败: ${res.msg}"
+                                } catch (e: Exception) {
+                                    msg = "错误: ${e.message}"
+                                }
+                            }
+                        }, textAlign = TextAlign.Center)
+                }
+                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
             }
         }
     }
