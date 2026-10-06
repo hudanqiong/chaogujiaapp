@@ -1124,7 +1124,7 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.7f)
-                    .padding(start = 8.dp, end = 8.dp, top = 2.dp)
+                    .padding(start = 8.dp, end = 8.dp, top = 10.dp)
             ) {
                 // --- 代码框：无圆角，红边 ---
                 Row(
@@ -1153,7 +1153,7 @@ private fun BuySellPanel(
                             Text(stockName, color = black, fontSize = 12.sp)
                         }
                     }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(12.dp))
 
                 // --- 价格框：无圆角，+/-按钮共用竖线 ---
                 Row(
@@ -1428,7 +1428,7 @@ private fun BuySellPanel(
                         .fillMaxSize()
                         .border(0.5.dp, veryLightBorder)
                         .background(Color.White)
-                        .padding(horizontal = 3.dp, vertical = 2.dp)
+                        .padding(horizontal = 5.dp, vertical = 5.dp)
                 ) {
                     if (ob != null) {
                         // 卖5→卖1
@@ -1476,7 +1476,7 @@ private fun BuySellPanel(
         // ===== 下半部分：4标签 + 对应列表 =====
         // 灰底分隔带：往下移（上方留白，不再紧贴上方）
         Spacer(Modifier.height(8.dp))
-        Box(Modifier.fillMaxWidth().height(6.dp).background(PP_BG))
+        Box(Modifier.fillMaxWidth().height(10.dp).background(PP_BG))
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp),
             verticalAlignment = Alignment.CenterVertically
