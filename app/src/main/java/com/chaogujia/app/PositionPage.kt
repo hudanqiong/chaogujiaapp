@@ -1590,7 +1590,7 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.3f)
-                    .fillMaxHeight()
+                    .height(178.dp)
                     .border(0.5.dp, veryLightBorder)
                     .background(Color.White)
                     .padding(horizontal = 3.dp)
