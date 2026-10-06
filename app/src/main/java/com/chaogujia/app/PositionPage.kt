@@ -1590,6 +1590,7 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.3f)
+                    .fillMaxHeight()
                     .border(0.5.dp, veryLightBorder)
                     .background(Color.White)
                     .padding(horizontal = 3.dp)
@@ -1619,7 +1620,6 @@ private fun BuySellPanel(
 
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
-            Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -1668,6 +1668,13 @@ private fun BuySellPanel(
             }
             "委托" -> {
                 OrderListPanel(token = token, brokerAccountId = brokerAccountId)
+            }
+            "自选" -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                ) {
+                    PosHoldTable(positions = positions, totalAsset = account.total, simple = true)
+                }
             }
             else -> {
                 Column(
