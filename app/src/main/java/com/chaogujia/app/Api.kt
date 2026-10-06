@@ -217,8 +217,8 @@ data class MyBroker(
     val cash: Double = 0.0,
     val frozen: Double = 0.0,
     val initial: Double = 0.0,
-    val commRate: Double = 0.00025,
-    val minComm: Double = 5.0,
+    val commRate: Double = 0.00008,
+    val minComm: Double = 0.1,
     val exemptMin: Int = 0
 ) {
     /** 可用资金 = 现金 - 冻结 */
@@ -1335,8 +1335,8 @@ object Api {
                         cash = j.optDouble("cash", 0.0),
                         frozen = j.optDouble("frozen", 0.0),
                         initial = j.optDouble("initial", 0.0),
-                        commRate = j.optDouble("commissionRate", 0.00025),
-                        minComm = j.optDouble("minCommission", 5.0),
+                        commRate = j.optDouble("commissionRate", 0.00008),
+                        minComm = j.optDouble("minCommission", 0.1),
                         exemptMin = j.optInt("exemptMin", 0)
                     )
                 )
@@ -1353,8 +1353,8 @@ object Api {
         broker: String,
         account: String,
         initial: Double = 1_000_000.0,
-        commissionRate: Double = 0.00025,
-        minCommission: Double = 5.0,
+        commissionRate: Double = 0.00008,
+        minCommission: Double = 0.1,
         exemptMin: Int = 0
     ): Res = post(
         "broker.php", token,
