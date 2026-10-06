@@ -1421,7 +1421,7 @@ private fun BuySellPanel(
                 modifier = Modifier
                     .weight(0.38f)
                     .fillMaxHeight()
-                    .padding(end = 16.dp)
+                    .padding(end = 16.dp, top = 10.dp)
             ) {
                 Column(
                     modifier = Modifier
