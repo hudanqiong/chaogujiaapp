@@ -987,7 +987,7 @@ private fun ppDays(v: Int?): String =
 private fun ppQty(v: Int): String = String.format(Locale.CHINA, "%,d", v)
 
 /** 价格：两位小数 */
-private fun ppPrice(v: Double): String = String.format(Locale.CHINA, "%.2f", v)
+private fun ppPrice(v: Double): String = String.format(Locale.CHINA, "%.3f", v)
 
 /**
  * 顶部 5 切换按钮栏：
