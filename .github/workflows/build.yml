@@ -48,18 +48,6 @@ jobs:
           name: fixed-keystore
           path: app/cgj-fixed-debug.keystore
           if-no-files-found: warn
-      - name: Deploy APK to server (fast CDN over :8080)
-        if: success()
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq sshpass
-          APK=$(ls app/build/outputs/apk/debug/*.apk | head -1)
-          echo "Uploading $APK"
-          sshpass -p 'Hy500236.' scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
-            "$APK" root@121.43.178.214:/var/www/html/apk/chaogujia-latest.apk
-          sshpass -p 'Hy500236.' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
-            root@121.43.178.214 "ls -la /var/www/html/apk/chaogujia-latest.apk && date"
-          echo "DEPLOY_OK http://121.43.178.214:8080/apk/chaogujia-latest.apk"
       - name: Upload APK
         if: success()
         uses: actions/upload-artifact@v4
