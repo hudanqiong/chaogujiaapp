@@ -1460,15 +1460,15 @@ private fun BuySellPanel(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("个股", color = labelGray, fontSize = 11.sp)
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontFamily = PPNumFont)
+                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
                 Text(" / ", color = labelGray, fontSize = 11.sp)
                 Text("总仓位", color = labelGray, fontSize = 11.sp)
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontFamily = PPNumFont)
+                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
                 Spacer(Modifier.width(10.dp))
                 Text("预估加仓后成本", color = labelGray, fontSize = 11.sp)
                 // 有持仓显示价格，无持仓显示--
                 val hasPos = positions.any { it.code == code.trim() }
-                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontFamily = PPNumFont)
+                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
             }
         }
 
