@@ -613,16 +613,11 @@ private val PP_COLS: List<PPCol> = listOf(
 private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simple: Boolean = false) {
     // 表头与所有数据行共用同一横向滚动状态 → 左滑同步、第 1 栏钉死
     val hScroll = rememberScrollState()
-    // 第41轮：个股仓位% = 该股市值 / 账户总资产（与顶栏「仓位%」同口径，各股之和 ≈ 顶部仓位）
     val denom = totalAsset
-
     Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
-        // ---------- 表头上方标题行（第50轮新增）----------
-        //   左：「持仓股」三字标题；右：两个占位图标（后期统一替换）
         if (!simple) PosTableTitleBar()
-
         if (simple) {
-            // 精简模式表头：第1栏「市值」钉死 + 右侧 8 栏随 hScroll 左滑（与完整版同构）
+            // 精简模式表头：第1栏「市值」钉死 + 右侧 8 栏随 hScroll 左滑
             Box(modifier = Modifier.fillMaxWidth().height(PP_HEAD_H).background(Color.White)) {
                 Row(
                     modifier = Modifier.fillMaxSize().padding(start = PP_HOLD_FIXED_W.dp).horizontalScroll(hScroll, enabled = false),
@@ -651,15 +646,11 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
             }
             Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
         } else {
-        // ---------- 表头 ----------
-        PosHoldHeader(hScroll = hScroll)
-        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+            // ---------- 表头 ----------
+            PosHoldHeader(hScroll = hScroll)
+            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
         }
-
-        // ---------- 列表（第50轮修正）----------
-        //   不用 weight(1f)：高度随行数自适应，增一只股自动加一行、清仓一只自动减一行；
-        //   行数少时底部功能区紧跟最后一行，不留无用白布。
-        //   外层已整体 verticalScroll，LazyColumn 嵌套滚动会冲突，故改普通 Column 罗列。
+        // ---------- 列表：高度随行数自适应，行数少时底部功能区紧跟最后一行 ----------
         if (simple) {
             positions.forEach { p ->
                 val pnlC = if (p.pnl >= 0) PP_RED else Color(0xFF00B800)
@@ -720,15 +711,14 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
                 Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
             }
         } else {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            positions.forEach { p ->
-                PosHoldRow(p = p, denom = denom, hScroll = hScroll)
-                Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+            Column(modifier = Modifier.fillMaxWidth()) {
+                positions.forEach { p ->
+                    PosHoldRow(p = p, denom = denom, hScroll = hScroll)
+                    Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+                }
             }
         }
-        }
-
-        // ---------- 底部功能区（第50轮新增，紧随列表）----------
+        // ---------- 底部功能区（仅完整版）----------
         if (!simple) PosBottomBar()
     }
 }
