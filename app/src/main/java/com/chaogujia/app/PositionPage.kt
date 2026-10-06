@@ -1288,7 +1288,7 @@ private fun BuySellPanel(
 
         // --- 中部：左右7:3分栏 ---
         Row(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
             verticalAlignment = Alignment.Top
         ) {
             // ===== 左侧 70% =====
@@ -1590,7 +1590,7 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.3f)
-                    .height(178.dp)
+                    .fillMaxHeight()
                     .border(0.5.dp, veryLightBorder)
                     .background(Color.White)
                     .padding(horizontal = 3.dp)
