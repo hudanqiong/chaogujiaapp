@@ -2,6 +2,8 @@ package com.chaogujia.app
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.ScrollState
@@ -608,7 +610,7 @@ private val PP_COLS: List<PPCol> = listOf(
  * 持仓表格：表头 + 列表（共享同一个 hScroll 实现左右同步滑动）。
  */
 @Composable
-private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double) {
+private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simple: Boolean = false) {
     // 表头与所有数据行共用同一横向滚动状态 → 左滑同步、第 1 栏钉死
     val hScroll = rememberScrollState()
     // 第41轮：个股仓位% = 该股市值 / 账户总资产（与顶栏「仓位%」同口径，各股之和 ≈ 顶部仓位）
@@ -617,7 +619,7 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double) {
     Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
         // ---------- 表头上方标题行（第50轮新增）----------
         //   左：「持仓股」三字标题；右：两个占位图标（后期统一替换）
-        PosTableTitleBar()
+        if (!simple) PosTableTitleBar()
 
         // ---------- 表头 ----------
         PosHoldHeader(hScroll = hScroll)
@@ -635,7 +637,7 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double) {
         }
 
         // ---------- 底部功能区（第50轮新增，紧随列表）----------
-        PosBottomBar()
+        if (!simple) PosBottomBar()
     }
 }
 
@@ -1124,7 +1126,7 @@ private fun BuySellPanel(
 
     // 查询五档
     LaunchedEffect(code) {
-        if (code.length >= 1) {
+        if (code.trim().length >= 6) {
             try {
                 val ob = Api.orderbook(code.trim())
                 orderBook = ob
@@ -1219,19 +1221,12 @@ private fun BuySellPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(32.dp)
-                        .border(1.dp, red)
+                        
                         .background(Color.White)
                         .padding(horizontal = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (hasCode) {
-                        Text(code, color = black, fontSize = 13.sp, fontFamily = PPNumFont)
-                        Spacer(Modifier.weight(1f))
-                        if (stockName.isNotBlank()) {
-                            Text(stockName, color = black, fontSize = 12.sp)
-                        }
-                    } else {
-                        BasicTextField(
+                                            BasicTextField(
                             value = code,
                             onValueChange = { code = it },
                             modifier = Modifier.weight(1f),
@@ -1244,21 +1239,23 @@ private fun BuySellPanel(
                                 inner()
                             }
                         )
+                        if (stockName.isNotBlank()) {
+                            Text(stockName, color = black, fontSize = 12.sp)
+                        }
                     }
-                }
                 Spacer(Modifier.height(4.dp))
 
                 // --- 价格框：无圆角，+/-按钮共用竖线 ---
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    modifier = Modifier.fillMaxWidth().height(32.dp).border(1.dp, red),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // - 按钮
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .border(1.dp, red)
                             .background(Color.White)
+.drawBehind { drawLine(red, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
                                 if (p > 0.01) price = "%.3f".format(p - 0.01)
@@ -1269,7 +1266,6 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .weight(1f).fillMaxHeight()
-                            .border(1.dp, red)
                             .background(Color.White),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1291,8 +1287,8 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .border(1.dp, red)
                             .background(Color.White)
+.drawBehind { drawLine(red, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
                                 price = "%.3f".format(p + 0.01)
@@ -1340,14 +1336,14 @@ private fun BuySellPanel(
 
                 // --- 数量框：无圆角，+/-共用竖线 ---
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(32.dp),
+                    modifier = Modifier.fillMaxWidth().height(32.dp).border(1.dp, red),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .border(1.dp, red)
                             .background(Color.White)
+.drawBehind { drawLine(red, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val q = quantity.toIntOrNull() ?: 0
                                 if (q >= 100) quantity = (q - 100).toString()
@@ -1357,7 +1353,6 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .weight(1f).fillMaxHeight()
-                            .border(1.dp, red)
                             .background(Color.White),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1378,8 +1373,8 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .border(1.dp, red)
                             .background(Color.White)
+.drawBehind { drawLine(red, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val q = quantity.toIntOrNull() ?: 0
                                 quantity = (q + 100).toString()
@@ -1514,10 +1509,11 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.3f)
-                    .fillMaxHeight()
-                    .border(0.5.dp, veryLightBorder)
-                    .background(Color.White)
-                    .padding(horizontal = 3.dp, vertical = 4.dp)
+                .fillMaxHeight()
+                .padding(vertical = 4.dp)
+                .border(0.5.dp, veryLightBorder)
+                .background(Color.White)
+                .padding(horizontal = 3.dp)
             ) {
                 if (ob != null) {
                     // 卖5→卖1
@@ -1579,7 +1575,6 @@ private fun BuySellPanel(
                 ) {
                     Text(t, color = if (selected) red else gray, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
                     Spacer(Modifier.height(3.dp))
-                    Box(Modifier.fillMaxWidth().height(2.dp).background(if (selected) red else Color.Transparent))
                 }
             }
         }
