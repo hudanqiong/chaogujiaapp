@@ -1350,11 +1350,12 @@ private fun BuySellPanel(
                 // --- 齿轮设置 + 买入/卖出按钮 ---
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .border(0.5.dp, veryLightBorder, RoundedCornerShape(2.dp))
                             .background(Color.White, RoundedCornerShape(2.dp))
                             .clickable { showGear = !showGear },
@@ -1420,28 +1421,34 @@ private fun BuySellPanel(
                 modifier = Modifier
                     .weight(0.3f)
                     .fillMaxHeight()
-                    .border(0.5.dp, veryLightBorder)
-                    .background(Color.White)
-                    .padding(horizontal = 3.dp)
+                    .padding(end = 8.dp)
             ) {
-                if (ob != null) {
-                    // 卖5→卖1
-                    ob.asks.reversed().forEachIndexed { idx, level ->
-                        BSLevelRow(label = "卖${5 - idx}", price = level.price, vol = level.vol, isBuy = false, prevClose = ob.prevClose)
-                    }
-                    // 买1卖1之间横分割线
-                    Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
-                    // 买1→买5
-                    ob.bids.forEachIndexed { idx, level ->
-                        BSLevelRow(label = "买${idx + 1}", price = level.price, vol = level.vol, isBuy = true, prevClose = ob.prevClose)
-                    }
-                } else {
-                    for (i in 5 downTo 1) {
-                        BSLevelRow(label = "卖$i", price = 0.0, vol = 0.0, isBuy = false, prevClose = 0.0)
-                    }
-                    Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
-                    for (i in 1..5) {
-                        BSLevelRow(label = "买$i", price = 0.0, vol = 0.0, isBuy = true, prevClose = 0.0)
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .border(0.5.dp, veryLightBorder)
+                        .background(Color.White)
+                        .padding(horizontal = 3.dp, vertical = 2.dp)
+                ) {
+                    if (ob != null) {
+                        // 卖5→卖1
+                        ob.asks.reversed().forEachIndexed { idx, level ->
+                            BSLevelRow(modifier = Modifier.weight(1f), label = "卖${5 - idx}", price = level.price, vol = level.vol, isBuy = false, prevClose = ob.prevClose)
+                        }
+                        // 买1卖1之间横分割线
+                        Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
+                        // 买1→买5
+                        ob.bids.forEachIndexed { idx, level ->
+                            BSLevelRow(modifier = Modifier.weight(1f), label = "买${idx + 1}", price = level.price, vol = level.vol, isBuy = true, prevClose = ob.prevClose)
+                        }
+                    } else {
+                        for (i in 5 downTo 1) {
+                            BSLevelRow(modifier = Modifier.weight(1f), label = "卖$i", price = 0.0, vol = 0.0, isBuy = false, prevClose = 0.0)
+                        }
+                        Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
+                        for (i in 1..5) {
+                            BSLevelRow(modifier = Modifier.weight(1f), label = "买$i", price = 0.0, vol = 0.0, isBuy = true, prevClose = 0.0)
+                        }
                     }
                 }
             }
@@ -1467,6 +1474,8 @@ private fun BuySellPanel(
         }
 
         // ===== 下半部分：4标签 + 对应列表 =====
+        // 灰底分隔带：往下移（上方留白，不再紧贴上方）
+        Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().height(6.dp).background(PP_BG))
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp),
@@ -1478,14 +1487,15 @@ private fun BuySellPanel(
                     modifier = Modifier
                         .weight(1f).fillMaxHeight()
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { subTab = t },
-                    verticalArrangement = Arrangement.Bottom,
+                    verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(t, color = if (selected) red else gray, fontSize = 13.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                    Spacer(Modifier.height(3.dp))
+                    Text(t, color = if (selected) red else gray, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
                 }
             }
         }
+        // 切换按钮行与下方列表表头之间的细浅分割线
+        Box(Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
         // 下半部分内容
         when (subTab) {
             "持仓" -> {
@@ -1521,6 +1531,7 @@ private fun BuySellPanel(
 /** R54-v2: 五档单行 */
 @Composable
 private fun BSLevelRow(
+    modifier: Modifier = Modifier,
     label: String,
     price: Double,
     vol: Double,
@@ -1529,9 +1540,8 @@ private fun BSLevelRow(
 ) {
     val red = PP_RED
     val green = Color(0xFF00B800)
-    val labelGray = PP_LABEL
     val priceColor = when {
-        price == 0.0 -> labelGray
+        price == 0.0 -> PP_BLACK
         prevClose == 0.0 -> if (isBuy) red else green
         price >= prevClose -> red
         else -> green
@@ -1540,13 +1550,13 @@ private fun BSLevelRow(
     val volStr = if (vol > 0) vol.toInt().toString() else "--"
 
     Row(
-        modifier = Modifier.fillMaxWidth().height(18.dp),
+        modifier = modifier.fillMaxWidth().heightIn(min = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = labelGray, fontSize = 8.sp, modifier = Modifier.width(22.dp))
-        Text(priceStr, color = priceColor, fontSize = 9.sp, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-        Text(volStr, color = labelGray, fontSize = 8.sp, fontFamily = PPNumFont, modifier = Modifier.width(32.dp), textAlign = TextAlign.End)
+        Text(label, color = PP_BLACK, fontSize = 10.sp, modifier = Modifier.width(24.dp))
+        Text(priceStr, color = priceColor, fontSize = 11.sp, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+        Text(volStr, color = PP_BLACK, fontSize = 10.sp, fontFamily = PPNumFont, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
     }
 }
 
