@@ -1076,16 +1076,16 @@ private fun BuySellPanel(
         // --- 顶部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 均价: 黄色数据
                 Text("均价:", color = Color(0xFFF4A939), fontSize = 12.sp)
-                Text(if (avgPrice > 0) "%.3f".format(avgPrice) else "--", color = Color(0xFFF4A939), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
+                Text(if (avgPrice > 0) "%.3f".format(avgPrice) else "--", color = Color(0xFFF4A939), fontSize = 12.sp, fontFamily = PPNumFont)
                 Spacer(Modifier.width(6.dp))
                 // 最新: 黑色数据
-                Text("最新:", color = labelGray, fontSize = 12.sp)
-                Text(if (curPrice > 0) "%.3f".format(curPrice) else "--", color = black, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
+                Text("最新:", color = black, fontSize = 12.sp)
+                Text(if (curPrice > 0) "%.3f".format(curPrice) else "--", color = black, fontSize = 12.sp, fontFamily = PPNumFont)
                 Spacer(Modifier.width(6.dp))
                 // 涨跌幅（红涨绿跌平黑，只有百分比无标签）
                 val pctColor = when {
@@ -1093,7 +1093,7 @@ private fun BuySellPanel(
                     changePct < 0 -> green
                     else -> black
                 }
-                Text("%.2f%%".format(changePct), color = pctColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
+                Text("%.2f%%".format(changePct), color = pctColor, fontSize = 12.sp, fontFamily = PPNumFont)
                 Spacer(Modifier.width(6.dp))
                 // 行情┛（浅灰色，符号逆时针45°即尖头朝右 ►）
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1456,19 +1456,19 @@ private fun BuySellPanel(
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("个股", color = labelGray, fontSize = 11.sp)
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
+                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontFamily = PPNumFont)
                 Text(" / ", color = labelGray, fontSize = 11.sp)
                 Text("总仓位", color = labelGray, fontSize = 11.sp)
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
+                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontFamily = PPNumFont)
                 Spacer(Modifier.width(10.dp))
                 Text("预估加仓后成本", color = labelGray, fontSize = 11.sp)
                 // 有持仓显示价格，无持仓显示--
                 val hasPos = positions.any { it.code == code.trim() }
-                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont)
+                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontFamily = PPNumFont)
             }
         }
 
