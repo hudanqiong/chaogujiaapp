@@ -1227,13 +1227,13 @@ private fun BuySellPanel(
 
         // --- 中部：左右7:3分栏 ---
         Row(
-            modifier = Modifier.weight(1f).fillMaxWidth()
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom
         ) {
             // ===== 左侧 70% =====
             Column(
                 modifier = Modifier
                     .weight(0.7f)
-                    .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
                     .padding(start = 8.dp, end = 8.dp, top = 4.dp)
             ) {
@@ -1609,7 +1609,7 @@ private fun BuySellPanel(
                     Box(Modifier.fillMaxWidth().height(0.4.dp).background(lineColor))
                     PosStatGrid(account = account)
                     Box(Modifier.fillMaxWidth().height(8.dp).background(bgFill))
-                    PosHoldTable(positions = positions, totalAsset = account.total)
+                    PosHoldTable(positions = positions, totalAsset = account.total, simple = true)
                 }
             }
             "委托" -> {
