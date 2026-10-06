@@ -1605,10 +1605,6 @@ private fun BuySellPanel(
                 Column(
                     modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                 ) {
-                    PosAccountBar(account = account)
-                    Box(Modifier.fillMaxWidth().height(0.4.dp).background(lineColor))
-                    PosStatGrid(account = account)
-                    Box(Modifier.fillMaxWidth().height(8.dp).background(bgFill))
                     PosHoldTable(positions = positions, totalAsset = account.total, simple = true)
                 }
             }
