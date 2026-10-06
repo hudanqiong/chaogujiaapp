@@ -1234,6 +1234,7 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.7f)
+                    .fillMaxHeight()
                     .verticalScroll(rememberScrollState())
                     .padding(start = 8.dp, end = 8.dp, top = 4.dp)
             ) {
@@ -1530,7 +1531,6 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.3f)
-                .fillMaxHeight()
                 .padding(top = 4.dp)
                 .border(0.5.dp, veryLightBorder)
                 .background(Color.White)
