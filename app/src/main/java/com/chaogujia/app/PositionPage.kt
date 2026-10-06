@@ -1296,8 +1296,7 @@ private fun BuySellPanel(
                 modifier = Modifier
                     .weight(0.7f)
                     .fillMaxHeight()
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 8.dp, end = 8.dp, top = 4.dp)
+                    .padding(start = 8.dp, end = 8.dp)
             ) {
                 // --- 代码框：无圆角，红边 ---
                 Row(
@@ -1520,9 +1519,11 @@ private fun BuySellPanel(
                     }
                 }
 
+                // --- 弹性空白：把买入按钮压到列底部，与右侧盘口下边框对齐 ---
+                Spacer(Modifier.weight(1f))
                 // --- 齿轮设置 + 买入/卖出按钮 ---
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Box(
@@ -1592,11 +1593,10 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.3f)
-                .fillMaxHeight()
-                .padding(top = 4.dp)
-                .border(0.5.dp, veryLightBorder)
-                .background(Color.White)
-                .padding(horizontal = 3.dp)
+                    .fillMaxHeight()
+                    .border(0.5.dp, veryLightBorder)
+                    .background(Color.White)
+                    .padding(horizontal = 3.dp)
             ) {
                 if (ob != null) {
                     // 卖5→卖1
