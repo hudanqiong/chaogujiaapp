@@ -875,12 +875,14 @@ private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
                 bottom = ppPrice(p.price),
                 bottomColor = ppPnColor(p.price - p.avgCost)   // 现价相对成本红/蓝
             )
-            // --- 当日盈亏（两行）：暂以总盈亏代入（后端无独立当日字段）---
+            // --- 当日盈亏（两行）：R51 改用后端 dayPnl（= (现价-昨收)×数量）---
+            //   如此列表各股 dayPnl 加总 ≡ 顶部「当日参考盈亏」（account.dayPn），口径守恒
             PpCellTwo(
-                top = ppSigned(p.pnl),
-                topColor = ppPnColor(p.pnl),
-                bottom = ppPct(p.pnlPct),
-                bottomColor = ppPnColor(p.pnl)
+                top = ppSigned(p.dayPnl),
+                topColor = ppPnColor(p.dayPnl),
+                bottom = if (p.avgCost > 0.0 && p.quantity > 0)
+                    ppPct(p.dayPnl / (p.avgCost * p.quantity) * 100.0) else ppPct(0.0),
+                bottomColor = ppPnColor(p.dayPnl)
             )
             // --- 个股仓位（单行）：该股市值 / 全部持仓市值合计；第40轮：红蓝、去正负号 ---
             PpCellOne(text = ppPctPlain(holdPct), color = ppPnColor(p.pnl))
