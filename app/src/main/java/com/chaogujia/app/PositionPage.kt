@@ -1501,12 +1501,12 @@ private fun BuySellPanel(
             } else {
                 // 无数据：占位灰--
                 for (i in 5 downTo 1) {
-                    BSLevelRow(label = "卖$i", price = 0.0, vol = 0, isBuy = false, prevClose = 0.0)
+                    BSLevelRow(label = "卖$i", price = 0.0, vol = 0.0, isBuy = false, prevClose = 0.0)
                 }
                 Text("--", color = labelGray, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(vertical = 3.dp))
                 for (i in 1..5) {
-                    BSLevelRow(label = "买$i", price = 0.0, vol = 0, isBuy = true, prevClose = 0.0)
+                    BSLevelRow(label = "买$i", price = 0.0, vol = 0.0, isBuy = true, prevClose = 0.0)
                 }
             }
         }
@@ -1580,7 +1580,6 @@ private fun OrderListPanel(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .weight(1f)
             .verticalScroll(rememberScrollState())
             .background(Color.White)
     ) {
