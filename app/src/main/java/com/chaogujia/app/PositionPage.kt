@@ -1078,7 +1078,7 @@ private fun BuySellPanel(
         // --- 顶部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(22.dp).border(1.dp, Color.Magenta).padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().height(44.dp).border(1.dp, Color.Magenta).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 均价: 黄色数据
