@@ -232,17 +232,13 @@ fun PositionPage(
                     PosHoldTable(positions = positions, totalAsset = account.total)
                 }
             }
-            else -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Spacer(modifier = Modifier.height(80.dp))
-                    Text("建设中…", color = PP_GRAY, fontSize = 16.sp)
-                }
+            "查询" -> {
+                QueryPanel(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    onToast = {
+                        android.widget.Toast.makeText(ppCtx, "功能建设中", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                )
             }
         }
     }
@@ -1836,4 +1832,162 @@ private fun OrderListPanel(
             }
         }
     }
+
+
+// ============================================================================
+// 查询页（第 55h-20 轮新增）
+//   布局：6 栏，每栏灰底分隔；栏内标题左对齐(黑 18sp)、符号 ┗ 右对齐(浅灰 18sp，逆时针旋转 90°)
+//   6 栏内容：
+//     栏1：当日成交 / 当日委托
+//     栏2：历史成交 / 历史委托
+//     栏3：已清仓股票
+//     栏4：对账单
+//     栏5：转账记录
+//     栏6：T操作
+//   最后一栏下方灰底：提示文字（其中「新股申购 -- 查询页面」为蓝色）
+//   页面最底部（导航条上方）：功能帮助（蓝色、居中）
+//   整页不滚动。所有可点项点击 → Toast「功能建设中」。
+// ============================================================================
+
+private val Q_TEXT_BLACK = Color(0xFF222222)   // 标题黑
+private val Q_TEXT_GRAY  = Color(0xFFBBBBBB)   // 符号浅灰
+private val Q_BLUE       = Color(0xFF2A7BFF)   // 蓝色（提示 & 功能帮助）
+private val Q_BG         = Color(0xFFF5F5F5)   // 栏间灰底
+private val Q_LINE       = Color(0xFFF0F0F0)   // 栏内两行之间极细浅灰线
+private val Q_FS         = 18.sp               // 与顶部证券名称同字号
+
+/** 查询页 6 栏的数据模型：一栏内含 1~2 行标题 */
+private val QUERY_GROUPS = listOf(
+    listOf("当日成交", "当日委托"),
+    listOf("历史成交", "历史委托"),
+    listOf("已清仓股票"),
+    listOf("对账单"),
+    listOf("转账记录"),
+    listOf("T操作")
+)
+
+/** 单行：标题（左，黑） + 符号 ┗（右，浅灰，逆时针旋转 90°，与标题垂直居中对齐） */
+@Composable
+private fun QueryRow(title: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .background(Color.White)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClick() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = title,
+            color = Q_TEXT_BLACK,
+            fontSize = Q_FS,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        // ┗ 逆时针旋转 90°，与标题垂直居中对齐
+        Text(
+            text = "┗",
+            color = Q_TEXT_GRAY,
+            fontSize = Q_FS,
+            fontWeight = FontWeight.Bold,
+            lineHeight = Q_FS,
+            modifier = Modifier
+                .rotate(-90f)
+                .padding(end = 16.dp)
+        )
+    }
+}
+
+/** 一栏：1~2 行，行间用极细浅灰线分隔；栏外上下用灰底分隔 */
+@Composable
+private fun QueryGroup(rows: List<String>, onClick: () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+        rows.forEachIndexed { idx, title ->
+            if (idx > 0) {
+                // 栏内两行之间的极细浅灰分割线（参考持仓页）
+                Box(Modifier.fillMaxWidth().padding(start = 16.dp).height(0.4.dp).background(Q_LINE))
+            }
+            QueryRow(title = title, onClick = onClick)
+        }
+    }
+}
+
+/**
+ * 查询面板：6 栏 + 底部提示 + 功能帮助。整页不滚动（用 Column + weight 撑满）。
+ */
+@Composable
+private fun QueryPanel(modifier: Modifier = Modifier, onToast: () -> Unit) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(Q_BG)
+    ) {
+        // ===== 6 栏：栏与栏之间用灰底条分隔（一根牙签直径 ≈ 2dp）=====
+        QUERY_GROUPS.forEachIndexed { idx, rows ->
+            if (idx > 0) {
+                // 栏间灰底分隔
+                Box(Modifier.fillMaxWidth().height(2.dp).background(Q_BG))
+            }
+            QueryGroup(rows = rows, onClick = onToast)
+        }
+
+        // ===== 最后一栏下方的灰底区域：提示文字 =====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Q_BG)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onToast() },
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Row(
+                modifier = Modifier.padding(top = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "（新股配号、中签查询，请前往",
+                    color = Q_TEXT_GRAY,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "新股申购 -- 查询页面",
+                    color = Q_BLUE,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "）",
+                    color = Q_TEXT_GRAY,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        // ===== 页面最底部（导航条上方）：功能帮助（蓝色、居中）=====
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { onToast() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "功能帮助",
+                color = Q_BLUE,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
 }
