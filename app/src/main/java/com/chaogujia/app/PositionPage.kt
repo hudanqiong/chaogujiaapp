@@ -1082,7 +1082,8 @@ private fun BuySellPanel(
         (pos?.quantity ?: 0) - 0
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    // ===== R55h-16-滚动：买入/卖出面板（五个指令以下）整体上下滚动 =====
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).background(Color.White)) {
         // ===== 上半部分 =====
 
         // --- 顶部信息行（输入代码后才显示）---
@@ -1532,7 +1533,7 @@ private fun BuySellPanel(
         when (subTab) {
             "持仓" -> {
                 Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     PosHoldTable(positions = positions, totalAsset = account.total, onPick = { pi ->
                         code = pi.code
@@ -1545,14 +1546,14 @@ private fun BuySellPanel(
             }
             "自选" -> {
                 Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     PosHoldTable(positions = positions, totalAsset = account.total, simple = true)
                 }
             }
             else -> {
                 Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(Modifier.height(60.dp))
