@@ -1049,7 +1049,7 @@ private fun BuySellPanel(
         if (c.isBlank()) { orderBook = null; return@LaunchedEffect }
         kotlinx.coroutines.delay(250)  // 防抖：停止输入 250ms 后再查
         try {
-            val ob = Api.orderbook(c)
+            val ob = withContext(Dispatchers.IO) { Api.orderbook(c) }
             orderBook = ob
             android.util.Log.d("CGJS", "orderbook c=" + c + " got=" + (ob != null) + " price=" + (ob?.price ?: -1.0))
             if (ob != null && ob.price > 0 && price.isEmpty()) {
