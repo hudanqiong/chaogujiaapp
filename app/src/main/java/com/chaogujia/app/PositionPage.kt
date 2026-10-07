@@ -1615,11 +1615,14 @@ private fun BuySellPanel(
         // 灰底分隔带：往下移（上方留白，不再紧贴上方）
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().height(10.dp).background(PP_BG))
+        val bottomTabs = if (side == "sell") listOf("持仓", "委托", "成交") else listOf("持仓", "委托", "成交", "自选")
+        val bottomTabsHPad = if (side == "sell") 48.dp else 0.dp
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp),
-                verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp).padding(horizontal = bottomTabsHPad),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf("持仓", "委托", "成交", "自选").forEach { t ->
+            bottomTabs.forEach { t ->
                 val selected = t == subTab
                 Column(
                     modifier = Modifier
@@ -1647,7 +1650,7 @@ private fun BuySellPanel(
                 }
             }
             "委托" -> {
-                OrderListPanel(token = token, brokerAccountId = brokerAccountId)
+                OrderListPanel(token = token, brokerAccountId = brokerAccountId, noScroll = true)
             }
             "自选" -> {
                 Column(
@@ -1736,6 +1739,7 @@ private fun BSLevelRow(
 private fun OrderListPanel(
     token: String,
     brokerAccountId: Int,
+    noScroll: Boolean = false,
     onRefresh: () -> Unit = {}
 ) {
     var orders by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
@@ -1762,11 +1766,10 @@ private fun OrderListPanel(
 
     LaunchedEffect(Unit) { loadOrders() }
 
+    val rootMod = if (noScroll) Modifier.fillMaxWidth().background(Color.White)
+        else Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).background(Color.White)
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .background(Color.White)
+        modifier = rootMod
     ) {
         // 刷新按钮
         Row(
@@ -1778,15 +1781,15 @@ private fun OrderListPanel(
         }
 
         if (isLoading) {
-            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Box(modifier = (if (noScroll) Modifier.fillMaxWidth().padding(vertical = 48.dp) else Modifier.fillMaxWidth().weight(1f)), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = red, modifier = Modifier.size(24.dp))
             }
         } else if (msg.isNotEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Box(modifier = (if (noScroll) Modifier.fillMaxWidth().padding(vertical = 48.dp) else Modifier.fillMaxWidth().weight(1f)), contentAlignment = Alignment.Center) {
                 Text(msg, color = red, fontSize = 13.sp)
             }
         } else if (orders.isEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            Box(modifier = (if (noScroll) Modifier.fillMaxWidth().padding(vertical = 48.dp) else Modifier.fillMaxWidth().weight(1f)), contentAlignment = Alignment.Center) {
                 Text("暂无委托", color = labelGray, fontSize = 14.sp)
             }
         } else {
