@@ -1078,16 +1078,16 @@ private fun BuySellPanel(
         // --- 顶部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(start = 16.dp, end = 16.dp, top = 3.dp, bottom = 1.dp),
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(start = 16.dp, end = 16.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 均价: 黄色数据
-                Text("均价:", color = Color(0xFFF4A939), fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                Text(if (avgPrice > 0) "%.3f".format(avgPrice) else "--", color = Color(0xFFF4A939), fontSize = 12.sp, lineHeight = 15.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                Text("均价:", color = Color(0xFFF4A939), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text(if (avgPrice > 0) "%.3f".format(avgPrice) else "--", color = Color(0xFFF4A939), fontSize = 12.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(6.dp))
                 // 最新: 黑色数据
-                Text("最新:", color = black, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                Text(if (curPrice > 0) "%.3f".format(curPrice) else "--", color = black, fontSize = 12.sp, lineHeight = 15.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                Text("最新:", color = black, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text(if (curPrice > 0) "%.3f".format(curPrice) else "--", color = black, fontSize = 12.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(6.dp))
                 // 涨跌幅（红涨绿跌平黑，只有百分比无标签）
                 val pctColor = when {
@@ -1095,23 +1095,23 @@ private fun BuySellPanel(
                     changePct < 0 -> green
                     else -> black
                 }
-                Text("%.2f%%".format(changePct), color = pctColor, fontSize = 12.sp, lineHeight = 15.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                Text("%.2f%%".format(changePct), color = pctColor, fontSize = 12.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(6.dp))
                 // 行情┛（浅灰色，符号逆时针45°即尖头朝右 ►）
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("行情", color = Color(0xFFD4D4D4), fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                    Text("►", color = Color(0xFFD4D4D4), fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false))) // 尖头朝右
+                    Text("行情", color = Color(0xFFD4D4D4), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Text("►", color = Color(0xFFD4D4D4), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true))) // 尖头朝右
                 }
                 Spacer(Modifier.weight(1f))
                 // 右侧：齿轮图标+展开/收起
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("⚙", color = gray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                    Text("⚙", color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                     Spacer(Modifier.width(2.dp))
                     val expandLabel = if (panelExpanded) "收起" else "展开"
                     // 符号：展开=顺时针45°（▼朝下），收起=逆时针45°（►朝右）
                     val expandSymbol = if (panelExpanded) "▼" else "►"
-                    Text(expandLabel, color = gray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                    Text(expandSymbol, color = gray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                    Text(expandLabel, color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Text(expandSymbol, color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 }
             }
         }
@@ -1458,19 +1458,19 @@ private fun BuySellPanel(
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(start = 16.dp, end = 16.dp, top = 3.dp, bottom = 1.dp),
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(start = 16.dp, end = 16.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("个股", color = labelGray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                Text(" / ", color = labelGray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                Text("总仓位", color = labelGray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                Text("个股", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text(" / ", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text("总仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(10.dp))
-                Text("预估加仓后成本", color = labelGray, fontSize = 12.sp, lineHeight = 15.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                Text("预估加仓后成本", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 // 有持仓显示价格，无持仓显示--
                 val hasPos = positions.any { it.code == code.trim() }
-                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, lineHeight = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
+                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
             }
         }
 
