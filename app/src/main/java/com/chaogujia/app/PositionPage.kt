@@ -1164,7 +1164,7 @@ private fun BuySellPanel(
                         value = code,
                         onValueChange = { code = it },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Center),
+                        textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Left),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         decorationBox = { inner ->
                             if (code.isEmpty()) {
