@@ -338,7 +338,7 @@ private fun PosAccountBar(account: AccountInfo) {
             .background(Color.White)
             .height(44.dp)   // 第38轮：与切换栏等高（红线贴底后，上分割线即红线带）
             .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
     ) {
         // ---- 左：国旗占位 + 账户类型 ----
         CnrFlagIcon(size = 16.dp)
@@ -742,7 +742,7 @@ private fun PosHoldHeader(hScroll: ScrollState) {
                 .fillMaxWidth()
                 .padding(start = PP_HOLD_FIXED_W.dp)
                 .horizontalScroll(hScroll, enabled = false),
-            verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
         ) {
             // 与固定列对齐留位（数据行同款占位，保证列对齐）
             for (c in PP_COLS.drop(1)) {
@@ -814,7 +814,7 @@ private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
                 .fillMaxWidth()
                 .padding(start = PP_HOLD_FIXED_W.dp)
                 .horizontalScroll(hScroll),
-            verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
         ) {
             // --- 盈亏（两行）---
             PpCellTwo(
@@ -964,7 +964,7 @@ private fun PosTabBar(cur: String, onSelect: (String) -> Unit) {
             .fillMaxWidth()
             .background(Color.White)
             .height(44.dp),
-        verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
     ) {
         POS_TABS.forEach { t ->
             val selected = t == cur
@@ -1079,7 +1079,7 @@ private fun BuySellPanel(
         if (hasCode) {
             Spacer(Modifier.height(6.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().background(Color.Red).wrapContentHeight().padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(start = 16.dp, end = 16.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 均价: 黄色数据
@@ -1458,6 +1458,7 @@ private fun BuySellPanel(
 
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
+            Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth().background(Color.Red).wrapContentHeight().padding(horizontal = 16.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -1481,7 +1482,7 @@ private fun BuySellPanel(
         Box(Modifier.fillMaxWidth().height(10.dp).background(PP_BG))
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp),
-            verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically
         ) {
             listOf("持仓", "委托", "成交", "自选").forEach { t ->
                 val selected = t == subTab
@@ -1554,7 +1555,7 @@ private fun BSLevelRow(
 
     Row(
         modifier = modifier.fillMaxWidth().heightIn(min = 18.dp),
-        verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
