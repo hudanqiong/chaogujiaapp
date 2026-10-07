@@ -1460,7 +1460,7 @@ private fun BuySellPanel(
         if (hasCode) {
             Spacer(Modifier.height(10.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().background(Color.Red).wrapContentHeight().padding(horizontal = 16.dp, vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(horizontal = 16.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("个股", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
