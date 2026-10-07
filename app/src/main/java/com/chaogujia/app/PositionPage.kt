@@ -1832,6 +1832,7 @@ private fun OrderListPanel(
             }
         }
     }
+}
 
 
 // ============================================================================
@@ -1989,5 +1990,4 @@ private fun QueryPanel(modifier: Modifier = Modifier, onToast: () -> Unit) {
             )
         }
     }
-}
 }
