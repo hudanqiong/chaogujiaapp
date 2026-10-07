@@ -1120,7 +1120,8 @@ private fun BuySellPanel(
                     }
                 ) {
                     Text("行情", color = Color(0xFFD4D4D4), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                    Text("►", color = Color(0xFFD4D4D4), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true))) // 尖头朝右
+                    // 需求8：图标改用 ┛ 并逆时针旋转45°（=尖头朝右），与文字上下居中
+                    Text("┛", color = Color(0xFFD4D4D4), fontSize = 12.sp, modifier = Modifier.rotate(-45f), style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 }
                 Spacer(Modifier.weight(1f))
                 // 右侧：齿轮图标+展开/收起
@@ -1128,10 +1129,10 @@ private fun BuySellPanel(
                     Text("⚙", color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                     Spacer(Modifier.width(2.dp))
                     val expandLabel = if (panelExpanded) "收起" else "展开"
-                    // 符号：展开=顺时针45°（▼朝下），收起=逆时针45°（►朝右）
-                    val expandSymbol = if (panelExpanded) "▼" else "►"
+                    // 需求9：展开=╝ 顺时针45°（尖头朝下）；收起=其镜像 ╗ 顺时针45°
+                    val expandSymbol = if (panelExpanded) "╝" else "╗"
                     Text(expandLabel, color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                    Text(expandSymbol, color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Text(expandSymbol, color = gray, fontSize = 12.sp, modifier = Modifier.rotate(45f), style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 }
             }
         }
@@ -1161,19 +1162,17 @@ private fun BuySellPanel(
                             value = code,
                             onValueChange = { code = it },
                             modifier = Modifier.weight(1f, fill = false),
-                            textStyle = TextStyle(color = black, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont),
+                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (code.isEmpty()) {
-                                    Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center)
+                                    Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                 }
                                 inner()
                             }
                         )
-                        if (stockName.isNotBlank()) {
-                            Spacer(Modifier.width(6.dp))
-                            Text(stockName, color = black, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                        }
+                        // 需求1：股票名靠右对齐；需求2：字号 16->15
+                        Text(stockName, color = black, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
                     }
                 Spacer(Modifier.height(8.dp))
 
@@ -1242,9 +1241,9 @@ private fun BuySellPanel(
                                 .padding(horizontal = 4.dp, vertical = 1.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("跌停", color = black, fontSize = 9.sp)
+                            Text("跌停", color = black, fontSize = 12.sp)
                             Spacer(Modifier.width(2.dp))
-                            Text(lowerLimit, color = green, fontSize = 11.sp, fontFamily = PPNumFont, fontWeight = FontWeight.Bold)
+                            Text(lowerLimit, color = green, fontSize = 10.sp, fontFamily = PPNumFont, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Text("--", color = black, fontSize = 9.sp)
@@ -1257,9 +1256,9 @@ private fun BuySellPanel(
                                 .padding(horizontal = 4.dp, vertical = 1.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("涨停", color = black, fontSize = 9.sp)
+                            Text("涨停", color = black, fontSize = 12.sp)
                             Spacer(Modifier.width(2.dp))
-                            Text(upperLimit, color = red, fontSize = 11.sp, fontFamily = PPNumFont, fontWeight = FontWeight.Bold)
+                            Text(upperLimit, color = red, fontSize = 10.sp, fontFamily = PPNumFont, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Text("--", color = black, fontSize = 9.sp)
@@ -1455,13 +1454,13 @@ private fun BuySellPanel(
                     if (ob != null) {
                         // 卖5→卖1
                         ob.asks.reversed().forEachIndexed { idx, level ->
-                            BSLevelRow(modifier = Modifier.weight(1f), label = "卖${5 - idx}", price = level.price, vol = level.vol, isBuy = false, prevClose = ob.prevClose)
+                            BSLevelRow(modifier = Modifier.weight(1f), label = "卖${5 - idx}", price = level.price, vol = level.vol, isBuy = false, prevClose = ob.prevClose, onPriceClick = { price = it })
                         }
                         // 买1卖1之间横分割线
                         Box(Modifier.fillMaxWidth().height(0.5.dp).background(lineColor))
                         // 买1→买5
                         ob.bids.forEachIndexed { idx, level ->
-                            BSLevelRow(modifier = Modifier.weight(1f), label = "买${idx + 1}", price = level.price, vol = level.vol, isBuy = true, prevClose = ob.prevClose)
+                            BSLevelRow(modifier = Modifier.weight(1f), label = "买${idx + 1}", price = level.price, vol = level.vol, isBuy = true, prevClose = ob.prevClose, onPriceClick = { price = it })
                         }
                     } else {
                         for (i in 5 downTo 1) {
@@ -1489,7 +1488,11 @@ private fun BuySellPanel(
                 val totalPct = if (account.total > 0.0) account.marketValue / account.total * 100.0 else 0.0
                 Text("个股/总仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(4.dp))
-                Text("%.2f%%/%.2f%%".format(stockPct, totalPct), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("%.2f%%".format(stockPct), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Text("/", color = labelGray, fontSize = 12.sp, fontWeight = FontWeight.Bold, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Text("%.2f%%".format(totalPct), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                }
                 Spacer(Modifier.width(10.dp))
                 // 需求8：预估加仓后成本；有持仓且有输入数量才计算，否则 --
                 val addQty = quantity.toIntOrNull() ?: 0
@@ -1567,7 +1570,8 @@ private fun BSLevelRow(
     price: Double,
     vol: Double,
     isBuy: Boolean,
-    prevClose: Double
+    prevClose: Double,
+    onPriceClick: (String) -> Unit = {}
 ) {
     val red = PP_RED
     val green = Color(0xFF00B800)
@@ -1604,7 +1608,7 @@ private fun BSLevelRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
-        Text(priceStr, color = priceColor, fontSize = priceFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, maxLines = 1)
+        Text(priceStr, color = priceColor, fontSize = priceFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f).clickable { if (price > 0) onPriceClick(priceStr) }, textAlign = TextAlign.Center, maxLines = 1)
         Text(volStr, color = bsText, fontSize = volFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.width(42.dp), textAlign = TextAlign.End, maxLines = 1)
     }
 }
