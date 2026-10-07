@@ -1045,19 +1045,21 @@ private fun BuySellPanel(
 
     // 查询五档
     LaunchedEffect(code) {
-        if (code.trim().isNotBlank()) {
-            try {
-                val ob = Api.orderbook(code.trim())
-                orderBook = ob
-                if (ob != null && ob.price > 0 && price.isEmpty()) {
-                    price = "%.3f".format(ob.price)
-                }
-                if (ob != null && ob.name.isNotBlank() && stockName.isEmpty()) {
-                    stockName = ob.name
-                }
-            } catch (_: Exception) {}
-        } else {
-            orderBook = null
+        val c = code.trim()
+        if (c.isBlank()) { orderBook = null; return@LaunchedEffect }
+        kotlinx.coroutines.delay(250)  // 防抖：停止输入 250ms 后再查
+        try {
+            val ob = Api.orderbook(c)
+            orderBook = ob
+            android.util.Log.d("CGJS", "orderbook c=" + c + " got=" + (ob != null) + " price=" + (ob?.price ?: -1.0))
+            if (ob != null && ob.price > 0 && price.isEmpty()) {
+                price = "%.3f".format(ob.price)
+            }
+            if (ob != null && ob.name.isNotBlank() && stockName.isEmpty()) {
+                stockName = ob.name
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("CGJS", "orderbook c=" + c + " EX=" + e)
         }
     }
 
