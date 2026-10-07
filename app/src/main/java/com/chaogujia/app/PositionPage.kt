@@ -621,6 +621,7 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
     val hScroll = rememberScrollState()
     val denom = totalAsset
     Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+        if (!simple) PosTableTitleBar()
         if (simple) {
             // 精简模式表头：第1栏「市值」钉死 + 右侧 8 栏随 hScroll 左滑
             Box(modifier = Modifier.fillMaxWidth().height(PP_HEAD_H).background(Color.White)) {
@@ -723,9 +724,179 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
                 }
             }
         }
+        // ---------- 底部功能区（仅完整版）----------
+        if (!simple) PosBottomBar()
     }
 }
 
+/**
+ * 第50轮：表头上方标题行。
+ *   左：「持仓股」三字（PP_LABEL 浅灰，字号略小于总资产）；
+ *   右：两个占位图标（横线+N 字母 / 正方形+三条竖线），后期统一替换。
+ */
+@Composable
+private fun PosTableTitleBar() {
+    Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)                       // 第50轮修正：与底部四个按钮行等高
+                .padding(start = 8.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "持仓股",
+                color = PP_BLACK,                    // 第50轮修正：纯黑色
+                fontSize = 15.sp,                    // 第50轮修正：与股票名称(15sp)同号
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+            Spacer(Modifier.weight(1f))
+            // 占位图标 1：横线上面一个 N 字母
+            PlaceholderIconN()
+            Spacer(Modifier.width(10.dp))
+            // 占位图标 2：正方形里面三条竖线
+            PlaceholderIconLines()
+        }
+        // 第50轮修正：标题行与表头之间加浅浅细细的分割线
+        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+    }
+}
+
+/** 占位图标 1：一条横线，上面一个字母 N（用文字绘制，后期替换为真图标） */
+@Composable
+private fun PlaceholderIconN() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = "N", color = PP_LABEL, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Box(modifier = Modifier.width(14.dp).height(1.dp).background(PP_LABEL))
+    }
+}
+
+/** 占位图标 2：一个正方形边框，里面三条竖线（后期替换为真图标） */
+@Composable
+private fun PlaceholderIconLines() {
+    Box(
+        modifier = Modifier
+            .size(14.dp)
+            .border(1.dp, PP_LABEL, RoundedCornerShape(1.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            repeat(3) {
+                Box(modifier = Modifier.width(1.dp).height(8.dp).background(PP_LABEL))
+            }
+        }
+    }
+}
+
+/**
+ * 第50轮：底部固定功能区（三行，始终贴屏幕最下方，随列表行数增减自动上下移动）。
+ *   第1行（灰底）：最右「查看已清仓股票┛」，┛ 逆时针旋转 45°，字号比总资产小两号，PP_LABEL 色。
+ *   第2行（白底）：四个文字按钮「持仓管理丨批量买入丨批量卖出丨止盈止损」，未点亮按钮色，浅浅细细竖线。
+ *   第3行（灰底）：两个蓝色标签「持仓资讯丨资产分析」，浅浅细细竖线。
+ */
+@Composable
+private fun PosBottomBar() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // ---------- 第1行：查看已清仓股票 ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp)                       // 第50轮修正：加高 1/4（原约 28dp → 36dp）
+                .background(PP_BG)
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "查看已清仓股票",
+                color = PP_LABEL,
+                fontSize = 11.sp,      // 比总资产标签小两号
+                maxLines = 1
+            )
+            Spacer(Modifier.width(2.dp))
+            // 「┛」逆时针旋转 45°，与文字垂直居中
+            Text(
+                text = "┛",
+                color = PP_LABEL,
+                fontSize = 11.sp,
+                maxLines = 1,
+                modifier = Modifier.rotate(-45f)
+            )
+        }
+
+        // ---------- 第2行：四个文字按钮 ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .background(Color.White),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val items2 = listOf("持仓管理", "批量买入", "批量卖出", "止盈止损")
+            items2.forEachIndexed { i, t ->
+                if (i > 0) {
+                    // 浅浅细细的竖线，不上下顶到底，居中略高，约字体高度
+                    Box(
+                        modifier = Modifier
+                            .width(0.6.dp)
+                            .height(13.dp)
+                            .background(PP_COLLINE)
+                    )
+                }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = t,
+                        color = PP_GRAY,   // 未点亮切换按钮色
+                        fontSize = 13.sp,
+                        maxLines = 1
+                    )
+                }
+            }
+        }
+
+        // ---------- 第3行：两个蓝色标签 ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+                .background(PP_BG),
+            horizontalArrangement = Arrangement.Center,   // 第50轮修正2：两标签整体居中
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 第50轮修正2：两个标签整体居中于屏幕底部正中间，中间一条可见的细竖线
+            Row(
+                modifier = Modifier.fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "持仓资讯",
+                    color = PP_BLUE,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 10.dp)
+                        .width(0.8.dp)
+                        .height(14.dp)
+                        .background(PP_COLLINE_VISIBLE)
+                )
+                Text(
+                    text = "资产分析",
+                    color = PP_BLUE,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
 
 /**
  * 表头行：第 1 栏(市值)钉死；右侧 8 栏铺在横滑层（随 hScroll 左移，钻到固定列下方）。
