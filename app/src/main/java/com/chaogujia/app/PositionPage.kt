@@ -622,106 +622,14 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
     val denom = totalAsset
     Column(modifier = Modifier.fillMaxWidth().background(Color.White)) {
         if (!simple) PosTableTitleBar()
-        if (simple) {
-            // 精简模式表头：第1栏「市值」钉死 + 右侧 8 栏随 hScroll 左滑
-            Box(modifier = Modifier.fillMaxWidth().height(PP_HEAD_H).background(Color.White)) {
-                Row(
-                    modifier = Modifier.fillMaxSize().padding(start = PP_HOLD_FIXED_W.dp).horizontalScroll(hScroll, enabled = false),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    for (c in PP_COLS.drop(1)) {
-                        Box(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), contentAlignment = Alignment.CenterEnd) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(c.title, color = PP_HEAD, fontSize = PP_HEAD_FS, maxLines = 1)
-                                Spacer(Modifier.width(2.dp))
-                                PpSortArrows()
-                            }
-                        }
-                    }
-                }
-                Box(
-                    modifier = Modifier.align(Alignment.CenterStart).width(PP_HOLD_FIXED_W.dp).fillMaxHeight().background(Color.White),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Row(modifier = Modifier.padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(PP_COLS[0].title, color = PP_HEAD, fontSize = PP_HEAD_FS, maxLines = 1)
-                        Spacer(Modifier.width(2.dp))
-                        PpSortArrows()
-                    }
-                }
-            }
-            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-        } else {
-            // ---------- 表头 ----------
-            PosHoldHeader(hScroll = hScroll)
-            Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-        }
-        // ---------- 列表：高度随行数自适应，行数少时底部功能区紧跟最后一行 ----------
-        if (simple) {
+        // 表头：完整版（与独立持仓页一致，左右可滑）
+        PosHoldHeader(hScroll = hScroll)
+        Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
+        // 列表：完整版行（与独立持仓页一致）
+        Column(modifier = Modifier.fillMaxWidth()) {
             positions.forEach { p ->
-                val pnlC = if (p.pnl >= 0) PP_RED else Color(0xFF00B800)
-                val dayC = if (p.dayPnl >= 0) PP_RED else Color(0xFF00B800)
-                val posPct = if (denom > 0) p.marketValue / denom * 100.0 else 0.0
-                Box(modifier = Modifier.fillMaxWidth().height(64.dp).background(Color.White)) {
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(start = PP_HOLD_FIXED_W.dp).horizontalScroll(hScroll, enabled = false),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // 市值/盈亏
-                        Column(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.End) {
-                            Text("%.2f".format(p.marketValue), color = PP_BLACK, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                            Spacer(Modifier.height(6.dp))
-                            Text(ppPct(p.pnl), color = pnlC, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                        // 持仓/可用
-                        Column(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.End) {
-                            Text(p.quantity.toString(), color = PP_RED, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                            Spacer(Modifier.height(6.dp))
-                            Text(p.quantity.toString(), color = PP_RED, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                        // 成本/现价
-                        Column(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.End) {
-                            Text("%.3f".format(p.avgCost), color = PP_BLACK, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                            Spacer(Modifier.height(6.dp))
-                            Text("%.3f".format(p.price), color = PP_BLACK, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                        // 当日盈亏
-                        Box(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), contentAlignment = Alignment.CenterEnd) {
-                            Text(ppPct(p.dayPnl), color = dayC, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                        // 个股仓位
-                        Box(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), contentAlignment = Alignment.CenterEnd) {
-                            Text(ppPctPlain(posPct), color = pnlC, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                        // 持仓天数
-                        Box(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), contentAlignment = Alignment.CenterEnd) {
-                            Text(p.holdDays?.toString() ?: "--", color = PP_BLACK, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                        // 证券代码
-                        Box(modifier = Modifier.width(PP_HOLD_COL_W.dp).fillMaxHeight().padding(end = 4.dp), contentAlignment = Alignment.CenterEnd) {
-                            Text(p.code, color = PP_BLACK, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, maxLines = 1)
-                        }
-                    }
-                    // 上层：股票名称钉死（白底盖住滑过来的右侧栏）
-                    Box(
-                        modifier = Modifier.align(Alignment.CenterStart).width(PP_HOLD_FIXED_W.dp).fillMaxHeight().background(Color.White),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text(p.name, color = PP_BLACK, fontSize = 12.sp, maxLines = 1)
-                            Spacer(Modifier.height(2.dp))
-                            Text("%.2f".format(p.marketValue), color = PP_BLACK, fontSize = 11.sp, maxLines = 1)
-                        }
-                    }
-                }
+                PosHoldRow(p = p, denom = denom, hScroll = hScroll, onPick = onPick)
                 Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                positions.forEach { p ->
-                    PosHoldRow(p = p, denom = denom, hScroll = hScroll, onPick = onPick)
-                    Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
-                }
             }
         }
         // ---------- 底部功能区（仅完整版）----------
