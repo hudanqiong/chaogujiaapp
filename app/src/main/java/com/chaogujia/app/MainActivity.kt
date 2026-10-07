@@ -452,6 +452,7 @@ fun ChaoGuJiaApp() {
                 PositionPage(
                     token = token,
                     switchAccountTick = positionSwitchTick,   // 第43轮：红条 ▼ 触发账户选择
+                    onOpenDetail = { list, idx -> openDetail("position", list, idx) },   // 需求④：行情► → 个股详情
                     onAccountChange = { nm, acc ->
                         positionName = nm
                         positionAccount = acc
