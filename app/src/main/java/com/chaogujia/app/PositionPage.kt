@@ -1732,7 +1732,7 @@ private fun BuySellPanel(
                 Column(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    PosHoldTable(positions = positions, totalAsset = account.total, onPick = { pi ->
+                    PosHoldTable(positions = positions, totalAsset = account.total, simple = true, onPick = { pi ->
                         code = pi.code
                         stockName = pi.name
                     })
