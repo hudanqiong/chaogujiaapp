@@ -342,11 +342,11 @@ private fun PositionHeaderRow(
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
+                    .size(20.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { onSwitch() }
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                    ) { onSwitch() },
                 contentAlignment = Alignment.Center
             ) {
                 Text(

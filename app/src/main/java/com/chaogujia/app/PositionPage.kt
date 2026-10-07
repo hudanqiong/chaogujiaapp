@@ -1053,7 +1053,7 @@ private fun BuySellPanel(
             val ob = withContext(Dispatchers.IO) { Api.orderbook(c) }
             orderBook = ob
             android.util.Log.d("CGJS", "orderbook c=" + c + " got=" + (ob != null) + " price=" + (ob?.price ?: -1.0))
-            if (ob != null && ob.price > 0 && price.isEmpty()) {
+            if (ob != null && ob.price > 0) {
                 price = "%.3f".format(ob.price)
             }
             if (ob != null && ob.name.isNotBlank()) {
@@ -1164,11 +1164,11 @@ private fun BuySellPanel(
                             value = code,
                             onValueChange = { code = it },
                             modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Center),
+                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Left),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (code.isEmpty()) {
-                                    Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                                    Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Left, modifier = Modifier.fillMaxWidth())
                                 }
                                 inner()
                             }
@@ -1591,11 +1591,12 @@ private fun BSLevelRow(
     val priceLen = priceStr.length
     val priceFontSize = when {
         priceLen <= 6 -> 13.sp
-        priceLen == 7 -> 12.sp
-        priceLen == 8 -> 11.sp
-        priceLen == 9 -> 10.sp
-        priceLen == 10 -> 9.sp
-        else -> 8.sp
+        priceLen == 7 -> 11.sp
+        priceLen == 8 -> 10.sp
+        priceLen == 9 -> 9.sp
+        priceLen == 10 -> 8.sp
+        priceLen == 11 -> 7.sp
+        else -> 6.sp
     }
     // 需求4：数量保留四位（<10000 原样），≥10000 以“万”为单位且字号小一点
     val volStr: String
@@ -1618,9 +1619,9 @@ private fun BSLevelRow(
                 verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
-        Text(priceStr, color = priceColor, fontSize = priceFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f).clickable { if (price > 0) onPriceClick(priceStr) }, textAlign = TextAlign.Center, maxLines = 1)
-        Text(volStr, color = bsText, fontSize = volFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.width(42.dp), textAlign = TextAlign.End, maxLines = 1)
+        Text(label, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(22.dp))
+        Text(priceStr, color = priceColor, fontSize = priceFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f).clickable { if (price > 0) onPriceClick(priceStr) }, textAlign = TextAlign.Center, maxLines = 1, softWrap = false, overflow = TextOverflow.Visible)
+        Text(volStr, color = bsText, fontSize = volFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.width(38.dp), textAlign = TextAlign.End, maxLines = 1)
     }
 }
 
