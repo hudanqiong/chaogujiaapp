@@ -1151,31 +1151,33 @@ private fun BuySellPanel(
                     .padding(start = 16.dp, end = 16.dp, top = 8.dp)
             ) {
                 // --- 代码框：无圆角，红边 ---
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(32.dp)
                         .border(1.dp, red)
                         .background(Color.White)
                         .padding(horizontal = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    contentAlignment = Alignment.Center
                 ) {
-                                            BasicTextField(
-                            value = code,
-                            onValueChange = { code = it },
-                            modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Left),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            decorationBox = { inner ->
-                                if (code.isEmpty()) {
-                                    Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Left, modifier = Modifier.fillMaxWidth())
-                                }
-                                inner()
+                    BasicTextField(
+                        value = code,
+                        onValueChange = { code = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Center),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        decorationBox = { inner ->
+                            if (code.isEmpty()) {
+                                Text("股票代码/简拼", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                             }
-                        )
-                        // 需求1：股票名靠右对齐；需求2：字号 16->15
-                        Text(stockName, color = black, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+                            inner()
+                        }
+                    )
+                    // R55h-17 需求1：名称右对齐叠加，不参与代码居中的宽度计算
+                    if (stockName.isNotEmpty()) {
+                        Text(stockName, color = black, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End, modifier = Modifier.align(Alignment.CenterEnd))
                     }
+                }
                 Spacer(Modifier.height(8.dp))
 
                 // --- 价格框：无圆角，+/-按钮共用竖线 ---
