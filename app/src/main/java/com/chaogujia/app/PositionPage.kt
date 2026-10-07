@@ -1458,7 +1458,7 @@ private fun BuySellPanel(
 
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(10.dp))
             Row(
                 modifier = Modifier.fillMaxWidth().background(Color.Red).wrapContentHeight().padding(horizontal = 16.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
