@@ -1039,6 +1039,11 @@ private fun BuySellPanel(
     val black = PP_BLACK
     val blue = PP_BLUE
     val yellowData = Color(0xFFFFAA00) // 黄色数据
+    // R55h-18 卖出页专属色
+    val sellBlue = Color(0xFF4691EE)      // 边框/加减号/卖出按钮
+    val sellFill = Color(0xFFF5F8FD)      // 加减号区域填充
+    val boxLine = if (side == "sell") sellBlue else red
+    val minusFill = if (side == "sell") sellFill else Color(0xFFFDF5F3)
     val lightGray = Color(0xFFCCCCCC)
     val veryLightBorder = Color(0xFFE0E0E0) // 极浅边框
     val hasCode = code.isNotBlank()
@@ -1155,7 +1160,7 @@ private fun BuySellPanel(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(32.dp)
-                        .border(1.dp, red)
+                        .border(1.dp, boxLine)
                         .background(Color.White)
                         .padding(horizontal = 6.dp),
                     contentAlignment = Alignment.Center
@@ -1182,21 +1187,21 @@ private fun BuySellPanel(
 
                 // --- 价格框：无圆角，+/-按钮共用竖线 ---
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(32.dp).border(1.dp, red),
+                    modifier = Modifier.fillMaxWidth().height(32.dp).border(1.dp, boxLine),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // - 按钮
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color(0xFFFDF5F3))
-.drawBehind { drawLine(red, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
+                            .background(minusFill)
+.drawBehind { drawLine(boxLine, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
                                 if (p > 0.01) price = "%.3f".format(p - 0.01)
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("−", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("−", color = boxLine, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                     // 价格输入（共用竖线：左边-按钮的右边框就是竖线，这里不加左边框）
                     Box(
                         modifier = Modifier
@@ -1222,14 +1227,14 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color(0xFFFDF5F3))
-.drawBehind { drawLine(red, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
+                            .background(minusFill)
+.drawBehind { drawLine(boxLine, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
                                 price = "%.3f".format(p + 0.01)
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("+", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("+", color = boxLine, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                 }
 
                 // --- 涨跌停 / 可买提示（价格框与数量框之间）---
@@ -1271,20 +1276,20 @@ private fun BuySellPanel(
 
                 // --- 数量框：无圆角，+/-共用竖线 ---
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(32.dp).border(1.dp, red),
+                    modifier = Modifier.fillMaxWidth().height(32.dp).border(1.dp, boxLine),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color(0xFFFDF5F3))
-.drawBehind { drawLine(red, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
+                            .background(minusFill)
+.drawBehind { drawLine(boxLine, Offset(size.width - 0.5.dp.toPx(), 0f), Offset(size.width - 0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val q = quantity.toIntOrNull() ?: 0
                                 if (q >= 100) quantity = (q - 100).toString()
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("−", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("−", color = boxLine, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                     Box(
                         modifier = Modifier
                             .weight(1f).fillMaxHeight()
@@ -1308,14 +1313,14 @@ private fun BuySellPanel(
                     Box(
                         modifier = Modifier
                             .width(32.dp).fillMaxHeight()
-                            .background(Color(0xFFFDF5F3))
-.drawBehind { drawLine(red, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
+                            .background(minusFill)
+.drawBehind { drawLine(boxLine, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), strokeWidth = 1.dp.toPx()) }
                             .clickable {
                                 val q = quantity.toIntOrNull() ?: 0
                                 quantity = (q + 100).toString()
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("+", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("+", color = boxLine, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                 }
 
                 // --- 可买 N 股 ---
@@ -1323,13 +1328,20 @@ private fun BuySellPanel(
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("可买 ", color = labelGray, fontSize = 12.sp)
-                    if (hasCode && availStr >= 0) {
-                        Text(availStr.toString(), color = yellowData, fontSize = 12.sp, fontFamily = PPNumFont)
+                    if (side == "sell") {
+                        val sellAvail = if (hasCode && availStr >= 0) availStr else 0
+                        Text("可卖 ", color = labelGray, fontSize = 12.sp)
+                        Text(sellAvail.toString(), color = yellowData, fontSize = 12.sp, fontFamily = PPNumFont)
+                        Text(" 股", color = labelGray, fontSize = 12.sp)
                     } else {
-                        Text("--", color = black, fontSize = 9.sp)
+                        Text("可买 ", color = labelGray, fontSize = 12.sp)
+                        if (hasCode && availStr >= 0) {
+                            Text(availStr.toString(), color = yellowData, fontSize = 12.sp, fontFamily = PPNumFont)
+                        } else {
+                            Text("--", color = black, fontSize = 9.sp)
+                        }
+                        Text(" 股", color = labelGray, fontSize = 12.sp)
                     }
-                    Text(" 股", color = labelGray, fontSize = 12.sp)
                 }
 
                 // --- 快捷仓位按钮：矮框、极浅极细边框 ---
@@ -1392,7 +1404,7 @@ private fun BuySellPanel(
                         modifier = Modifier
                             .weight(1f)
                             .height(36.dp)
-                            .background(red, RoundedCornerShape(4.dp))
+                            .background(boxLine, RoundedCornerShape(4.dp))
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
                                 val q = quantity.toIntOrNull() ?: 0
@@ -1490,6 +1502,17 @@ private fun BuySellPanel(
                 val posItem = positions.find { it.code == code.trim() }
                 val stockPct = if (account.total > 0.0 && posItem != null) posItem.marketValue / account.total * 100.0 else 0.0
                 val totalPct = if (account.total > 0.0) account.marketValue / account.total * 100.0 else 0.0
+                if (side == "sell") {
+                    // R55h-18 卖出页：个股仓位(最左) + 总仓位(行中间)，间距加大，去掉预估加仓后成本
+                    Text("个股仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Spacer(Modifier.width(4.dp))
+                    Text("%.2f%%".format(stockPct), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Spacer(Modifier.weight(1f))
+                    Text("总仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Spacer(Modifier.width(4.dp))
+                    Text("%.2f%%".format(totalPct), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                    Spacer(Modifier.weight(1f))
+                } else {
                 Text("个股/总仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1505,6 +1528,7 @@ private fun BuySellPanel(
                     (posItem.avgCost * posItem.quantity + addPrice * addQty) / (posItem.quantity + addQty) else null
                 Text("预估加仓后成本", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Text(if (estCost != null) "%.3f".format(estCost) else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                }
             }
         }
 
