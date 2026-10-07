@@ -111,7 +111,9 @@ fun PositionPage(
      *   之所以用 tick 而不是直接的布尔开关：红条在 MainActivity 渲染，本页状态自包含，
      *   用计数可避免把整页状态提升到父级（改动最小）。
      */
-    switchAccountTick: Int = 0
+    switchAccountTick: Int = 0,
+    /** 需求④：点「行情►」进入个股详情页。参数=(可展示列表, 当前项下标) */
+    onOpenDetail: (List<StockItem>, Int) -> Unit = { _, _ -> }
 ) {
     // ★ 第 44 轮修复：页面级协程作用域。
     //   之前账户浮层内部用 rememberCoroutineScope()，点击账户先 showAccountPicker=false
@@ -192,7 +194,8 @@ fun PositionPage(
                     brokerAccountId = brokerId,
                     side = "buy",
                     positions = positions,
-                    account = account
+                    account = account,
+                    onOpenDetail = onOpenDetail
                 )
             }
             "卖出" -> {
@@ -201,7 +204,8 @@ fun PositionPage(
                     brokerAccountId = brokerId,
                     side = "sell",
                     positions = positions,
-                    account = account
+                    account = account,
+                    onOpenDetail = onOpenDetail
                 )
             }
             "撤单" -> {
@@ -612,7 +616,7 @@ private val PP_COLS: List<PPCol> = listOf(
  * 持仓表格：表头 + 列表（共享同一个 hScroll 实现左右同步滑动）。
  */
 @Composable
-private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simple: Boolean = false) {
+private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simple: Boolean = false, onPick: ((PositionItem) -> Unit)? = null) {
     // 表头与所有数据行共用同一横向滚动状态 → 左滑同步、第 1 栏钉死
     val hScroll = rememberScrollState()
     val denom = totalAsset
@@ -714,7 +718,7 @@ private fun PosHoldTable(positions: List<PositionItem>, totalAsset: Double, simp
         } else {
             Column(modifier = Modifier.fillMaxWidth()) {
                 positions.forEach { p ->
-                    PosHoldRow(p = p, denom = denom, hScroll = hScroll)
+                    PosHoldRow(p = p, denom = denom, hScroll = hScroll, onPick = onPick)
                     Box(modifier = Modifier.fillMaxWidth().height(0.4.dp).background(PP_LINE))
                 }
             }
@@ -799,7 +803,7 @@ private fun PosHoldHeader(hScroll: ScrollState) {
  * 两行栏：上行 + 下行；单行栏：居中一行。
  */
 @Composable
-private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
+private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState, onPick: ((PositionItem) -> Unit)? = null) {
     // 第41轮：个股仓位% = 该股市值 / 账户总资产（与顶栏仓位%同口径）
     val holdPct = if (denom > 0.0) (p.marketValue / denom) * 100.0 else 0.0
     Box(
@@ -807,6 +811,7 @@ private fun PosHoldRow(p: PositionItem, denom: Double, hScroll: ScrollState) {
             .fillMaxWidth()
             .height(PP_ROW_H)
             .background(Color.White)
+            .then(if (onPick != null) Modifier.clickable { onPick(p) } else Modifier)
     ) {
         // 下层：右侧 8 栏
         Row(
@@ -1010,7 +1015,8 @@ private fun BuySellPanel(
     brokerAccountId: Int,
     side: String,         // "buy" or "sell"
     positions: List<PositionItem>,
-    account: AccountInfo
+    account: AccountInfo,
+    onOpenDetail: (List<StockItem>, Int) -> Unit = { _, _ -> }
 ) {
     var code by remember { mutableStateOf("") }
     var stockName by remember { mutableStateOf("") }
@@ -1058,11 +1064,11 @@ private fun BuySellPanel(
     // 计算涨跌停价
     val ob = orderBook
     val prevClose = ob?.prevClose ?: 0.0
-    val upperLimit = if (prevClose > 0) "%.3f".format(prevClose * 1.1) else ""
-    val lowerLimit = if (prevClose > 0) "%.3f".format(prevClose * 0.9) else ""
+    val upperLimit = if (ob != null && ob.limitUp > 0) "%.3f".format(ob.limitUp) else if (prevClose > 0) "%.3f".format(prevClose * 1.1) else ""
+    val lowerLimit = if (ob != null && ob.limitDown > 0) "%.3f".format(ob.limitDown) else if (prevClose > 0) "%.3f".format(prevClose * 0.9) else ""
     val curPrice = ob?.price ?: 0.0
     val changePct = if (prevClose > 0 && hasCode) ((curPrice - prevClose) / prevClose * 100) else 0.0
-    val avgPrice = ob?.open ?: 0.0 // 用开盘价代替均价，后续可接均价API
+    val avgPrice = ob?.avgPrice ?: 0.0 // 后端提供当日均价
     val availStr = if (side == "buy") {
         val avail = account.available
         val p = price.toDoubleOrNull() ?: 0.0
@@ -1099,7 +1105,17 @@ private fun BuySellPanel(
                 Text("%.2f%%".format(changePct), color = pctColor, fontSize = 12.sp, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(6.dp))
                 // 行情┛（浅灰色，符号逆时针45°即尖头朝右 ►）
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable {
+                        // 需求④：进入个股详情页。用持仓列表构造可翻页列表，定位当前代码。
+                        if (code.isNotBlank()) {
+                            val lst = positions.map { StockItem(code = it.code, name = it.name, price = it.price, change = it.price - (if (it.avgCost > 0) it.avgCost else 0.0)) }
+                            val idx = lst.indexOfFirst { it.code == code }.let { if (it < 0) 0 else it }
+                            onOpenDetail(lst, idx)
+                        }
+                    }
+                ) {
                     Text("行情", color = Color(0xFFD4D4D4), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                     Text("►", color = Color(0xFFD4D4D4), fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true))) // 尖头朝右
                 }
@@ -1463,16 +1479,21 @@ private fun BuySellPanel(
                 modifier = Modifier.fillMaxWidth().wrapContentHeight().padding(horizontal = 16.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("个股", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                Text(" / ", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                Text("总仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                Text("%.2f%%".format(0.0), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                // 需求5/6/7：个股/总仓位 标签在前 + 一个空格 + X.XX%/X.XX%
+                val posItem = positions.find { it.code == code.trim() }
+                val stockPct = if (account.total > 0.0 && posItem != null) posItem.marketValue / account.total * 100.0 else 0.0
+                val totalPct = if (account.total > 0.0) account.marketValue / account.total * 100.0 else 0.0
+                Text("个股/总仓位", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Spacer(Modifier.width(4.dp))
+                Text("%.2f%%/%.2f%%".format(stockPct, totalPct), color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 Spacer(Modifier.width(10.dp))
+                // 需求8：预估加仓后成本；有持仓且有输入数量才计算，否则 --
+                val addQty = quantity.toIntOrNull() ?: 0
+                val addPrice = price.toDoubleOrNull() ?: 0.0
+                val estCost = if (posItem != null && posItem.quantity > 0 && addQty > 0 && addPrice > 0.0)
+                    (posItem.avgCost * posItem.quantity + addPrice * addQty) / (posItem.quantity + addQty) else null
                 Text("预估加仓后成本", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
-                // 有持仓显示价格，无持仓显示--
-                val hasPos = positions.any { it.code == code.trim() }
-                Text(if (hasPos) "--" else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
+                Text(if (estCost != null) "%.3f".format(estCost) else "--", color = Color(0xFFFE7902), fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
             }
         }
 
@@ -1505,7 +1526,10 @@ private fun BuySellPanel(
                 Column(
                     modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                 ) {
-                    PosHoldTable(positions = positions, totalAsset = account.total)
+                    PosHoldTable(positions = positions, totalAsset = account.total, onPick = { pi ->
+                        code = pi.code
+                        stockName = pi.name
+                    })
                 }
             }
             "委托" -> {
@@ -1543,15 +1567,18 @@ private fun BSLevelRow(
 ) {
     val red = PP_RED
     val green = Color(0xFF00B800)
+    // 需求⑪：价格 涨红/跌绿/平黑（与前收比）
     val priceColor = when {
-        price == 0.0 -> PP_BLACK
-        prevClose == 0.0 -> if (isBuy) red else green
-        price >= prevClose -> red
-        else -> green
+        price <= 0.0 -> PP_BLACK
+        prevClose <= 0.0 -> PP_BLACK
+        price > prevClose -> red
+        price < prevClose -> green
+        else -> PP_BLACK
     }
     val priceStr = if (price > 0) "%.3f".format(price) else "--"
     val volStr = if (vol > 0) vol.toInt().toString() else "--"
-    val bsText = Color(0xFF323232)
+    // 需求⑪：量黑色
+    val bsText = Color(0xFF000000)
 
     Row(
         modifier = modifier.fillMaxWidth().heightIn(min = 18.dp),
