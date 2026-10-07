@@ -1078,7 +1078,7 @@ private fun BuySellPanel(
         // --- 顶部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(22.dp).padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 均价: 黄色数据
@@ -1125,7 +1125,7 @@ private fun BuySellPanel(
             Column(
                 modifier = Modifier
                     .weight(0.66f)
-                    .padding(start = 16.dp, end = 16.dp, top = 0.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp)
             ) {
                 // --- 代码框：无圆角，红边 ---
                 Row(
@@ -1458,7 +1458,7 @@ private fun BuySellPanel(
         // --- 底部信息行（输入代码后才显示）---
         if (hasCode) {
             Row(
-                modifier = Modifier.fillMaxWidth().height(24.dp).padding(horizontal = 16.dp),
+                modifier = Modifier.fillMaxWidth().height(20.dp).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("个股", color = labelGray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = false)))
