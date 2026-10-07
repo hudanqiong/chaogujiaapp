@@ -1616,24 +1616,20 @@ private fun BuySellPanel(
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().height(10.dp).background(PP_BG))
         val bottomTabs = if (side == "sell") listOf("持仓", "委托", "成交") else listOf("持仓", "委托", "成交", "自选")
-        val isSellTabs = side == "sell"
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp),
-            horizontalArrangement = if (isSellTabs) Arrangement.Center else Arrangement.Start,
+            horizontalArrangement = Arrangement.Start,
             verticalAlignment = Alignment.CenterVertically
         ) {
             bottomTabs.forEach { t ->
                 val selected = t == subTab
                 Column(
-                    modifier = (if (isSellTabs) Modifier.width(76.dp).fillMaxHeight() else Modifier.weight(1f).fillMaxHeight())
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { subTab = t },
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(t, color = if (selected) red else gray, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
-                }
-                if (isSellTabs && t != bottomTabs.last()) {
-                    Spacer(Modifier.width(12.dp))
                 }
             }
         }
