@@ -1616,7 +1616,7 @@ private fun BuySellPanel(
         Spacer(Modifier.height(8.dp))
         Box(Modifier.fillMaxWidth().height(10.dp).background(PP_BG))
         val bottomTabs = if (side == "sell") listOf("持仓", "委托", "成交") else listOf("持仓", "委托", "成交", "自选")
-        val bottomTabsHPad = if (side == "sell") 48.dp else 0.dp
+        val bottomTabsHPad = if (side == "sell") 32.dp else 0.dp
         Row(
             modifier = Modifier.fillMaxWidth().background(Color.White).height(36.dp).padding(horizontal = bottomTabsHPad),
             horizontalArrangement = Arrangement.Center,
