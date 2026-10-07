@@ -307,11 +307,7 @@ private fun PositionHeaderRow(
         //   命中区域覆盖三者的并集；点击无任何特效（indication = null）。
         Row(
             modifier = Modifier
-                .align(Alignment.Center)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onSwitch() },
+                .align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
@@ -344,7 +340,13 @@ private fun PositionHeaderRow(
             //   点击：不再单独 clickable，由父 Row 统一处理（含特效抑制），
             //        三角本身只负责显示。
             Box(
-                modifier = Modifier.align(Alignment.CenterVertically),
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onSwitch() }
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

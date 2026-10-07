@@ -1056,8 +1056,10 @@ private fun BuySellPanel(
             if (ob != null && ob.price > 0 && price.isEmpty()) {
                 price = "%.3f".format(ob.price)
             }
-            if (ob != null && ob.name.isNotBlank() && stockName.isEmpty()) {
+            if (ob != null && ob.name.isNotBlank()) {
                 stockName = ob.name
+            } else if (ob == null && c.isNotBlank()) {
+                stockName = ""
             }
         } catch (e: Exception) {
             android.util.Log.e("CGJS", "orderbook c=" + c + " EX=" + e)
@@ -1129,8 +1131,8 @@ private fun BuySellPanel(
                     Text("⚙", color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                     Spacer(Modifier.width(2.dp))
                     val expandLabel = if (panelExpanded) "收起" else "展开"
-                    // 需求9：展开=╝ 顺时针45°（尖头朝下）；收起=其镜像 ╗ 顺时针45°
-                    val expandSymbol = if (panelExpanded) "╝" else "╗"
+                    // 问题5：展开=╝ 顺时针45°（尖头朝下）；收起=镜像 ╔ 顺时针45°（尖头朝上）
+                    val expandSymbol = if (panelExpanded) "╝" else "╔"
                     Text(expandLabel, color = gray, fontSize = 12.sp, style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                     Text(expandSymbol, color = gray, fontSize = 12.sp, modifier = Modifier.rotate(45f), style = TextStyle(platformStyle = PlatformTextStyle(includeFontPadding = true)))
                 }
@@ -1161,8 +1163,8 @@ private fun BuySellPanel(
                                             BasicTextField(
                             value = code,
                             onValueChange = { code = it },
-                            modifier = Modifier.weight(1f, fill = false),
-                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont),
+                            modifier = Modifier.weight(1f),
+                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, textAlign = TextAlign.Center),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (code.isEmpty()) {
@@ -1585,8 +1587,16 @@ private fun BSLevelRow(
     }
     // 需求4：价格保留两位小数，整数部分≥5位时缩小字号以挤入一排
     val priceStr = if (price > 0) "%.2f".format(price) else "--"
-    val priceIntLen = if (price > 0) price.toLong().toString().length else 2
-    val priceFontSize = if (priceIntLen >= 5) 10.sp else 13.sp
+    // 问题3：按总字符长度分档，位数越多字号越小，保证完整显示（六位数如 123456.78 = 9字符）
+    val priceLen = priceStr.length
+    val priceFontSize = when {
+        priceLen <= 6 -> 13.sp
+        priceLen == 7 -> 12.sp
+        priceLen == 8 -> 11.sp
+        priceLen == 9 -> 10.sp
+        priceLen == 10 -> 9.sp
+        else -> 8.sp
+    }
     // 需求4：数量保留四位（<10000 原样），≥10000 以“万”为单位且字号小一点
     val volStr: String
     val volFontSize: androidx.compose.ui.unit.TextUnit
@@ -1596,7 +1606,8 @@ private fun BSLevelRow(
         volStr = vol.toLong().toString(); volFontSize = 12.sp
     } else {
         val w = vol / 10000.0
-        volStr = if (w >= 100 || w == Math.floor(w)) "%d万".format(w.toInt()) else "%.2f万".format(w).trimEnd('0').trimEnd('.') + "万"
+        // 问题4：仅拼接一次“万”，避免出现两个“万”；整数或≥100万取整，否则保留2位小数
+        volStr = if (w >= 100 || w == Math.floor(w)) "%d万".format(w.toInt()) else "%.2f万".format(w)
         volFontSize = 10.sp
     }
     // 需求⑪：量黑色
