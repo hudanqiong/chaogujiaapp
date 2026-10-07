@@ -490,6 +490,7 @@ data class OrderBook(
     val bids: List<OrderLevel> = emptyList(),  // 买1~买5
     val asks: List<OrderLevel> = emptyList(),  // 卖1~卖5
     val deals: List<DealItem> = emptyList(),
+    val avgPrice: Double = 0.0,   // 当日均价（后端 avgPrice）
     val limitUp: Double = 0.0,    // 涨停价（后端 limitUp）
     val limitDown: Double = 0.0,  // 跌停价（后端 limitDown）
     val maxSealAmount: Double = 0.0 // 当日最高封单额（元，后端 maxSealAmount，盘中峰值）
@@ -2175,6 +2176,7 @@ object Api {
                 bids = bids,
                 asks = asks,
                 deals = deals,
+                avgPrice = d.optDouble("avgPrice", 0.0),
                 limitUp = d.optDouble("limitUp", 0.0),
                 limitDown = d.optDouble("limitDown", 0.0),
                 maxSealAmount = d.optDouble("maxSealAmount", 0.0)
