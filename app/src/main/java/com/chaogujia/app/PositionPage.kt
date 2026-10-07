@@ -107,12 +107,13 @@ fun PositionPage(
     /** 回吐当前资金账户（上行=券商名，下行=账号），供红条两行文字显示 */
     onAccountChange: (String, String) -> Unit = { _, _ -> },
     /**
-     * ★ 第 43 轮新增：外部「切换账户」触发计数。
-     *   顶部红条 ▼ 被点击时由 MainActivity 自增 → 本页弹出账户选择浮层。
-     *   之所以用 tick 而不是直接的布尔开关：红条在 MainActivity 渲染，本页状态自包含，
-     *   用计数可避免把整页状态提升到父级（改动最小）。
+     * ★ 第 55h-16 修正：账户选择浮层的显示开关改为「受控」——状态提升到 MainActivity。
+     *   只有红条 ▼（证券名/代码/小三角）能把 showAccountPicker 置 true，
+     *   其余任何区域、任何页面重组都不会误弹。
      */
-    switchAccountTick: Int = 0,
+    showAccountPicker: Boolean = false,
+    /** ★ 第 55h-16：浮层关闭回调（点遮罩 / 选中账户后调用，通知父级复位开关）。 */
+    onAccountPickerDismiss: () -> Unit = {},
     /** 需求④：点「行情►」进入个股详情页。参数=(可展示列表, 当前项下标) */
     onOpenDetail: (List<StockItem>, Int) -> Unit = { _, _ -> }
 ) {
@@ -134,7 +135,7 @@ fun PositionPage(
 
     // ★ 第 43 轮新增：账户列表 + 账户选择浮层开关
     var brokerList by remember { mutableStateOf(listOf<MyBroker>()) }
-    var showAccountPicker by remember { mutableStateOf(false) }
+    // ★ 第 55h-16：showAccountPicker 已提升为受控参数，此处不再自持状态。
 
     /**
      * ★ 第 43 轮：按账户 id 加载「资金 + 持仓」并回吐红条两行文字。
@@ -171,10 +172,8 @@ fun PositionPage(
         }
     }
 
-    // ★ 第 43 轮新增：红条 ▼ 点击 → 弹出账户选择浮层（tick 初值 0，避免进页即弹）
-    LaunchedEffect(switchAccountTick) {
-        if (switchAccountTick > 0) showAccountPicker = true
-    }
+    // ★ 第 55h-16：弹窗触发逻辑已移除——showAccountPicker 由外部（红条 ▼）控制，
+    //   本页不再监听任何 tick，页面重组/重新进入不会再误弹。
 
     Box(modifier = Modifier.fillMaxSize()) {
     Column(
@@ -256,8 +255,8 @@ fun PositionPage(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0x66000000))
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                    showAccountPicker = false
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                    onAccountPickerDismiss()
                 }
         )
         // 居中卡片
@@ -290,7 +289,7 @@ fun PositionPage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                showAccountPicker = false
+                                onAccountPickerDismiss()
                                 // 已在当前账户则无需重拉
                                 if (b.id != brokerId) {
                                     // 切换账户需联网 → 用页面级协程执行（浮层销毁不会取消它）

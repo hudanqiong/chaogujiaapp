@@ -89,7 +89,8 @@ fun ChaoGuJiaApp() {
     var positionName by remember { mutableStateOf("") }
     var positionAccount by remember { mutableStateOf("") }
     // ★ 第 43 轮：持仓页「切换账户」触发计数。红条 ▼ 点击自增 → PositionPage 弹账户选择浮层。
-    var positionSwitchTick by remember { mutableStateOf(0) }
+    // 第55h-16：账户选择器显式布尔（替代原 tick 计数，避免跨页/重组误弹）
+    var positionAccountPicker by remember { mutableStateOf(false) }
     var targetTab by remember { mutableStateOf("index") }
     // ★ 交易页账户类型（A股/基金/期货/黄金/模拟）：状态提升到 App 级，供顶部红条内切换按钮使用
     var tradeTab by remember { mutableStateOf("A股") }
@@ -175,7 +176,11 @@ fun ChaoGuJiaApp() {
                 val from = detail?.from
                 detail = null
                 detailName = ""
-                if (from != null) current = from
+                // ★ 第55h-16：持仓页是 App 级覆盖层（不在底部 Tab 里），
+                //   from="position" 时不能设 current（会指向无效 Tab → 空白页），
+                //   而要恢复 showPosition=true 回到持仓页。
+                if (from == "position") showPosition = true
+                else if (from != null) current = from
             }
             showSearch -> showSearch = false
             showPosition -> showPosition = false
@@ -207,7 +212,9 @@ fun ChaoGuJiaApp() {
         val from = detail?.from
         detail = null
         detailName = ""
-        if (from != null) current = from
+        // ★ 第55h-16：同 BackHandler——持仓详情返回时恢复持仓覆盖层，而非设无效 Tab。
+        if (from == "position") showPosition = true
+        else if (from != null) current = from
     }
 
     // 会员信息（5 页共用，由 MainActivity 统一拉）
@@ -262,7 +269,7 @@ fun ChaoGuJiaApp() {
                     positionName = positionName,
                     positionAccount = positionAccount,
                     onPositionBack = { showPosition = false },
-                    onPositionSwitch = { positionSwitchTick++ },   // 第43轮：红条 ▼ → 通知 PositionPage 弹账户选择
+                    onPositionSwitch = { positionAccountPicker = true },   // 第55h-16：红条 ▼ → 显式置位账户选择器
                     onPositionSquare = { /* TODO 方框箭头 */ },
                     onPositionSearch = { showSearch = true },
                     onPositionRefresh = { /* TODO 刷新持仓 */ }
@@ -451,7 +458,8 @@ fun ChaoGuJiaApp() {
             if (showPosition) {
                 PositionPage(
                     token = token,
-                    switchAccountTick = positionSwitchTick,   // 第43轮：红条 ▼ 触发账户选择
+                    showAccountPicker = positionAccountPicker,   // 第55h-16：外部控制的账户选择器开关
+                    onAccountPickerDismiss = { positionAccountPicker = false },   // 第55h-16：消费后归位
                     onOpenDetail = { list, idx -> showPosition = false; openDetail("position", list, idx) },   // 需求④：先关持仓层避免遮挡
                     onAccountChange = { nm, acc ->
                         positionName = nm
