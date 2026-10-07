@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -1159,8 +1160,8 @@ private fun BuySellPanel(
                                             BasicTextField(
                             value = code,
                             onValueChange = { code = it },
-                            modifier = Modifier.weight(1f),
-                            textStyle = TextStyle(color = black, fontSize = 13.sp, fontFamily = PPNumFont),
+                            modifier = Modifier.weight(1f, fill = false),
+                            textStyle = TextStyle(color = black, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (code.isEmpty()) {
@@ -1170,7 +1171,8 @@ private fun BuySellPanel(
                             }
                         )
                         if (stockName.isNotBlank()) {
-                            Text(stockName, color = black, fontSize = 12.sp)
+                            Spacer(Modifier.width(6.dp))
+                            Text(stockName, color = black, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         }
                     }
                 Spacer(Modifier.height(8.dp))
@@ -1191,7 +1193,7 @@ private fun BuySellPanel(
                                 if (p > 0.01) price = "%.3f".format(p - 0.01)
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("−", color = red, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("−", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                     // 价格输入（共用竖线：左边-按钮的右边框就是竖线，这里不加左边框）
                     Box(
                         modifier = Modifier
@@ -1203,11 +1205,11 @@ private fun BuySellPanel(
                             value = price,
                             onValueChange = { price = it },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontFamily = PPNumFont, textAlign = TextAlign.Center),
+                            textStyle = TextStyle(color = black, fontSize = 12.sp, fontFamily = PPNumFont, textAlign = TextAlign.Center),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                             decorationBox = { inner ->
                                 if (price.isEmpty()) {
-                                    Text("价格", color = Color(0xFFD4D4D4), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                                    Text("价格", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                 }
                                 inner()
                             }
@@ -1224,7 +1226,7 @@ private fun BuySellPanel(
                                 price = "%.3f".format(p + 0.01)
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("+", color = red, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("+", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                 }
 
                 // --- 涨跌停 / 可买提示（价格框与数量框之间）---
@@ -1242,7 +1244,7 @@ private fun BuySellPanel(
                         ) {
                             Text("跌停", color = black, fontSize = 9.sp)
                             Spacer(Modifier.width(2.dp))
-                            Text(lowerLimit, color = green, fontSize = 9.sp, fontFamily = PPNumFont)
+                            Text(lowerLimit, color = green, fontSize = 11.sp, fontFamily = PPNumFont, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Text("--", color = black, fontSize = 9.sp)
@@ -1257,7 +1259,7 @@ private fun BuySellPanel(
                         ) {
                             Text("涨停", color = black, fontSize = 9.sp)
                             Spacer(Modifier.width(2.dp))
-                            Text(upperLimit, color = red, fontSize = 9.sp, fontFamily = PPNumFont)
+                            Text(upperLimit, color = red, fontSize = 11.sp, fontFamily = PPNumFont, fontWeight = FontWeight.Bold)
                         }
                     } else {
                         Text("--", color = black, fontSize = 9.sp)
@@ -1279,7 +1281,7 @@ private fun BuySellPanel(
                                 if (q >= 100) quantity = (q - 100).toString()
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("−", color = red, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("−", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                     Box(
                         modifier = Modifier
                             .weight(1f).fillMaxHeight()
@@ -1290,11 +1292,11 @@ private fun BuySellPanel(
                             value = quantity,
                             onValueChange = { quantity = it },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                            textStyle = TextStyle(color = black, fontSize = 14.sp, fontFamily = PPNumFont, textAlign = TextAlign.Center),
+                            textStyle = TextStyle(color = black, fontSize = 12.sp, fontFamily = PPNumFont, textAlign = TextAlign.Center),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             decorationBox = { inner ->
                                 if (quantity.isEmpty()) {
-                                    Text("数量", color = Color(0xFFD4D4D4), fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                                    Text("数量", color = Color(0xFFD4D4D4), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                                 }
                                 inner()
                             }
@@ -1310,7 +1312,7 @@ private fun BuySellPanel(
                                 quantity = (q + 100).toString()
                             },
                         contentAlignment = Alignment.Center
-                    ) { Text("+", color = red, fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text("+", color = red, fontSize = 19.sp, fontWeight = FontWeight.Bold) }
                 }
 
                 // --- 可买 N 股 ---
@@ -1318,13 +1320,13 @@ private fun BuySellPanel(
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("可买 ", color = labelGray, fontSize = 9.sp)
+                    Text("可买 ", color = labelGray, fontSize = 12.sp)
                     if (hasCode && availStr >= 0) {
-                        Text(availStr.toString(), color = yellowData, fontSize = 9.sp, fontFamily = PPNumFont)
+                        Text(availStr.toString(), color = yellowData, fontSize = 12.sp, fontFamily = PPNumFont)
                     } else {
                         Text("--", color = black, fontSize = 9.sp)
                     }
-                    Text(" 股", color = labelGray, fontSize = 9.sp)
+                    Text(" 股", color = labelGray, fontSize = 12.sp)
                 }
 
                 // --- 快捷仓位按钮：矮框、极浅极细边框 ---
@@ -1577,8 +1579,22 @@ private fun BSLevelRow(
         price < prevClose -> green
         else -> PP_BLACK
     }
-    val priceStr = if (price > 0) "%.3f".format(price) else "--"
-    val volStr = if (vol > 0) vol.toInt().toString() else "--"
+    // 需求4：价格保留两位小数，整数部分≥5位时缩小字号以挤入一排
+    val priceStr = if (price > 0) "%.2f".format(price) else "--"
+    val priceIntLen = if (price > 0) price.toLong().toString().length else 2
+    val priceFontSize = if (priceIntLen >= 5) 10.sp else 13.sp
+    // 需求4：数量保留四位（<10000 原样），≥10000 以“万”为单位且字号小一点
+    val volStr: String
+    val volFontSize: androidx.compose.ui.unit.TextUnit
+    if (vol <= 0.0) {
+        volStr = "--"; volFontSize = 12.sp
+    } else if (vol < 10000.0) {
+        volStr = vol.toLong().toString(); volFontSize = 12.sp
+    } else {
+        val w = vol / 10000.0
+        volStr = if (w >= 100 || w == Math.floor(w)) "%d万".format(w.toInt()) else "%.2f万".format(w).trimEnd('0').trimEnd('.') + "万"
+        volFontSize = 10.sp
+    }
     // 需求⑪：量黑色
     val bsText = Color(0xFF000000)
 
@@ -1588,8 +1604,8 @@ private fun BSLevelRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(26.dp))
-        Text(priceStr, color = priceColor, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-        Text(volStr, color = bsText, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.width(40.dp), textAlign = TextAlign.End)
+        Text(priceStr, color = priceColor, fontSize = priceFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, maxLines = 1)
+        Text(volStr, color = bsText, fontSize = volFontSize, fontWeight = FontWeight.Bold, fontFamily = PPNumFont, modifier = Modifier.width(42.dp), textAlign = TextAlign.End, maxLines = 1)
     }
 }
 
