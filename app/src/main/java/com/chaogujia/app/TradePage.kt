@@ -562,17 +562,19 @@ private fun MiniPnlChart(
         val midY = h / 2f
         val n = visible.coerceAtMost(data.size)
         val hasData = n >= 1 && data.isNotEmpty()
-        // 纵向：按数据实际 min~max 映射，充分利用上下空间（对标同花顺）
-        //   单点/全等值时退化为中线；否则最低值贴底、最高值贴顶
-        val dMin = data.minOrNull() ?: 0.0
-        val dMax = data.maxOrNull() ?: 0.0
-        val span = (dMax - dMin)
+        // 纵向（R55h-22g 对标同花顺）：零轴固定在控件竖直中心 midY，
+        //   数据以「零轴为基准、上下对称量程」映射：
+        //   量程 = max(|数据max|, |数据min|)，正值画在零轴上方、负值在下方。
+        //   这样单点(+1427)只在零轴上方一小段，不会顶到最顶，也不会贴零轴横平。
+        val dAbs = maxOf(1e-9, Math.abs(data.maxOrNull() ?: 0.0), Math.abs(data.minOrNull() ?: 0.0))
         fun yOf(v: Double): Float {
-            if (span < 1e-9) return midY
-            val t = ((v - dMin) / span).toFloat()
-            // t=0(最低) -> 靠底；t=1(最高) -> 靠顶
-            return (h - pad - t * (h - 2f * pad)).coerceIn(pad, h - pad)
+            if (dAbs < 1e-6) return midY            // 数据全为 0 才贴中线
+            val t = (v / dAbs).toFloat()             // -1..1
+            // 正值 -> 零轴上方；负值 -> 下方
+            return (midY - t * (h / 2f - pad)).coerceIn(pad, h - pad)
         }
+        // 零轴即竖直中心（同花顺基准线）
+        val zeroY = midY
         // 横向（R55h-22e）：一天一格。
         //   把整个控件宽度按「本月总天数 daysInMonth」等分（首日在最左，末日才到最右），
         //   第 i 个数据点固定落在「本月第 (i+1) 天」的位置；曲线只画到最后一个数据点。
@@ -580,31 +582,35 @@ private fun MiniPnlChart(
         //   R55h-22f: 这里的"格"= 一个交易日（已剔除周末/节假日），避免非交易日造成点位错位。
         val slots = (daysInMonth - 1).coerceAtLeast(1).toFloat()  // 分格数 = 交易日总数-1
         val dayPx = w / slots                                      // 每天占的像素宽
+        // R55h-22g：横向按「点序号」分摊（对标同花顺：走势线自左边缘 0 起笔向右生长）。
+        //   第 i 个数据点落在 i 格处；单点(n=1)时当前点落在第 1 格，仍有宽度，
+        //   右侧按本月剩余交易日自然留空 —— 少点短、多点长，绝不一条线拉到最右。
         val xOf: (Int) -> Float = { i -> (i * dayPx).coerceIn(0f, w) }
-        val lastX = xOf(n - 1)
-        val firstX = xOf(0)
+        val firstX = 0f
+        val lastX = if (n <= 1) (dayPx).coerceIn(0f, w) else xOf(n - 1)
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // 零轴水平浅灰虚线
+            // 零轴水平浅灰虚线（R55h-22g：画在真实零轴 zeroY 上，与走势线起笔基线对齐）
             drawLine(
                 color = TP_GRAY.copy(alpha = 0.45f),
-                start = Offset(0f, midY),
-                end = Offset(w, midY),
+                start = Offset(0f, zeroY),
+                end = Offset(w, zeroY),
                 strokeWidth = 1f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
             )
             if (hasData) {
-                // 走势线：从第一个数据点开始，逐点连接（不从零轴硬拽）
+                // 走势线（R55h-22g 对标同花顺）：自零轴基线左端 (0, zeroY) 起笔，
+                //   再逐点连到各数据点 —— 单点时即为「零轴 -> 当前点」的一段斜线，
+                //   带圆点与渐变，不再是孤立点或贴零轴的横线。
                 val linePath = Path()
+                linePath.moveTo(0f, zeroY)
                 for (i in 0 until n) {
-                    val x = xOf(i)
-                    val y = yOf(data[i])
-                    if (i == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
+                    linePath.lineTo(xOf(i), yOf(data[i]))
                 }
                 // 面积：走势线下方 fill 到控件底部，渐变从"走势线最高点"往下渐隐
                 val areaPath = Path().apply {
                     addPath(linePath)
-                    lineTo(lastX, h)
-                    lineTo(firstX, h)
+                    lineTo(lastX, zeroY)
+                    lineTo(0f, zeroY)
                     close()
                 }
                 // 线的最高点（y 最小）——渐变的浓色起点，从走势线往下渲染
@@ -615,8 +621,8 @@ private fun MiniPnlChart(
                         lineColor.copy(alpha = 0.30f),
                         lineColor.copy(alpha = 0.02f)
                     ),
-                    startY = topLineY,
-                    endY = h
+                    startY = minOf(topLineY, zeroY),
+                    endY = maxOf(topLineY, zeroY)
                 )
                 drawPath(path = areaPath, brush = areaBrush)
                 drawPath(path = linePath, color = lineColor, style = Stroke(width = 2f))
