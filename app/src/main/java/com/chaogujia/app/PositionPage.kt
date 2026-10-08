@@ -1902,15 +1902,15 @@ private fun QueryRow(title: String, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        // ┗ 逆时针旋转 45°，与标题垂直居中对齐
+        // ┛ 顺时针旋转 45°（尖头朝右 ►），与标题垂直居中对齐
         Text(
-            text = "┗",
+            text = "┛",
             color = Q_TEXT_GRAY,
             fontSize = Q_FS,
             fontWeight = FontWeight.Bold,
             lineHeight = Q_FS,
             modifier = Modifier
-                .rotate(-45f)
+                .rotate(45f)
                 .padding(end = 16.dp)
         )
     }

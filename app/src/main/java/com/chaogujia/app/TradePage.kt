@@ -226,7 +226,10 @@ private fun ASharePage(
                     // R50c: 后端已提供 dayPnl 字段（= Σ 持仓量 ×(现价 - 昨收)），改用真实当日盈亏。
                     value = tpSigned(account.dayPn),
                     valueColor = tpPnColor(account.dayPn),
-                    pctText = if (account.marketValue > 0.0) tpPct(account.dayPn / account.marketValue * 100.0) else null,
+                    // R55h-22: 当日参考盈亏% 分母统一为月基准 monthBase(=初始资金+上月末累计盈亏)，
+                    // 与「收益率」month_pct 同口径（本月第一天两者一致）。monthBase 缺失/为0时回退旧口径 marketValue。
+                    pctText = if (account.monthBase > 0.0) tpPct(account.dayPn / account.monthBase * 100.0)
+                              else if (account.marketValue > 0.0) tpPct(account.dayPn / account.marketValue * 100.0) else null,
                     pctColor = tpPnColor(account.dayPn),
                     modifier = Modifier.weight(1f)
                 )

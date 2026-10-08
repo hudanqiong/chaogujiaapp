@@ -20,7 +20,8 @@ data class AccountInfo(
     val dayPn: Double = 0.0,         // 当日参考盈亏（R50c）
     val totalPn: Double = 0.0,       // 总盈亏
     val totalPnPct: Double = 0.0,    // 总盈亏率 %
-    val initial: Double = 0.0        // 初始资金
+    val initial: Double = 0.0,       // 初始资金
+    val monthBase: Double = 0.0      // R55h-22: 月基准(=初始资金+上月末累计盈亏)，当日参考盈亏%统一分母
 )
 
 /** 持仓明细（positions.php 的 data[]） */
@@ -1102,7 +1103,8 @@ object Api {
             dayPn = d.optDouble("dayPnl", 0.0),
             totalPn = d.optDouble("totalPnl", 0.0),
             totalPnPct = d.optDouble("totalPnlPct", 0.0),
-            initial = d.optDouble("initial", 0.0)
+            initial = d.optDouble("initial", 0.0),
+            monthBase = d.optDouble("monthBase", 0.0)
         )
     }
 
