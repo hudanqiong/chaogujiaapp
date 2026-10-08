@@ -440,7 +440,10 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
     val series: List<Double> = remember(hist) {
         val base = hist.points.map { it.monthPnl }
         val t = hist.today
-        if (t != null) base + t.monthPnl else base
+        // R55h-22h：若 today 与 points 末点「同一天」，则不再重复追加，
+        //   避免出现 [1427, 1427] 这种「同值两点」导致走势线退化成贴顶横线。
+        val lastDate = hist.points.lastOrNull()?.date
+        if (t != null && t.date != lastDate) base + t.monthPnl else base
     }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
@@ -562,14 +565,18 @@ private fun MiniPnlChart(
         val midY = h / 2f
         val n = visible.coerceAtMost(data.size)
         val hasData = n >= 1 && data.isNotEmpty()
-        // 纵向（R55h-22g 对标同花顺）：零轴固定在控件竖直中心 midY，
+        // 纵向（R55h-22h 对标同花顺）：零轴固定在控件竖直中心 midY，
         //   数据以「零轴为基准、上下对称量程」映射：
         //   量程 = max(|数据max|, |数据min|)，正值画在零轴上方、负值在下方。
-        //   这样单点(+1427)只在零轴上方一小段，不会顶到最顶，也不会贴零轴横平。
-        val dAbs = maxOf(1e-9, Math.abs(data.maxOrNull() ?: 0.0), Math.abs(data.minOrNull() ?: 0.0))
+        //   R55h-22h：给量程设「最小下限」，单点/小数据时当前点只到零轴上方约 32% 处，
+        //   不再顶到控件最顶；真正的大额数据仍按比例上冲（上限=控件半高）。
+        val dataAbs = maxOf(Math.abs(data.maxOrNull() ?: 0.0), Math.abs(data.minOrNull() ?: 0.0))
+        // 量程 = 数据自身最大绝对值；单点(n<=1)时把量程放大到「当前值/0.32」，
+        //   使当前点落在零轴上方约 32% 处（不顶格，留出上冲空间），对标同花顺观感。
+        val dAbs = maxOf(1e-9, if (n <= 1 && dataAbs > 1e-9) dataAbs / 0.32 else dataAbs)
         fun yOf(v: Double): Float {
             if (dAbs < 1e-6) return midY            // 数据全为 0 才贴中线
-            val t = (v / dAbs).toFloat()             // -1..1
+            val t = (v / dAbs).toFloat().coerceIn(-1f, 1f)  // -1..1
             // 正值 -> 零轴上方；负值 -> 下方
             return (midY - t * (h / 2f - pad)).coerceIn(pad, h - pad)
         }
@@ -582,12 +589,13 @@ private fun MiniPnlChart(
         //   R55h-22f: 这里的"格"= 一个交易日（已剔除周末/节假日），避免非交易日造成点位错位。
         val slots = (daysInMonth - 1).coerceAtLeast(1).toFloat()  // 分格数 = 交易日总数-1
         val dayPx = w / slots                                      // 每天占的像素宽
-        // R55h-22g：横向按「点序号」分摊（对标同花顺：走势线自左边缘 0 起笔向右生长）。
-        //   第 i 个数据点落在 i 格处；单点(n=1)时当前点落在第 1 格，仍有宽度，
-        //   右侧按本月剩余交易日自然留空 —— 少点短、多点长，绝不一条线拉到最右。
-        val xOf: (Int) -> Float = { i -> (i * dayPx).coerceIn(0f, w) }
-        val firstX = 0f
-        val lastX = if (n <= 1) (dayPx).coerceIn(0f, w) else xOf(n - 1)
+        // R55h-22h：横向「第 i 个数据点落在第 (i+1) 格」。
+        //   起点固定在最左边缘 x=0 的零轴处，第一个数据点落在第 1 格，
+        //   于是「零轴基线 -> 首个数据点」天然形成一段斜线（不再退化成竖直/贴着零轴的横线）。
+        //   之后逐点右移，第 i 点在第 (i+1) 格；曲线只画到最后一个数据点，右侧按剩余交易日留空 —— 对标同花顺左短右空。
+        val xOf: (Int) -> Float = { i -> ((i + 1) * dayPx).coerceIn(0f, w) }
+        val firstX = xOf(0)
+        val lastX = if (n <= 1) firstX else xOf(n - 1)
         Canvas(modifier = Modifier.fillMaxSize()) {
             // 零轴水平浅灰虚线（R55h-22g：画在真实零轴 zeroY 上，与走势线起笔基线对齐）
             drawLine(
