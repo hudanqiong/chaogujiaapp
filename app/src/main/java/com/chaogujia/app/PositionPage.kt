@@ -1968,12 +1968,12 @@ private fun QueryPanel(modifier: Modifier = Modifier, onToast: () -> Unit) {
                 Text(
                     text = "新股配号、中签查询，请前往",
                     color = Q_TEXT_GRAY,
-                    fontSize = 16.sp
+                    fontSize = 14.sp
                 )
                 Text(
                     text = "新股申购 -- 查询页面",
                     color = Q_BLUE,
-                    fontSize = 16.sp
+                    fontSize = 14.sp
                 )
             }
         }

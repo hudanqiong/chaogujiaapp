@@ -510,14 +510,22 @@ private fun MiniPnlChart(
     centerLabelColor: Color = TP_GRAY,
     modifier: Modifier = Modifier
 ) {
-    var visible by remember(data) { mutableStateOf(0) }
-    LaunchedEffect(data) {
-        visible = 0
-        if (data.isNotEmpty()) {
-            for (i in 1..data.size) {
-                kotlinx.coroutines.delay(260)
-                visible = i
+    // 仅首帧播放一次展开动画；后续数据每 5 秒刷新时不再重播，避免"刷新就跳"
+    var animated by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(0) }
+    LaunchedEffect(data, animated) {
+        if (!animated) {
+            visible = 0
+            if (data.isNotEmpty()) {
+                for (i in 1..data.size) {
+                    kotlinx.coroutines.delay(260)
+                    visible = i
+                }
             }
+            animated = true
+        } else {
+            // 数据更新：直接显示全部，不重播
+            visible = data.size
         }
     }
     val lastVal = data.lastOrNull() ?: 0.0
@@ -530,13 +538,16 @@ private fun MiniPnlChart(
         val midY = h / 2f
         val n = visible.coerceAtMost(data.size)
         // 组合期统一计算几何（Canvas 绘制期直接引用）
-        val maxAbs = (data.maxOfOrNull { kotlin.math.abs(it) } ?: 1.0).coerceAtLeast(1e-9)
+        // 纵向按数据实际范围围绕 0 对称缩放：走势幅度充分，圆点自然落在走势线上而非贴虚中线
+        val ampMax = (data.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0).coerceAtLeast(1e-6)
         val span = maxOf(data.size, 30)
         val stepX = if (span > 1) w / (span - 1) else w
         fun yOf(v: Double): Float =
-            (midY - (v / maxAbs).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
+            (midY - (v / ampMax).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
         val hasData = n >= 1 && data.isNotEmpty()
         val li = n - 1
+        // 走势线最低点 y（用于渐变起点，实现"从走势线往下渲染"）
+        val lowestY = if (hasData) data.take(n).maxOf { yOf(it) } else midY
         // 单点/起步阶段：保证向右至少有一小段实线（“还没开始走”的可见长度）
         val minSeg = 16f * d
         val dotX = if (hasData) maxOf(li * stepX, minSeg) else 0f
@@ -573,7 +584,7 @@ private fun MiniPnlChart(
                         lineColor.copy(alpha = 0.28f),
                         lineColor.copy(alpha = 0.04f)
                     ),
-                    startY = 0f,
+                    startY = lowestY,
                     endY = h
                 )
                 drawPath(path = areaPath, brush = areaBrush)
