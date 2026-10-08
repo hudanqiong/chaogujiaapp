@@ -633,11 +633,11 @@ private fun MiniPnlChart(
                     endY = maxOf(topLineY, zeroY)
                 )
                 drawPath(path = areaPath, brush = areaBrush)
-                drawPath(path = linePath, color = lineColor, style = Stroke(width = 2f))
+                drawPath(path = linePath, color = lineColor, style = Stroke(width = 3.2f))
                 // 末端圆点：落在走势线末端点上（跟随走势线）
                 val dotX = lastX
                 val dotY = yOf(data[n - 1])
-                drawCircle(color = lineColor, radius = 3.2f, center = Offset(dotX, dotY))
+                drawCircle(color = lineColor, radius = 4.6f, center = Offset(dotX, dotY))
             }
         }
         // 百分比文字：贴在末端圆点右上方（靠近右端时自动左移，避免超出控件）
