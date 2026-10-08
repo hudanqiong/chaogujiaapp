@@ -915,6 +915,7 @@ object Api {
                 frozen = d?.optDouble("frozen", 0.0) ?: 0.0
             )
         } catch (e: Exception) {
+            android.util.Log.e("CGJS", "BUYSELL_FAIL", e)
             TradeResult(false, e.message ?: "网络异常")
         }
     }
@@ -957,6 +958,7 @@ object Api {
                 mode = d?.optString("mode", mode) ?: mode
             )
         } catch (e: Exception) {
+            android.util.Log.e("CGJS", "BUYSELL_FAIL", e)
             TradeResult(false, e.message ?: "网络异常")
         }
     }

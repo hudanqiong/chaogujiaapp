@@ -1505,10 +1505,12 @@ private fun BuySellPanel(
                                         isLoading = true
                                         resultMsg = ""
                                         try {
-                                            val res = if (side == "buy") {
-                                                Api.buy(token, brokerAccountId, code.trim(), stockName, q, "quick", p)
-                                            } else {
-                                                Api.sell(token, brokerAccountId, code.trim(), q, "quick", p)
+                                            val res = withContext(Dispatchers.IO) {
+                                                if (side == "buy") {
+                                                    Api.buy(token, brokerAccountId, code.trim(), stockName, q, "quick", p)
+                                                } else {
+                                                    Api.sell(token, brokerAccountId, code.trim(), q, "quick", p)
+                                                }
                                             }
                                             resultMsg = if (res.ok) "委托成功 ${res.orderId}" else "失败: ${res.msg}"
                                         } catch (e: Exception) {
