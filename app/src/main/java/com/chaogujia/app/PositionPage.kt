@@ -1,6 +1,8 @@
 package com.chaogujia.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -1902,17 +1904,15 @@ private fun QueryRow(title: String, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        // ┛ 顺时针旋转 45°（尖头朝右 ►），与标题垂直居中对齐
-        Text(
-            text = "┛",
-            color = Q_TEXT_GRAY,
-            fontSize = Q_FS,
-            fontWeight = FontWeight.Bold,
-            lineHeight = Q_FS,
+        // 与交易页列表项右端同款图标（天生朝右）
+        Image(
+            painter = painterResource(R.drawable.ic_pnl_arrow),
+            contentDescription = "进入",
             modifier = Modifier
-                .rotate(45f)
-                .padding(end = 16.dp)
+                .width(9.dp)
+                .height(15.dp)
         )
+        Spacer(modifier = Modifier.width(16.dp))
     }
 }
 

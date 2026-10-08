@@ -424,9 +424,17 @@ private fun ActionBarRow(onAction: (String) -> Unit) {
 @Composable
 private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, totalAsset: Double) {
     var hist by remember { mutableStateOf(PnlHistory()) }
+    // R55h-22b: 与资产卡片同步，每 5 秒轮询一次月度历史（收益率/跑赢上证随之刷新）。
+    // 仅当内容真正变化时才赋值，避免曲线动画每 5 秒无谓重播。
     LaunchedEffect(brokerAccountId, reloadTick) {
-        hist = withContext(Dispatchers.IO) {
-            try { Api.pnlHistory(token, brokerAccountId) } catch (e: Exception) { PnlHistory() }
+        while (true) {
+            try {
+                val nh = withContext(Dispatchers.IO) { Api.pnlHistory(token, brokerAccountId) }
+                if (nh != hist) hist = nh
+            } catch (e: Exception) {
+                // 保持上次数据
+            }
+            kotlinx.coroutines.delay(5000)
         }
     }
     val series: List<Double> = remember(hist) {
