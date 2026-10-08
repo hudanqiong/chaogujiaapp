@@ -1512,7 +1512,7 @@ private fun BuySellPanel(
                                         resultMsg = ""
                                         // R55fix-A：统一下单数据层，线程调度/异常兜底由 Api.placeOrder 负责
                                         val res = Api.placeOrder(token, brokerAccountId, side == "buy", code.trim(), stockName, q, "quick", p)
-                                        resultMsg = if (res.ok) "委托成功 ${res.orderId}" else "失败: ${res.msg}"
+                                        resultMsg = if (res.ok) "${if (side == "buy") "买入" else "卖出"}成交：${res.quantity} 股 @ ${ppMoney(res.price)}" else "失败：${res.msg}"
                                         isLoading = false
                                     }
                                 }
@@ -1527,7 +1527,7 @@ private fun BuySellPanel(
                     }
                 }
                 if (resultMsg.isNotEmpty()) {
-                    Text(resultMsg, color = if (resultMsg.contains("成功")) blue else red, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+                    Text(resultMsg, color = if (resultMsg.contains("成交")) (if (side == "buy") red else blue) else red, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 if (showGear) {
                     Column(
