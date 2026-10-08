@@ -97,7 +97,9 @@ fun TradePage(
     onLogout: () -> Unit = {},
     perm: PermissionInfo = PermissionInfo(),
     // ★ 第 34 轮：「持仓」按钮 → 打开独立持仓页（上抛给 MainActivity）
-    onOpenPosition: () -> Unit = {}
+    onOpenPosition: () -> Unit = {},
+    // ★ 第 55 轮：交易页五按钮统一对接 PositionPage 对应 tab（上抛给 MainActivity）
+    onOpenPositionTab: (String) -> Unit = { _ -> }
 ) {
     Column(
         modifier = Modifier
@@ -113,7 +115,8 @@ fun TradePage(
                 onOpenVipPage = onOpenVipPage,
                 onLogout = onLogout,
                 perm = perm,
-                onOpenPosition = onOpenPosition
+                onOpenPosition = onOpenPosition,
+                onOpenPositionTab = onOpenPositionTab
             )
             else -> PlaceholderPage(subTab)
         }
@@ -130,7 +133,9 @@ private fun ASharePage(
     onLogout: () -> Unit = {},
     perm: PermissionInfo = PermissionInfo(),
     // ★ 第 34 轮：「持仓」按钮 → 打开独立持仓页（上抛给 MainActivity）
-    onOpenPosition: () -> Unit = {}
+    onOpenPosition: () -> Unit = {},
+    // ★ 第 55 轮：交易页五按钮统一对接 PositionPage 对应 tab
+    onOpenPositionTab: (String) -> Unit = { _ -> }
 ) {
     // ===== 交易页会员权限门禁（第18轮） =====
     // 无权限时弹出的引导标题（null=不弹）；非空即展示 MemberGateDialog
@@ -177,7 +182,6 @@ private fun ASharePage(
     }
 
     // 面板开关：null=无 / "buy"=买入 / "sell"=卖出 / "order"=撤单(挂单列表) / "pos"=持仓
-    var panel by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // ===== ② 证券账户栏（可切换）=====
@@ -237,22 +241,19 @@ private fun ASharePage(
         }
         tpDivider()
 
-        // ===== ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 刷新 =====
+        // ===== ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 查询 =====
         ActionBarRow(onAction = { key ->
+            // ★ 第 55 轮：五个按钮统一对接独立持仓页（PositionPage）对应 tab，
+            //   不再开内嵌小面板（panel）。tab 名与 PositionPage.POS_TABS 完全一致。
             val feat = when (key) {
-                "buy" -> "tp_buy" to "买入"
-                "sell" -> "tp_sell" to "卖出"
-                "pos" -> "tp_position" to "持仓"
-                "order" -> "tp_cancel" to "撤单"
-                "refresh" -> "tp_refresh" to "刷新"
-                else -> "tp_buy" to "交易"
+                "buy" -> Triple("tp_buy", "买入", "买入")
+                "sell" -> Triple("tp_sell", "卖出", "卖出")
+                "pos" -> Triple("tp_position", "持仓", "持仓")
+                "order" -> Triple("tp_cancel", "撤单", "撤单")
+                "refresh" -> Triple("tp_refresh", "查询", "查询")
+                else -> Triple("tp_buy", "交易", "买入")
             }
-            // ★ 第 34 轮：「持仓」不再开内嵌面板，改为上抛 → 打开独立持仓页（PositionPage）
-            if (key == "pos") {
-                guard(feat.first, feat.second) { onOpenPosition() }
-            } else {
-                guard(feat.first, feat.second) { panel = key }
-            }
+            guard(feat.first, feat.second) { onOpenPositionTab(feat.third) }
         })
 
         // 灰色间隔：露出页面灰底，把「月度参考盈亏」栏整体下移
@@ -278,40 +279,7 @@ private fun ASharePage(
         )
         Spacer(Modifier.fillMaxWidth().height(8.dp))
 
-        // ===== ⑤ 面板区 =====
-        Box(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-            when (panel) {
-                "buy" -> OrderPanel(
-                    token = token,
-                    brokerAccountId = brokerAccountId,
-                    side = "buy",
-                    onDone = { reloadTick++ },
-                    onClose = { panel = null }
-                )
-                "sell" -> OrderPanel(
-                    token = token,
-                    brokerAccountId = brokerAccountId,
-                    side = "sell",
-                    onDone = { reloadTick++ },
-                    onClose = { panel = null }
-                )
-                "order" -> OrderListPanel(
-                    token = token,
-                    brokerAccountId = brokerAccountId,
-                    onChanged = { reloadTick++ }
-                )
-                "pos" -> PositionPanel(
-                    token = token,
-                    brokerAccountId = brokerAccountId,
-                    onOpenDetail = onOpenDetail
-                )
-                else -> Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                }
-            }
-        }
+        // ★ 第 55 轮：原 ⑤ 内嵌面板区（160dp）已移除——五个按钮改为上抛跳转独立持仓页对应 tab。
     }
     // ===== 会员引导弹窗（受权限限制的功能统一在此提示） =====
     val gt = gateTitle
@@ -372,7 +340,7 @@ private fun StatCell(
     }
 }
 
-/** ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 刷新（图标 + 文字） */
+/** ④ 操作按钮排：买入 / 卖出 / 持仓 / 撤单 / 查询（图标 + 文字） */
 @Composable
 private fun ActionBarRow(onAction: (String) -> Unit) {
     val actions = listOf(
@@ -380,7 +348,7 @@ private fun ActionBarRow(onAction: (String) -> Unit) {
         "卖出" to (R.drawable.ico_trade_sell to "sell"),
         "持仓" to (R.drawable.ico_trade_position to "pos"),
         "撤单" to (R.drawable.ico_trade_cancel to "order"),
-        "刷新" to (R.drawable.ico_trade_query to "refresh")
+        "查询" to (R.drawable.ico_trade_query to "refresh")
     )
     Row(
         modifier = Modifier

@@ -125,6 +125,9 @@ fun PositionPage(
     //   （表现为「切换账户后总资产仍是同一个数据」）。改成页面级 scope 后，浮层销毁不影响切换任务。
     val pageScope = rememberCoroutineScope()
     var curTab by remember { mutableStateOf(defaultTab) }
+    // ★ 第 55 轮：外部（交易页五按钮）切换 defaultTab 时，同步重设当前 tab。
+    //   否则 remember 只在首帧取一次值，同一会话二次以不同 tab 打开不会生效。
+    LaunchedEffect(defaultTab) { curTab = defaultTab }
 
     // ★ 第 34 轮新增：中栏与 6 格统计所需数据
     var account by remember { mutableStateOf(AccountInfo()) }

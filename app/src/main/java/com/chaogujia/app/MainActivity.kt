@@ -85,6 +85,8 @@ fun ChaoGuJiaApp() {
     // ★ 持仓页（第 34 轮新增）：独立页，不在底部导航上。入口 = 交易页「持仓」按钮。
     //   打开后红条切到 "position" 模式，内容区覆盖 PositionPage；返回 = 红条 [<] 或系统返回键。
     var showPosition by remember { mutableStateOf(false) }
+    // ★ 第 55 轮：交易页五按钮 → 指定持仓页初始 tab（买入/卖出/撤单/持仓/查询）
+    var positionTab by remember { mutableStateOf("持仓") }
     // 持仓页红条两行文字（由 PositionPage 回吐：上行证券名/下行资金账户）
     var positionName by remember { mutableStateOf("") }
     var positionAccount by remember { mutableStateOf("") }
@@ -411,7 +413,9 @@ fun ChaoGuJiaApp() {
                     onSubTabChange = { tradeTab = it },
                     onOpenDetail = { list, index -> openDetail("trade", list, index) },
                     // ★ 交易页「持仓」按钮 → 打开独立持仓页（第 34 轮）
-                    onOpenPosition = { showPosition = true },
+                    onOpenPosition = { positionTab = "持仓"; showPosition = true },
+                    // ★ 第 55 轮：五按钮统一跳转持仓页对应 tab（买入/卖出/撤单/持仓/查询）
+                    onOpenPositionTab = { tab -> positionTab = tab; showPosition = true },
                     onOpenMemberCenter = {
                         // 银证转账：切到首页并直达「资金设置」页
                         memberPageKey = "initial"
@@ -458,6 +462,7 @@ fun ChaoGuJiaApp() {
             if (showPosition) {
                 PositionPage(
                     token = token,
+                    defaultTab = positionTab,   // ★ 第 55 轮：由交易页按钮决定初始 tab
                     showAccountPicker = positionAccountPicker,   // 第55h-16：外部控制的账户选择器开关
                     onAccountPickerDismiss = { positionAccountPicker = false },   // 第55h-16：消费后归位
                     onOpenDetail = { list, idx -> showPosition = false; openDetail("position", list, idx) },   // 需求④：先关持仓层避免遮挡
