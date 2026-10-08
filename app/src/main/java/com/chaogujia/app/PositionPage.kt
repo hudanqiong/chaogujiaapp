@@ -1500,27 +1500,21 @@ private fun BuySellPanel(
                             .clickable {
                                 val p = price.toDoubleOrNull() ?: 0.0
                                 val q = quantity.toIntOrNull() ?: 0
-                                if (code.isNotBlank() && p > 0 && q > 0) {
+                                if (code.isBlank() || q <= 0) {
+                                    resultMsg = "请填写完整"
+                                } else if (q % 100 != 0) {
+                                    resultMsg = "A股数量须为 100 的整数倍"
+                                } else if (p <= 0) {
+                                    resultMsg = "请填写有效价格"
+                                } else {
                                     scope.launch {
                                         isLoading = true
                                         resultMsg = ""
-                                        try {
-                                            val res = withContext(Dispatchers.IO) {
-                                                if (side == "buy") {
-                                                    Api.buy(token, brokerAccountId, code.trim(), stockName, q, "quick", p)
-                                                } else {
-                                                    Api.sell(token, brokerAccountId, code.trim(), q, "quick", p)
-                                                }
-                                            }
-                                            resultMsg = if (res.ok) "委托成功 ${res.orderId}" else "失败: ${res.msg}"
-                                        } catch (e: Exception) {
-                                            resultMsg = "错误: ${e.message}"
-                                        } finally {
-                                            isLoading = false
-                                        }
+                                        // R55fix-A：统一下单数据层，线程调度/异常兜底由 Api.placeOrder 负责
+                                        val res = Api.placeOrder(token, brokerAccountId, side == "buy", code.trim(), stockName, q, "quick", p)
+                                        resultMsg = if (res.ok) "委托成功 ${res.orderId}" else "失败: ${res.msg}"
+                                        isLoading = false
                                     }
-                                } else {
-                                    resultMsg = "请填写完整"
                                 }
                             },
                         contentAlignment = Alignment.Center

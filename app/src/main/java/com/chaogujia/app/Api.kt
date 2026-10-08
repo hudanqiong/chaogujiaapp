@@ -2,6 +2,8 @@ package com.chaogujia.app
 
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 后端接口封装。
@@ -81,6 +83,40 @@ data class TradeResult(
     /** 挂单冻结金额（买入） */
     val frozen: Double = 0.0
 )
+/**
+ * ★ 统一下单入口（R55fix-A）：买入/卖出、quick/limit 全部走这里。
+ *
+ * 背景：该 App 的下单入口原本有 3 处（StockDetailPage / TradePage / PositionPage.BuySellPanel），
+ * 各自用 rememberCoroutineScope / MainScope 启动协程并各自包 withContext(IO)。
+ * PositionPage 那份漏了 IO 线程，导致阻塞式 OkHttp execute() 在 UI 主线程抛
+ * NetworkOnMainThreadException，被 catch 吞成「网络异常」——同一个后端、同一个接口，
+ * 个股页能下单、持仓页报错。
+ *
+ * 本函数把「线程调度 + 分支调度 + 异常兜底 + 日志」收敛为一处，
+ * 所有调用点只传业务参数，从结构上杜绝“某入口漏包 IO 线程”这类漂移。
+ *
+ * @param isBuy true=买入(buy.php) / false=卖出(sell.php)
+ * @param mode  quick=手填价即时成交(必传 price) / limit=挂单
+ */
+suspend fun placeOrder(
+    token: String?,
+    brokerAccountId: Int,
+    isBuy: Boolean,
+    code: String,
+    name: String,
+    quantity: Int,
+    mode: String = "quick",
+    price: Double = 0.0
+): TradeResult = withContext(Dispatchers.IO) {
+    try {
+        if (isBuy) buy(token, brokerAccountId, code, name, quantity, mode, price)
+        else sell(token, brokerAccountId, code, quantity, mode, price)
+    } catch (e: Exception) {
+        android.util.Log.e("CGJS", "placeOrder FAIL isBuy=" + isBuy + " code=" + code, e)
+        TradeResult(false, e.message ?: "网络异常")
+    }
+}
+
 /** 交易记录（trades.php 的 data[]） */
 data class TradeRecord(
     val id: Int = 0,

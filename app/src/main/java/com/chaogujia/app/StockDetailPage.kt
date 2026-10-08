@@ -7132,10 +7132,8 @@ private fun OrderFormBlock(
         val c = code
         val nm = name
         kotlinx.coroutines.MainScope().launch {
-            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                if (isBuy) Api.buy(token, acctId, c, nm, qty, mode, price)
-                else Api.sell(token, acctId, c, qty, mode, price)
-            }
+            // R55fix-A：统一下单数据层，线程调度/异常兜底由 Api.placeOrder 负责
+            val r = Api.placeOrder(token, acctId, isBuy, c, nm, qty, mode, price)
             busy = false
             onDone(r)
         }

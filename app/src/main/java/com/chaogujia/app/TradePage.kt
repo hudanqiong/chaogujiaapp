@@ -929,14 +929,8 @@ private fun OrderPanel(
                         msg = "提交中…"; msgColor = TP_GRAY
                         // 异步提交
                         kotlinx.coroutines.MainScope().launch {
-                            val r: TradeResult = withContext(Dispatchers.IO) {
-                                try {
-                                    if (isBuy) Api.buy(token, brokerAccountId, c, name.trim(), qty, mode, price)
-                                    else Api.sell(token, brokerAccountId, c, qty, mode, price)
-                                } catch (e: Exception) {
-                                    TradeResult(false, e.message ?: "网络异常")
-                                }
-                            }
+                            // R55fix-A：统一下单数据层，线程调度/异常兜底由 Api.placeOrder 负责
+                            val r: TradeResult = Api.placeOrder(token, brokerAccountId, isBuy, c, name.trim(), qty, mode, price)
                             busy = false
                             if (r.ok) {
                                 if (r.mode == "limit") {
