@@ -44,12 +44,16 @@ data class PnlPoint(
     val totalPnlPct: Double = 0.0,   // 总盈亏率 %
     val shIndex: Double = 0.0,       // 上证指数
     val shPct: Double = 0.0,         // 上证涨跌幅 %
-    val excess: Double = 0.0         // 超额（我 - 上证）%
+    val excess: Double = 0.0,        // 超额（总）我 - 上证 %
+    val monthPct: Double = 0.0,      // 月度收益率 %（后端 month_pct，口径C）
+    val monthExcess: Double = 0.0    // 月度跑赢上证 %（后端 month_excess，口径C）
 )
 /** 月度参考盈亏 - 整体返回（pnl_history.php 的 data） */
 data class PnlHistory(
     val month: String = "",          // yyyy-MM
     val lastMonthEnd: Double = 0.0,  // 上月末基准
+    val monthPct: Double = 0.0,      // 月度收益率 %（顶层，口径C）
+    val monthExcess: Double = 0.0,   // 月度跑赢上证 %（顶层，口径C）
     val points: List<PnlPoint> = emptyList(),
     val today: PnlPoint? = null      // 今日实时点（可能为 null）
 )
@@ -800,7 +804,9 @@ object Api {
                             totalPnlPct = pt.optDouble("total_pnl_pct", 0.0),
                             shIndex = pt.optDouble("sh_index", 0.0),
                             shPct = pt.optDouble("sh_pct", 0.0),
-                            excess = pt.optDouble("excess", 0.0)
+                            excess = pt.optDouble("excess", 0.0),
+                            monthPct = pt.optDouble("month_pct", 0.0),
+                            monthExcess = pt.optDouble("month_excess", 0.0)
                         )
                     )
                 }
@@ -813,11 +819,15 @@ object Api {
                 totalPnlPct = t.optDouble("total_pnl_pct", 0.0),
                 shIndex = t.optDouble("sh_index", 0.0),
                 shPct = t.optDouble("sh_pct", 0.0),
-                excess = t.optDouble("excess", 0.0)
+                excess = t.optDouble("excess", 0.0),
+                monthPct = t.optDouble("month_pct", 0.0),
+                monthExcess = t.optDouble("month_excess", 0.0)
             ) else null
             PnlHistory(
                 month = d.optString("month", ""),
                 lastMonthEnd = d.optDouble("last_month_end", 0.0),
+                monthPct = d.optDouble("month_pct", 0.0),
+                monthExcess = d.optDouble("month_excess", 0.0),
                 points = list,
                 today = today
             )

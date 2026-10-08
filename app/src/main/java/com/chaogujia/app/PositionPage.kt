@@ -170,6 +170,18 @@ fun PositionPage(
             } catch (_: Throwable) {
             }
         }
+        // 第29轮：资产卡片改为每 5 秒自动刷新（只重拉当前账户数据，不重选账户，避免覆盖用户选择）
+        while (token.isNotEmpty()) {
+            kotlinx.coroutines.delay(5000)
+            try {
+                val cur = brokerList.firstOrNull { it.id == brokerId }
+                if (cur != null) {
+                    account = withContext(Dispatchers.IO) { Api.account(token, cur.id) }
+                    positions = withContext(Dispatchers.IO) { Api.positions(token, cur.id) }
+                }
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     // ★ 第 55h-16：弹窗触发逻辑已移除——showAccountPicker 由外部（红条 ▼）控制，
@@ -1890,7 +1902,7 @@ private fun QueryRow(title: String, onClick: () -> Unit) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        // ┗ 逆时针旋转 90°，与标题垂直居中对齐
+        // ┗ 逆时针旋转 45°，与标题垂直居中对齐
         Text(
             text = "┗",
             color = Q_TEXT_GRAY,
@@ -1898,7 +1910,7 @@ private fun QueryRow(title: String, onClick: () -> Unit) {
             fontWeight = FontWeight.Bold,
             lineHeight = Q_FS,
             modifier = Modifier
-                .rotate(-90f)
+                .rotate(-45f)
                 .padding(end = 16.dp)
         )
     }
@@ -1931,8 +1943,8 @@ private fun QueryPanel(modifier: Modifier = Modifier, onToast: () -> Unit) {
         // ===== 6 栏：栏与栏之间用灰底条分隔（一根牙签直径 ≈ 2dp）=====
         QUERY_GROUPS.forEachIndexed { idx, rows ->
             if (idx > 0) {
-                // 栏间灰底分隔
-                Box(Modifier.fillMaxWidth().height(2.dp).background(Q_BG))
+                // 栏间灰底分隔（加高，视觉更清晰）
+                Box(Modifier.fillMaxWidth().height(10.dp).background(Q_BG))
             }
             QueryGroup(rows = rows, onClick = onToast)
         }
@@ -1954,19 +1966,14 @@ private fun QueryPanel(modifier: Modifier = Modifier, onToast: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "（新股配号、中签查询，请前往",
+                    text = "新股配号、中签查询，请前往",
                     color = Q_TEXT_GRAY,
-                    fontSize = 12.sp
+                    fontSize = 16.sp
                 )
                 Text(
                     text = "新股申购 -- 查询页面",
                     color = Q_BLUE,
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = "）",
-                    color = Q_TEXT_GRAY,
-                    fontSize = 12.sp
+                    fontSize = 16.sp
                 )
             }
         }

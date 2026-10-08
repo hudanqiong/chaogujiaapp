@@ -150,15 +150,18 @@ private fun ASharePage(
     // 当前选中的账户 id（无账户时为 0）
     val brokerAccountId = currentBroker?.id ?: 0
 
-    // 账户统计（随切换账户 / 手动刷新重载）
+    // 账户统计（随切换账户 / 手动刷新重载；第29轮：改为每 5 秒自动刷新一次资产卡片）
     LaunchedEffect(brokerAccountId, reloadTick) {
         loading = true
-        try {
-            account = withContext(Dispatchers.IO) { Api.account(token, brokerAccountId) }
-        } catch (e: Exception) {
-            // 保持上次数据
-        } finally {
-            loading = false
+        while (true) {
+            try {
+                account = withContext(Dispatchers.IO) { Api.account(token, brokerAccountId) }
+            } catch (e: Exception) {
+                // 保持上次数据
+            } finally {
+                loading = false
+            }
+            kotlinx.coroutines.delay(5000)
         }
     }
     // 券商账户列表（只拉一次）
@@ -430,9 +433,10 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
     }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
-    val base = if (totalAsset - monthPnl != 0.0) totalAsset - monthPnl else 1.0
-    val monthPct = monthPnl / base * 100.0
-    val excess = last?.excess ?: 0.0
+    // 第29轮修正（口径C）：月度收益率 / 月度跑赢上证 直接取后端字段，
+    // 不再用 totalAsset-monthPnl 做分母（该分母会被算得极小，导致百分比爆表）
+    val monthPct = hist.monthPct
+    val excess = hist.monthExcess
     val nowMonth = java.util.Calendar.getInstance().get(java.util.Calendar.MONTH) + 1
     // 三行文字各自独立、贯穿卡片；走势图作为右上角独立小图叠在上层，不参与挤压文字宽度
     Box(
