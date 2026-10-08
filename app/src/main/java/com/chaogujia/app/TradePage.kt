@@ -502,7 +502,22 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         )
     }
 }
-/** 迷你盈亏走势图（对标同花顺）：① 零轴水平虚线（基准） + ② 红涨蓝跌实线从首个数据点起逐点绘制；③ 线下渐变从走势线往下渐隐；④ 末端圆点落在走势线上，跟随走势线移动 */
+/** 迷你盈亏走势图（对标同花顺）：
+ *  ① 零轴水平虚线（基准）；
+ *  ② 红涨蓝跌实线，从第一个数据点起逐点绘制；
+ *  ③ 线下渐变从走势线往下渐隐；
+ *  ④ 末端圆点落在走势线上，跟随走势线移动。
+ *
+ *  R55h-22e 横轴口径修正（关键）：
+ *   后端 month_pnl 是「当月月内累计盈亏」（月初≈0，逐日累加）。
+ *   之前把首点硬拉最左、末点硬拉最右，导致本月仅 2 个点时
+ *   画成一条从左下直冲右上、横贯整个控件的斜直线。
+ *   现在改为：横轴 = 当月自然月总天数（28~31）等分，
+ *   第 i 个数据点落在「本月第 (i+1) 天」的横坐标上，
+ *   曲线只延伸到最后一个数据点所在处，右侧按当月剩余天数自然留空。
+ *   效果：月初的点靠左、随日期推进向右长，月末才接近右端，
+ *   始终不会出现"一条线直接拉到最右边"。
+ */
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
@@ -529,6 +544,11 @@ private fun MiniPnlChart(
     }
     val lastVal = data.lastOrNull() ?: 0.0
     val lineColor = tpChartColor(lastVal)
+    // 当月自然月总天数（28~31）：横轴按"天"分格的基准
+    val daysInMonth = remember {
+        val c = java.util.Calendar.getInstance()
+        c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    }
     BoxWithConstraints(modifier = modifier) {
         val d = LocalDensity.current.density
         val w = constraints.maxWidth.toFloat()
@@ -548,13 +568,14 @@ private fun MiniPnlChart(
             // t=0(最低) -> 靠底；t=1(最高) -> 靠顶
             return (h - pad - t * (h - 2f * pad)).coerceIn(pad, h - pad)
         }
-        // 横向：始终铺满整个宽度——第 1 点在最左、最后 1 点在最右（对标同花顺贯穿全宽）
-        //   单点(只有 1 个数据)时，该点直接落在最右端（与同花顺"点在最右端"一致）
-        val iMax = (n - 1).coerceAtLeast(0)
-        val single = n <= 1
-        val stepX = if (iMax > 0) w / iMax else 0f
-        val xOf: (Int) -> Float = { i -> if (single) w else i * stepX }
-        val lastX = xOf(iMax)
+        // 横向（R55h-22e）：一天一格。
+        //   把整个控件宽度按「本月总天数 daysInMonth」等分（首日在最左，末日才到最右），
+        //   第 i 个数据点固定落在「本月第 (i+1) 天」的位置；曲线只画到最后一个数据点。
+        //   -> 少点时曲线短、靠左，右侧留白；只有到月末(点数=总天数)才铺满全宽。
+        val slots = (daysInMonth - 1).coerceAtLeast(1).toFloat()  // 分格数 = 总天数-1
+        val dayPx = w / slots                                      // 每天占的像素宽
+        val xOf: (Int) -> Float = { i -> (i * dayPx).coerceIn(0f, w) }
+        val lastX = xOf(n - 1)
         val firstX = xOf(0)
         Canvas(modifier = Modifier.fillMaxSize()) {
             // 零轴水平浅灰虚线
@@ -599,18 +620,19 @@ private fun MiniPnlChart(
                 drawCircle(color = lineColor, radius = 3.2f, center = Offset(dotX, dotY))
             }
         }
-        // 百分比文字：贴在末端圆点右上方
+        // 百分比文字：贴在末端圆点右上方（靠近右端时自动左移，避免超出控件）
         if (centerLabel.isNotEmpty() && hasData) {
             val dotX = lastX
             val dotY = yOf(data[n - 1])
-            val offX = (dotX + 6f * d).roundToInt()
-            val offY = (dotY - 13f * d).roundToInt()
+            val labelRight = dotX + 6f * d
+            val offX = if (labelRight > w - 34f * d) (dotX - 34f * d) else labelRight
+            val offY = (dotY - 13f * d)
             Text(
                 text = centerLabel,
                 color = centerLabelColor,
                 fontSize = 10.sp,
                 maxLines = 1,
-                modifier = Modifier.offset { IntOffset(offX, offY) }
+                modifier = Modifier.offset { IntOffset(offX.roundToInt(), offY.roundToInt()) }
             )
         }
     }
