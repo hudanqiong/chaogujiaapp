@@ -47,7 +47,8 @@ data class PnlPoint(
     val shPct: Double = 0.0,         // 上证涨跌幅 %
     val excess: Double = 0.0,        // 超额（总）我 - 上证 %
     val monthPct: Double = 0.0,      // 月度收益率 %（后端 month_pct，口径C）
-    val monthExcess: Double = 0.0    // 月度跑赢上证 %（后端 month_excess，口径C）
+    val monthExcess: Double = 0.0,   // 月度跑赢上证 %（后端 month_excess，口径C）
+    val tradeIdx: Int = 0            // R55h-22h2：该点是当月第几个交易日（从1开始；0=未知/非交易日）
 )
 /** 月度参考盈亏 - 整体返回（pnl_history.php 的 data） */
 data class PnlHistory(
@@ -808,7 +809,8 @@ object Api {
                             shPct = pt.optDouble("sh_pct", 0.0),
                             excess = pt.optDouble("excess", 0.0),
                             monthPct = pt.optDouble("month_pct", 0.0),
-                            monthExcess = pt.optDouble("month_excess", 0.0)
+                            monthExcess = pt.optDouble("month_excess", 0.0),
+                            tradeIdx = pt.optInt("trade_idx", 0)
                         )
                     )
                 }
@@ -823,7 +825,8 @@ object Api {
                 shPct = t.optDouble("sh_pct", 0.0),
                 excess = t.optDouble("excess", 0.0),
                 monthPct = t.optDouble("month_pct", 0.0),
-                monthExcess = t.optDouble("month_excess", 0.0)
+                monthExcess = t.optDouble("month_excess", 0.0),
+                tradeIdx = t.optInt("trade_idx", 0)
             ) else null
             PnlHistory(
                 month = d.optString("month", ""),

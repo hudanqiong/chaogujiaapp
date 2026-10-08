@@ -445,6 +445,14 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         val lastDate = hist.points.lastOrNull()?.date
         if (t != null && t.date != lastDate) base + t.monthPnl else base
     }
+    // R55h-22h2：每个数据点对应的「当月第几个交易日」（从1开始），与 series 一一对应。
+    //   用于横轴按真实交易日落格（对标同花顺：点位落在该日真实格位，缺数据的日子自然留空）。
+    val seriesIdx: List<Int> = remember(hist) {
+        val base = hist.points.map { it.tradeIdx }
+        val t = hist.today
+        val lastDate = hist.points.lastOrNull()?.date
+        if (t != null && t.date != lastDate) base + t.tradeIdx else base
+    }
     val last = hist.today ?: hist.points.lastOrNull()
     val monthPnl = last?.monthPnl ?: 0.0
     // 第29轮修正（口径C）：月度收益率 / 月度跑赢上证 直接取后端字段，
@@ -489,6 +497,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         // 也会画出一小段贴在零轴的实线 + 贯穿的灰色虚线，端点标 0.00%
         MiniPnlChart(
             data = series,
+            dataIdx = seriesIdx,
             tradeDays = hist.monthTradeDays,
             centerLabel = tpPct(monthPct),
             centerLabelColor = tpChartColor(monthPct),
@@ -525,6 +534,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
+    dataIdx: List<Int> = emptyList(),
     tradeDays: Int = 0,
     centerLabel: String = "",
     centerLabelColor: Color = TP_GRAY,
@@ -587,13 +597,18 @@ private fun MiniPnlChart(
         //   第 i 个数据点固定落在「本月第 (i+1) 天」的位置；曲线只画到最后一个数据点。
         //   -> 少点时曲线短、靠左，右侧留白；只有到月末(点数=交易日总数)才铺满全宽。
         //   R55h-22f: 这里的"格"= 一个交易日（已剔除周末/节假日），避免非交易日造成点位错位。
-        val slots = (daysInMonth - 1).coerceAtLeast(1).toFloat()  // 分格数 = 交易日总数-1
-        val dayPx = w / slots                                      // 每天占的像素宽
-        // R55h-22h：横向「第 i 个数据点落在第 (i+1) 格」。
-        //   起点固定在最左边缘 x=0 的零轴处，第一个数据点落在第 1 格，
-        //   于是「零轴基线 -> 首个数据点」天然形成一段斜线（不再退化成竖直/贴着零轴的横线）。
-        //   之后逐点右移，第 i 点在第 (i+1) 格；曲线只画到最后一个数据点，右侧按剩余交易日留空 —— 对标同花顺左短右空。
-        val xOf: (Int) -> Float = { i -> ((i + 1) * dayPx).coerceIn(0f, w) }
+        val slots = daysInMonth.coerceAtLeast(1).toFloat()         // 整月交易日总数（第 daysInMonth 格 = 右边缘）
+        val dayPx = w / slots                                      // 每个交易日占的像素宽
+        // R55h-22h2（方案A·对标同花顺）：横轴按「整月交易日」铺满，数据点落在「该日真实格位」。
+        //   - 第 k 个交易日 -> x = k * dayPx（k 从 1 开始；第 daysInMonth 个正好到右边缘 w）。
+        //   - 点的横坐标取 dataIdx[i]（后端 trade_idx，当月第几个交易日）；拿不到时回退 (i+1)。
+        //   - 起笔仍固定在 (0, 左侧零轴)，于是「零轴基线 -> 首个数据点」形成一段斜线；
+        //     首个数据点越靠后（当天越接近月末），该斜线越长，与同花顺一致；
+        //     缺数据的日子自然留空，点位不会挤成一排。
+        val xOf: (Int) -> Float = { i ->
+            val k = if (i in dataIdx.indices && dataIdx[i] > 0) dataIdx[i] else (i + 1)
+            (k * dayPx).coerceIn(0f, w)
+        }
         val firstX = xOf(0)
         val lastX = if (n <= 1) firstX else xOf(n - 1)
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -633,11 +648,11 @@ private fun MiniPnlChart(
                     endY = maxOf(topLineY, zeroY)
                 )
                 drawPath(path = areaPath, brush = areaBrush)
-                drawPath(path = linePath, color = lineColor, style = Stroke(width = 3.2f))
+                drawPath(path = linePath, color = lineColor, style = Stroke(width = 6.4f))
                 // 末端圆点：落在走势线末端点上（跟随走势线）
                 val dotX = lastX
                 val dotY = yOf(data[n - 1])
-                drawCircle(color = lineColor, radius = 4.6f, center = Offset(dotX, dotY))
+                drawCircle(color = lineColor, radius = 9.2f, center = Offset(dotX, dotY))
             }
         }
         // 百分比文字：贴在末端圆点右上方（靠近右端时自动左移，避免超出控件）
