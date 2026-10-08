@@ -502,7 +502,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         )
     }
 }
-/** 迷你盈亏走势图（对标自选列表 MiniMinuteChart）：① 长期零轴水平虚线（基准） + ② 红涨蓝跌实线从零轴出发逐点绘制；末端圆点；百分比落在末端圆点旁、与圆点同水平线 */
+/** 迷你盈亏走势图（对标同花顺）：① 零轴水平虚线（基准） + ② 红涨蓝跌实线从首个数据点起逐点绘制；③ 线下渐变从走势线往下渐隐；④ 末端圆点落在走势线上，跟随走势线移动 */
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
@@ -524,7 +524,6 @@ private fun MiniPnlChart(
             }
             animated = true
         } else {
-            // 数据更新：直接显示全部，不重播
             visible = data.size
         }
     }
@@ -537,23 +536,28 @@ private fun MiniPnlChart(
         val pad = 4f * d
         val midY = h / 2f
         val n = visible.coerceAtMost(data.size)
-        // 组合期统一计算几何（Canvas 绘制期直接引用）
-        // 纵向按数据实际范围围绕 0 对称缩放：走势幅度充分，圆点自然落在走势线上而非贴虚中线
-        val ampMax = (data.maxOfOrNull { kotlin.math.abs(it) } ?: 0.0).coerceAtLeast(1e-6)
-        val span = maxOf(data.size, 30)
-        val stepX = if (span > 1) w / (span - 1) else w
-        fun yOf(v: Double): Float =
-            (midY - (v / ampMax).toFloat() * (midY - pad)).coerceIn(pad, h - pad)
         val hasData = n >= 1 && data.isNotEmpty()
-        val li = n - 1
-        // 走势线最低点 y（用于渐变起点，实现"从走势线往下渲染"）
-        val lowestY = if (hasData) data.take(n).maxOf { yOf(it) } else midY
-        // 单点/起步阶段：保证向右至少有一小段实线（“还没开始走”的可见长度）
-        val minSeg = 16f * d
-        val dotX = if (hasData) maxOf(li * stepX, minSeg) else 0f
-        val dotY = if (hasData) yOf(data[li]) else midY
+        // 纵向：按数据实际 min~max 映射，充分利用上下空间（对标同花顺）
+        //   单点/全等值时退化为中线；否则最低值贴底、最高值贴顶
+        val dMin = data.minOrNull() ?: 0.0
+        val dMax = data.maxOrNull() ?: 0.0
+        val span = (dMax - dMin)
+        fun yOf(v: Double): Float {
+            if (span < 1e-9) return midY
+            val t = ((v - dMin) / span).toFloat()
+            // t=0(最低) -> 靠底；t=1(最高) -> 靠顶
+            return (h - pad - t * (h - 2f * pad)).coerceIn(pad, h - pad)
+        }
+        // 横向：始终铺满整个宽度——第 1 点在最左、最后 1 点在最右（对标同花顺贯穿全宽）
+        //   单点(只有 1 个数据)时，该点直接落在最右端（与同花顺"点在最右端"一致）
+        val iMax = (n - 1).coerceAtLeast(0)
+        val single = n <= 1
+        val stepX = if (iMax > 0) w / iMax else 0f
+        val xOf: (Int) -> Float = { i -> if (single) w else i * stepX }
+        val lastX = xOf(iMax)
+        val firstX = xOf(0)
         Canvas(modifier = Modifier.fillMaxSize()) {
-            // ① 零轴线：水平浅灰虚线（走势基准线，保持中性色，不随涨跌变色）
+            // 零轴水平浅灰虚线
             drawLine(
                 color = TP_GRAY.copy(alpha = 0.45f),
                 start = Offset(0f, midY),
@@ -562,40 +566,43 @@ private fun MiniPnlChart(
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f)
             )
             if (hasData) {
-                // ② 走势线路径：红涨蓝跌实线，从零轴最左端出发逐点连接
-                //    首段从 (0, midY) 拉到第一个点，保持"贴着零轴起步"的观感
+                // 走势线：从第一个数据点开始，逐点连接（不从零轴硬拽）
                 val linePath = Path()
-                linePath.moveTo(0f, midY)
                 for (i in 0 until n) {
-                    // 首个点与后续点：横向位置至少推进到 minSeg，避免单点时长度为 0 看不见
-                    val x = if (i == 0) dotX else i * stepX
+                    val x = xOf(i)
                     val y = yOf(data[i])
-                    linePath.lineTo(x, y)
+                    if (i == 0) linePath.moveTo(x, y) else linePath.lineTo(x, y)
                 }
-                // ③ 线下方面积：竖向渐变填充，上端浓、往下逐渐变淡（对标自选页压缩分时图）
+                // 面积：走势线下方 fill 到控件底部，渐变从"走势线最高点"往下渐隐
                 val areaPath = Path().apply {
                     addPath(linePath)
-                    lineTo(dotX, h)
-                    lineTo(0f, h)
+                    lineTo(lastX, h)
+                    lineTo(firstX, h)
                     close()
                 }
+                // 线的最高点（y 最小）——渐变的浓色起点，从走势线往下渲染
+                var topLineY = Float.MAX_VALUE
+                for (i in 0 until n) topLineY = minOf(topLineY, yOf(data[i]))
                 val areaBrush = Brush.verticalGradient(
                     colors = listOf(
-                        lineColor.copy(alpha = 0.28f),
-                        lineColor.copy(alpha = 0.04f)
+                        lineColor.copy(alpha = 0.30f),
+                        lineColor.copy(alpha = 0.02f)
                     ),
-                    startY = lowestY,
+                    startY = topLineY,
                     endY = h
                 )
                 drawPath(path = areaPath, brush = areaBrush)
-                // ④ 走势线压在面积之上，保证线清晰醒目
                 drawPath(path = linePath, color = lineColor, style = Stroke(width = 2f))
-                // 末端圆点
+                // 末端圆点：落在走势线末端点上（跟随走势线）
+                val dotX = lastX
+                val dotY = yOf(data[n - 1])
                 drawCircle(color = lineColor, radius = 3.2f, center = Offset(dotX, dotY))
             }
         }
-        // 百分比文字：落在末端圆点旁边，与圆点同水平线（随走势浮动）
+        // 百分比文字：贴在末端圆点右上方
         if (centerLabel.isNotEmpty() && hasData) {
+            val dotX = lastX
+            val dotY = yOf(data[n - 1])
             val offX = (dotX + 6f * d).roundToInt()
             val offY = (dotY - 13f * d).roundToInt()
             Text(
