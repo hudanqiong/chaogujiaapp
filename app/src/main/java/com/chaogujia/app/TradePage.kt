@@ -486,6 +486,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
         // 也会画出一小段贴在零轴的实线 + 贯穿的灰色虚线，端点标 0.00%
         MiniPnlChart(
             data = series,
+            tradeDays = hist.monthTradeDays,
             centerLabel = tpPct(monthPct),
             centerLabelColor = tpChartColor(monthPct),
             modifier = Modifier
@@ -521,6 +522,7 @@ private fun MonthlyPnlBar(token: String, brokerAccountId: Int, reloadTick: Int, 
 @Composable
 private fun MiniPnlChart(
     data: List<Double>,
+    tradeDays: Int = 0,
     centerLabel: String = "",
     centerLabelColor: Color = TP_GRAY,
     modifier: Modifier = Modifier
@@ -544,10 +546,13 @@ private fun MiniPnlChart(
     }
     val lastVal = data.lastOrNull() ?: 0.0
     val lineColor = tpChartColor(lastVal)
-    // 当月自然月总天数（28~31）：横轴按"天"分格的基准
-    val daysInMonth = remember {
-        val c = java.util.Calendar.getInstance()
-        c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+    // R55h-22f: 横轴按「本月交易日总数」分格（后端 month_trade_days 自动推算，已剔除周末/节假日）
+    //   交易日总数取不到时，回退当月自然月天数，保证不崩。
+    val daysInMonth = remember(tradeDays) {
+        if (tradeDays > 0) tradeDays else {
+            val c = java.util.Calendar.getInstance()
+            c.getActualMaximum(java.util.Calendar.DAY_OF_MONTH).coerceAtLeast(1)
+        }
     }
     BoxWithConstraints(modifier = modifier) {
         val d = LocalDensity.current.density
@@ -571,8 +576,9 @@ private fun MiniPnlChart(
         // 横向（R55h-22e）：一天一格。
         //   把整个控件宽度按「本月总天数 daysInMonth」等分（首日在最左，末日才到最右），
         //   第 i 个数据点固定落在「本月第 (i+1) 天」的位置；曲线只画到最后一个数据点。
-        //   -> 少点时曲线短、靠左，右侧留白；只有到月末(点数=总天数)才铺满全宽。
-        val slots = (daysInMonth - 1).coerceAtLeast(1).toFloat()  // 分格数 = 总天数-1
+        //   -> 少点时曲线短、靠左，右侧留白；只有到月末(点数=交易日总数)才铺满全宽。
+        //   R55h-22f: 这里的"格"= 一个交易日（已剔除周末/节假日），避免非交易日造成点位错位。
+        val slots = (daysInMonth - 1).coerceAtLeast(1).toFloat()  // 分格数 = 交易日总数-1
         val dayPx = w / slots                                      // 每天占的像素宽
         val xOf: (Int) -> Float = { i -> (i * dayPx).coerceIn(0f, w) }
         val lastX = xOf(n - 1)
