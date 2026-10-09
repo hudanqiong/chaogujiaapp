@@ -2147,8 +2147,8 @@ private fun MiniMinuteChart(
             xs[i] = xOf(i)
             raw[i] = p.price.toFloat()
         }
-        // EMA 低通滤波（alpha 越小越平滑）：首点直取，后续按 alpha 平滑
-        val alpha = 0.28f
+        // EMA 低通滤波（alpha 越大越保留细节 / 越小越平滑）：首点直取，后续按 alpha 平滑
+        val alpha = 0.5f
         val smooth = FloatArray(n)
         smooth[0] = raw[0]
         for (i in 1 until n) {
