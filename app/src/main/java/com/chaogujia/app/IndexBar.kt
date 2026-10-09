@@ -2136,23 +2136,41 @@ private fun MiniMinuteChart(
         }
 
         val path = Path()
-        // 平滑曲线（中点二次贝塞尔）：消除分钟级抖动尖角，观感对标同花顺 mini 图。
-        val xs = FloatArray(trends.size)
-        val ys = FloatArray(trends.size)
+        // 平滑曲线（对标同花顺 mini 图）：
+        // 1) 先对逐分钟瞬时成交价做 EMA 低通滤波，抹掉高频抖动毛刺（同花顺即为此效果）；
+        // 2) x 仍用真实分钟位置，保持「由左向右延伸、15:00 铺满」的时间轴正确；
+        // 3) 再叠加中点二次贝塞尔，使连接处圆滑无尖角。
+        val n = trends.size
+        val xs = FloatArray(n)
+        val raw = FloatArray(n)
         trends.forEachIndexed { i, p ->
             xs[i] = xOf(i)
-            ys[i] = yOf(p.price)
+            raw[i] = p.price.toFloat()
         }
-        if (trends.size == 1) {
+        // EMA 低通滤波（alpha 越小越平滑）：首点直取，后续按 alpha 平滑
+        val alpha = 0.28f
+        val smooth = FloatArray(n)
+        smooth[0] = raw[0]
+        for (i in 1 until n) {
+            smooth[i] = smooth[i - 1] + alpha * (raw[i] - smooth[i - 1])
+        }
+        // 再做一次反向 EMA，消除相位提前，得到零延迟的平滑序列
+        for (i in n - 2 downTo 0) {
+            smooth[i] = smooth[i + 1] + alpha * (smooth[i] - smooth[i + 1])
+        }
+        val ys = FloatArray(n)
+        for (i in 0 until n) ys[i] = yOf(smooth[i].toDouble())
+
+        if (n == 1) {
             path.moveTo(xs[0], ys[0])
         } else {
             path.moveTo(xs[0], ys[0])
-            for (i in 1 until trends.size) {
+            for (i in 1 until n) {
                 val midX = (xs[i - 1] + xs[i]) / 2f
                 val midY = (ys[i - 1] + ys[i]) / 2f
                 path.quadraticBezierTo(xs[i - 1], ys[i - 1], midX, midY)
             }
-            path.lineTo(xs[trends.size - 1], ys[trends.size - 1])
+            path.lineTo(xs[n - 1], ys[n - 1])
         }
 
         // 线下方面积：竖向渐变“背景色”，上端浓、往下渐淡
