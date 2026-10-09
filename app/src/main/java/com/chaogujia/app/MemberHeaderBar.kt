@@ -587,20 +587,20 @@ private fun TradeHeaderRow(cur: String, onSelect: (String) -> Unit) {
  */
 @Composable
 private fun DetailHeaderTagRow(tags: List<String>, maxShow: Int = 2, fontSize: Float = 9f) {
-    if (tags.isEmpty()) return
+    val show = tags.filter { it != "场内" }
+    if (show.isEmpty()) return
     Row(verticalAlignment = Alignment.CenterVertically) {
-        tags.take(if (maxShow <= 0) tags.size else maxShow).forEach { t ->
-            val main = (t == "融" || t == "创" || t == "新" || t == "次新" || t == "T+0" || t == "场内")
+        show.take(if (maxShow <= 0) show.size else maxShow).forEach { t ->
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(3.dp))
-                    .background(if (main) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
+                    .background(Color(Config.COLOR_TAG_BG))
                     .padding(horizontal = 3.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = t,
-                    color = if (main) Color.White else Color.White.copy(alpha = 0.8f),
+                    color = Color(Config.COLOR_TAG_FG),
                     fontSize = fontSize.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1

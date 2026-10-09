@@ -1407,10 +1407,10 @@ private fun StockRow(
                 )
                 Spacer(Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (s.tags.isNotEmpty()) {
-                        Box(Modifier.widthIn(max = 34.dp)) {
-                            StockTagRow(tags = s.tags, maxShow = 1, fontSize = 9f, leftScroll = false)
-                        }
+                    // 代码前：融/创/新/次新（橙底白字）
+                    val preTags = s.tags.filter { it == "融" || it == "创" || it == "新" || it == "次新" }
+                    if (preTags.isNotEmpty()) {
+                        StockTagRow(tags = preTags, maxShow = 0, fontSize = 9f, leftScroll = false)
                         Spacer(Modifier.width(3.dp))
                     }
                     Text(
@@ -1419,6 +1419,12 @@ private fun StockRow(
                         fontSize = 12.sp,
                         fontFamily = NumFont
                     )
+                    // 代码后：T+0/场内（灰框灰字，仅 ETF）
+                    val postTags = s.tags.filter { it == "T+0" || it == "场内" }.take(1)
+                    if (postTags.isNotEmpty()) {
+                        Spacer(Modifier.width(3.dp))
+                        StockTagRow(tags = postTags, maxShow = 0, fontSize = 9f, leftScroll = false)
+                    }
                 }
             }
         }
@@ -2202,9 +2208,8 @@ private fun StockTagChip(tag: String, fontSize: Float = 9f) {
     }
 }
 
-/** 主色标签判定（实底橙）：融/创/新/次新/T+0/场内 */
+/** 主色标签判定（实底橙）：融/创/新/次新；ETF 的 T+0/场内 用灰框 */
 private fun isMainColorTag(tag: String): Boolean {
-    return tag == "融" || tag == "创" || tag == "新" || tag == "次新" ||
-        tag == "T+0" || tag == "场内"
+    return tag == "融" || tag == "创" || tag == "新" || tag == "次新"
 }
 
