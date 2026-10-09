@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -587,13 +589,17 @@ private fun TradeHeaderRow(cur: String, onSelect: (String) -> Unit) {
  */
 @Composable
 private fun DetailHeaderTagRow(tags: List<String>, maxShow: Int = 2, fontSize: Float = 9f) {
+    // 详情页：过滤掉「场内」；L1 必须始终显示
     val show = tags.filter { it != "场内" }
     if (show.isEmpty()) return
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        show.take(if (maxShow <= 0) show.size else maxShow).forEach { t ->
+    val ordered = show.filter { it != "L1" } + show.filter { it == "L1" }
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        ordered.forEach { t ->
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(3.dp))
                     .background(Color(Config.COLOR_TAG_BG))
                     .padding(horizontal = 3.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center

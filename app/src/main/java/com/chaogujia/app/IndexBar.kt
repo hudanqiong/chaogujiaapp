@@ -365,6 +365,16 @@ fun IndexBar(
                             }
                         } catch (e: Exception) { /* 忽略该券商 */ }
                     }
+                    // ★ 持仓列表补标签：手拼 StockItem 不含 tags，统一批量回填
+                    if (out.isNotEmpty()) {
+                        try {
+                            val tm = Api.tagsOf(out.map { it.code })
+                            for (i in out.indices) {
+                                val tl = tm[out[i].code]
+                                if (tl != null) out[i] = out[i].copy(tags = tl)
+                            }
+                        } catch (e: Exception) { }
+                    }
                     out
                 }
                 stocks = list
@@ -1419,8 +1429,9 @@ private fun StockRow(
                         fontSize = 12.sp,
                         fontFamily = NumFont
                     )
-                    // 代码后：T+0/场内（灰框灰字，仅 ETF）
-                    val postTags = s.tags.filter { it == "T+0" || it == "场内" }.take(1)
+                    // 代码后：T+0 优先，无 T+0 才显示 场内（灰框灰字，仅 ETF）
+                    val postTags = s.tags.filter { it == "T+0" }.take(1)
+                        .ifEmpty { s.tags.filter { it == "场内" }.take(1) }
                     if (postTags.isNotEmpty()) {
                         Spacer(Modifier.width(3.dp))
                         StockTagRow(tags = postTags, maxShow = 0, fontSize = 9f, leftScroll = false)
@@ -2189,11 +2200,10 @@ private fun StockTagChip(tag: String, fontSize: Float = 9f) {
     val bg = if (main) Color(Config.COLOR_TAG_BG) else Color.Transparent
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(3.dp))
             .background(bg)
             .then(
                 if (main) Modifier
-                else Modifier.border(0.8.dp, Color(Config.COLOR_TAG_GRAY_BORDER), RoundedCornerShape(3.dp))
+                else Modifier.border(0.8.dp, Color(Config.COLOR_TAG_GRAY_BORDER))
             )
             .padding(horizontal = 3.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center

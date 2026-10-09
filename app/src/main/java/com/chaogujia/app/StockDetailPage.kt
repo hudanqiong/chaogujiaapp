@@ -7539,16 +7539,17 @@ private fun QuickPosButton(
 /** 详情页头部标签（红底头部专用：实底半透明白 + 白字；普通标签白字无边） */
 @Composable
 private fun DetailTagRow(tags: List<String>, maxShow: Int = 2, fontSize: Float = 9f) {
+    // 详情页：过滤掉「场内」；L1 必须始终显示
     val show = tags.filter { it != "场内" }
     if (show.isEmpty()) return
+    val ordered = show.filter { it != "L1" } + show.filter { it == "L1" }
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        show.take(if (maxShow <= 0) show.size else maxShow).forEach { t ->
+        ordered.forEach { t ->
             Box(
                 modifier = Modifier
-                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
                     .background(Color(Config.COLOR_TAG_BG))
                     .padding(horizontal = 3.dp, vertical = 1.dp),
                 contentAlignment = Alignment.Center
