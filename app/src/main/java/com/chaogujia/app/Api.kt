@@ -791,7 +791,9 @@ suspend fun placeOrder(
         return try {
             val raw = Net.get(base("stock_tags.php?codes=" + clean.joinToString(",")))
             val o = JSONObject(raw)
-            if (o.optInt("ok", 0) != 1) return out
+            val okFlag = o.opt("ok")
+            val okBool = (okFlag == true) || (okFlag?.toString() == "1") || (okFlag?.toString() == "true")
+            if (!okBool) return out
             val t = o.optJSONObject("tags") ?: return out
             val it = t.keys()
             while (it.hasNext()) {
