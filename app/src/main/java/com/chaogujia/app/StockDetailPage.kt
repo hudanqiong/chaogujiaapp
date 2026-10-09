@@ -817,14 +817,25 @@ private fun DetailHeadLatest(b: StockBase?) {
             .padding(start = 10.dp, end = 2.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 左：当前价（大字） + 涨跌额/幅
-        Column(modifier = Modifier.width(96.dp)) {
+        // 左：当前价（大字，按字符数自适应防溢出） + 涨跌额/幅
+        Column(modifier = Modifier.width(104.dp)) {
+            val priceStr = fmtNum(price)
+            val priceFont = when {
+                priceStr.length <= 5 -> 30.sp
+                priceStr.length <= 6 -> 27.sp
+                priceStr.length <= 7 -> 24.sp
+                priceStr.length <= 8 -> 21.sp
+                else -> 19.sp
+            }
             Text(
-                text = fmtNum(price),
+                text = priceStr,
                 color = color,
-                fontSize = 30.sp,
+                fontSize = priceFont,
                 fontWeight = FontWeight.Bold,
-                fontFamily = DSpNumFont
+                fontFamily = DSpNumFont,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Visible
             )
             Spacer(Modifier.height(2.dp))
             Text(

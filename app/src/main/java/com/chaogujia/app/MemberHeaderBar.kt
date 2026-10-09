@@ -150,6 +150,8 @@ fun MemberHeaderBar(
  */
 private val D_ICON_BIG = 25.dp
 private val D_ICON_SMALL = 24.dp
+// 详情页顶栏中间区固定宽度：保证“股票代码 + 至少 3 个标签”完整显示，使两侧 ◀ ▶ 位置恒定
+private val DETAIL_CENTER_W = 120.dp
 
 @Composable
 private fun DetailHeaderRow(
@@ -180,11 +182,10 @@ private fun DetailHeaderRow(
             contentScale = ContentScale.Fit
         )
 
-        // 中间：◀ 名称/代码 ▶
+        // 中间：◀ 固定宽度中间区 名称/代码/标签 ▶（三角位置恒定，名称在固定区间内自适应缩放）
         Row(
             modifier = Modifier
-                .align(Alignment.Center)
-                .widthIn(max = 200.dp),
+                .align(Alignment.Center),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -195,44 +196,47 @@ private fun DetailHeaderRow(
                     .clickable(enabled = canPrev) { onPrev() }
                     .padding(horizontal = 6.dp)
             )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.widthIn(max = 170.dp)
+            // 固定宽度中间区（代码 + 至少 3 标签可完整显示），名称在此区间内自适应缩放
+            Box(
+                modifier = Modifier.width(DETAIL_CENTER_W),
+                contentAlignment = Alignment.Center
             ) {
-                // 名称：长名按字符数动态缩小（超长 ETF 名不撑开 ◀▶）
-                val nameFont = when {
-                    name.length <= 6 -> 17.sp
-                    name.length <= 8 -> 15.sp
-                    name.length <= 10 -> 13.sp
-                    name.length <= 12 -> 12.sp
-                    name.length <= 14 -> 11.sp
-                    else -> 10.sp
-                }
-                Text(
-                    text = name,
-                    color = Color.White,
-                    fontSize = nameFont,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.widthIn(max = 170.dp)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // 名称：按字符数动态缩小，保证在固定宽度内完整显示、不撑开 ◀ ▶
+                    val nameFont = when {
+                        name.length <= 4 -> 17.sp
+                        name.length <= 6 -> 16.sp
+                        name.length <= 8 -> 14.sp
+                        name.length <= 10 -> 12.5.sp
+                        name.length <= 12 -> 11.5.sp
+                        name.length <= 14 -> 10.5.sp
+                        else -> 9.5.sp
+                    }
                     Text(
-                        text = code,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
+                        text = name,
+                        color = Color.White,
+                        fontSize = nameFont,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = HSpNumFont,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    if (tags.isNotEmpty()) {
-                        Spacer(Modifier.width(3.dp))
-                        // 标签字号：名称越长标签同步缩小，避免整行撑宽
-                        val tagFont = if (name.length <= 8) 9f else if (name.length <= 12) 8f else 7.5f
-                        DetailHeaderTagRow(tags = tags, maxShow = 2, fontSize = tagFont)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = code,
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = HSpNumFont,
+                            maxLines = 1
+                        )
+                        if (tags.isNotEmpty()) {
+                            Spacer(Modifier.width(3.dp))
+                            DetailHeaderTagRow(tags = tags, maxShow = 3, fontSize = 9f)
+                        }
                     }
                 }
             }
