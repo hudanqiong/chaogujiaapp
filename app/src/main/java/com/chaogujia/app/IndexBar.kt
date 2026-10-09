@@ -1406,12 +1406,20 @@ private fun StockRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(3.dp))
-                Text(
-                    text = s.code,
-                    color = COLOR_SUB,
-                    fontSize = 12.sp,
-                    fontFamily = NumFont
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (s.tags.isNotEmpty()) {
+                        Box(Modifier.widthIn(max = 34.dp)) {
+                            StockTagRow(tags = s.tags, maxShow = 1, fontSize = 9f, leftScroll = false)
+                        }
+                        Spacer(Modifier.width(3.dp))
+                    }
+                    Text(
+                        text = s.code,
+                        color = COLOR_SUB,
+                        fontSize = 12.sp,
+                        fontFamily = NumFont
+                    )
+                }
             }
         }
         // 每只股票行底部的细分隔线（很淡的浅灰，跟随列表一起滑动）
@@ -2138,3 +2146,65 @@ private fun MiniMinuteChart(
         drawPath(path = path, color = lineColor, style = Stroke(width = 3.5f))
     }
 }
+
+/**
+ * 股票标签行（详情页/自选列表共用）
+ * 样式对标同花顺：
+ *  - 主色标签（融/创/新/次新/T+0/场内）：实底暖橙色 + 米白字，无边框
+ *  - 灰色标签：透明底 + 浅灰字 + 浅灰细边框
+ * 横向排布，超宽可横向滚动（leftScroll=true），maxShow 限数
+ */
+@Composable
+fun StockTagRow(
+    tags: List<String>,
+    maxShow: Int = 2,
+    fontSize: Float = 9f,
+    leftScroll: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    if (tags.isEmpty()) return
+    val shown = if (maxShow <= 0) tags else tags.take(maxShow)
+    val rowModifier = if (leftScroll) modifier.horizontalScroll(rememberScrollState()) else modifier
+    Row(
+        modifier = rowModifier,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        shown.forEach { tag ->
+            StockTagChip(tag, fontSize)
+            Spacer(Modifier.width(3.dp))
+        }
+    }
+}
+
+@Composable
+private fun StockTagChip(tag: String, fontSize: Float = 9f) {
+    val main = isMainColorTag(tag)
+    val fg = if (main) Color(Config.COLOR_TAG_FG) else Color(Config.COLOR_TAG_GRAY_FG)
+    val bg = if (main) Color(Config.COLOR_TAG_BG) else Color.Transparent
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(3.dp))
+            .background(bg)
+            .then(
+                if (main) Modifier
+                else Modifier.border(0.8.dp, Color(Config.COLOR_TAG_GRAY_BORDER), RoundedCornerShape(3.dp))
+            )
+            .padding(horizontal = 3.dp, vertical = 1.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = tag,
+            color = fg,
+            fontSize = fontSize.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
+    }
+}
+
+/** 主色标签判定（实底橙）：融/创/新/次新/T+0/场内 */
+private fun isMainColorTag(tag: String): Boolean {
+    return tag == "融" || tag == "创" || tag == "新" || tag == "次新" ||
+        tag == "T+0" || tag == "场内"
+}
+

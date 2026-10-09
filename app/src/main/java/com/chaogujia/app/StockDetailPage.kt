@@ -549,6 +549,7 @@ fun StockDetailPage(
                 DetailHeaderBar(
                     name = detail?.name?.ifEmpty { current?.name ?: "" } ?: "",
                     code = current?.code ?: "",
+                    tags = current?.tags ?: emptyList(),
                     canPrev = idx > 0,
                     canNext = idx < list.size - 1,
                     onBack = onClose,
@@ -640,6 +641,7 @@ private val D_ICON_SMALL = 24.dp
 private fun DetailHeaderBar(
     name: String,
     code: String,
+    tags: List<String> = emptyList(),
     canPrev: Boolean,
     canNext: Boolean,
     onBack: () -> Unit,
@@ -706,13 +708,21 @@ private fun DetailHeaderBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = code,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 11.sp,
-                    fontFamily = DSpNumFont,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = code,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontFamily = DSpNumFont,
+                        maxLines = 1
+                    )
+                    if (tags.isNotEmpty()) {
+                        Spacer(Modifier.width(4.dp))
+                        Box(Modifier.widthIn(max = 70.dp)) {
+                            DetailTagRow(tags = tags, maxShow = 2, fontSize = 9f)
+                        }
+                    }
+                }
             }
             // ▶ 下一只
             Text(
@@ -7525,3 +7535,34 @@ private fun QuickPosButton(
         )
     }
 }
+
+/** 详情页头部标签（红底头部专用：实底半透明白 + 白字；普通标签白字无边） */
+@Composable
+private fun DetailTagRow(tags: List<String>, maxShow: Int = 2, fontSize: Float = 9f) {
+    if (tags.isEmpty()) return
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        tags.take(if (maxShow <= 0) tags.size else maxShow).forEach { t ->
+            val main = (t == "融" || t == "创" || t == "新" || t == "次新" || t == "T+0" || t == "场内")
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                    .background(if (main) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
+                    .padding(horizontal = 3.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = t,
+                    color = if (main) Color.White else Color.White.copy(alpha = 0.8f),
+                    fontSize = fontSize.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+            Spacer(Modifier.width(3.dp))
+        }
+    }
+}
+

@@ -15,6 +15,13 @@ object Config {
     const val COLOR_TEXT_MAIN = 0xFF222222.toInt()
     const val COLOR_TEXT_SUB = 0xFF888888.toInt()
     const val COLOR_DIVIDER = 0xFFEEEEEE.toInt()
+    // ---- 股票标签（融/创/新/次新/深股通/沪股通/京A/L1/L2/T+0/场内）----
+    // 主色标签：背景 #E48D48 + 米白字（无边框）
+    const val COLOR_TAG_BG = 0xFFE48D48.toInt()
+    const val COLOR_TAG_FG = 0xFFFDF6EE.toInt()
+    // 灰色标签（T+0/场内）：透明底 + 浅灰字 + 浅灰细边框
+    const val COLOR_TAG_GRAY_FG = 0xFFB0B0B0.toInt()
+    const val COLOR_TAG_GRAY_BORDER = 0xFFD8D8D8.toInt()
 
     /**
      * 交易数据版本号（全局刷新信号）。

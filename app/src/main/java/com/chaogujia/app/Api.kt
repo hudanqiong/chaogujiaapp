@@ -255,7 +255,9 @@ data class StockItem(
     val aucAmount: Double = 0.0,
     // ★ 服务端返回的全量原始字段（腾讯接口 ~ 拆分，按索引对齐）
     // 用途：「编辑表头」任意取用，以后加列无需改 data class
-    val raw: List<String> = emptyList()
+    val raw: List<String> = emptyList(),
+    // ★ 股票标签（stock_tags.php）：融/创/新/次新/深股通/沪股通/京A/L1/T+0/场内
+    val tags: List<String> = emptyList()
 )
 
 /** 表头字段元数据（后端 fields.php 下发，唯一真源） */
@@ -781,8 +783,32 @@ suspend fun placeOrder(
         return list
     }
 
-    /** 从 {code,msg,data:[...]} 里取出 data 数组（search.php / watchlist list 用） */
-    private fun dataArrayOf(raw: String): List<StockItem> {
+    /** 批量拉取股票标签（stock_tags.php?codes=600519,300750）。返回 code -> List<标签> */
+    fun tagsOf(codes: List<String>): Map<String, List<String>> {
+        val out = HashMap<String, List<String>>()
+        val clean = codes.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (clean.isEmpty()) return out
+        return try {
+            val raw = Net.get(base("stock_tags.php?codes=" + clean.joinToString(",")))
+            val o = JSONObject(raw)
+            if (o.optInt("ok", 0) != 1) return out
+            val t = o.optJSONObject("tags") ?: return out
+            val it = t.keys()
+            while (it.hasNext()) {
+                val code = it.next()
+                val arr = t.optJSONArray(code) ?: continue
+                val lst = ArrayList<String>(arr.length())
+                for (i in 0 until arr.length()) lst.add(arr.optString(i, ""))
+                if (lst.isNotEmpty()) out[code] = lst
+            }
+            out
+        } catch (e: Exception) {
+            out
+        }
+    }
+    /** 从 {code,msg,data:[...]} 里取出 data 数组（search.php / watchlist list 用）
+     *  tagsMap 不为空时，按 code 回填每只股票的标签 */
+    private fun dataArrayOf(raw: String, tagsMap: Map<String, List<String>>? = null): List<StockItem> {
         return try {
             val o = JSONObject(raw)
             if (o.optInt("code", -1) != 0) return emptyList()
@@ -800,7 +826,8 @@ suspend fun placeOrder(
                         amount = p.optString("amount", "0").toDoubleOrNull() ?: 0.0,
                         aucPct = p.optString("aucPct", "0").toDoubleOrNull() ?: 0.0,
                         aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0,
-                        raw = parseRaw(p.optJSONArray("raw"))
+                        raw = parseRaw(p.optJSONArray("raw")),
+                        tags = tagsMap?.get(p.optString("code", "")) ?: emptyList()
                     )
                 )
             }
@@ -1524,9 +1551,21 @@ suspend fun placeOrder(
     fun search(kw: String): List<StockItem> {
         return try {
             val raw = Net.get(base("search.php?kw=" + java.net.URLEncoder.encode(kw, "UTF-8")))
-            dataArrayOf(raw)
+            val list = dataArrayOf(raw)
+            attachTags(list)
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+    /** 给一批 StockItem 批量回填标签（一次请求） */
+    private fun attachTags(list: List<StockItem>): List<StockItem> {
+        if (list.isEmpty()) return list
+        return try {
+            val m = tagsOf(list.map { it.code })
+            if (m.isEmpty()) return list
+            list.map { if (m.containsKey(it.code)) it.copy(tags = m[it.code]!!) else it }
+        } catch (e: Exception) {
+            list
         }
     }
     /** 某分组下的自选股列表（watchlist.php?action=list&gid=X）。gid<=0 取默认分组。 */
@@ -1534,7 +1573,7 @@ suspend fun placeOrder(
         return try {
             val url = base("watchlist.php?action=list&gid=" + gid)
             val raw = Net.get(url, token)
-            dataArrayOf(raw)
+            attachTags(dataArrayOf(raw))
         } catch (e: Exception) {
             emptyList()
         }
