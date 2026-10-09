@@ -56,6 +56,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -1850,8 +1853,6 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
     var groups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
     // 股票列表
     var stocks by remember { mutableStateOf<List<StockItem>>(emptyList()) }
-    // 每行显示几列（放大→列数多，缩小→列数少；范围 1 / 2 / 3 / 4）
-    var columns by remember { mutableStateOf(2) }
     // 当前周期：分时 / 日K / 周K / 月K / 60分 / 5分 / 15分 / 30分 / 120分
     var period by remember { mutableStateOf("分时") }
     // 「更多」周期弹窗
@@ -1863,11 +1864,27 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
     var trendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
     // K线缓存： code -> K线点
     var klineMap by remember { mutableStateOf<Map<String, List<KLinePoint>>>(emptyMap()) }
+    // 持仓成本映射： code -> 成本价（仅持仓股有，用于画成本线）
+    var costMap by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
 
     // 加载分组
     LaunchedEffect(token) {
         try { groups = withContext(Dispatchers.IO) { Api.watchGroups(token) }.sortedBy { it.sort } }
         catch (e: Exception) { }
+    }
+
+    // 加载持仓成本（仅用于画成本线；未登录/无账户时为空）
+    LaunchedEffect(token) {
+        try {
+            val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
+            val bid = bs.firstOrNull()?.id ?: 0
+            if (bid > 0) {
+                val ps = withContext(Dispatchers.IO) { Api.positions(token, bid) }
+                val m = HashMap<String, Double>()
+                for (p in ps) if (p.avgCost > 0) m[p.code] = p.avgCost
+                costMap = m
+            }
+        } catch (e: Exception) { }
     }
 
     // 加载股票 + 定时刷新（3 秒）
@@ -1927,8 +1944,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             if (m.isNotEmpty()) klineMap = m
         } catch (e: Exception) { }
     }
-    // 全屏铺满
-    Box(Modifier.fillMaxSize().background(Color.White)) {
+    // 全屏铺满（浅灰底，卡片白底）
+    Box(Modifier.fillMaxSize().background(Color(0xFFF2F3F5))) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
 
             // ---------- 顶栏：关闭 + 标题 + 刷新状态 ----------
@@ -1947,10 +1964,6 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 Text("多股同列", color = Color.White, fontSize = 17.sp,
                     fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = if (loading) "刷新中…" else "更新 $lastUpdate",
-                    color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp
-                )
             }
 
             // ---------- 分组标签 + 放大/缩小 ----------
@@ -1979,35 +1992,6 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                                 .padding(horizontal = 12.dp, vertical = 5.dp)
                         )
                     }
-                }
-                Spacer(Modifier.width(6.dp))
-                // 放大 / 缩小：缩小=列数少（卡片大），放大=列数多（卡片小）
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "−",
-                        color = if (columns > 1) Color(0xFF333333) else Color(0xFFBBBBBB),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .background(Color(0xFFF2F2F2), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                            .clickable { if (columns > 1) columns -= 1 }
-                            .padding(top = 1.dp)
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = "＋",
-                        color = if (columns < 4) Color(0xFF333333) else Color(0xFFBBBBBB),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .background(Color(0xFFF2F2F2), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                            .clickable { if (columns < 4) columns += 1 }
-                            .padding(top = 1.dp)
-                    )
                 }
             }
             // ---------- 周期条：分时 | 日K | 周K | 月K | 60分 | 更多 ----------
@@ -2049,69 +2033,26 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             }
             HorizontalDivider(color = Color(0xFFEEEEEE))
 
-            // ---------- 网格 ----------
+            // ---------- 列表：一行一支股（同花顺风格卡片） ----------
             if (stocks.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     Text(if (loading) "加载中…" else "暂无股票", color = Color(0xFF999999), fontSize = 13.sp)
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(columns),
+                LazyColumn(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(stocks) { s ->
-                        Column(
-                            Modifier
-                                .background(Color(0xFFFAFAFA), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                                .border(1.dp, Color(0xFFEEEEEE), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
-                                .padding(8.dp)
-                        ) {
-                            Text(watchNameDisplay(s.name), color = Color(0xFF111111),
-                                fontSize = watchNameFontSize(s.name).sp,
-                                fontWeight = FontWeight.SemiBold, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
-                            Spacer(Modifier.height(2.dp))
-                            Text(s.code, color = Color(0xFF888888), fontSize = 11.sp)
-                            Spacer(Modifier.height(6.dp))
-                            // 走势区：分时用分时折线；K 周期用迷你蜡烛图
-                            val resetCard = isPreOpenReset()
-                            if (period == "分时") {
-                                val tr = trendMap[s.code]
-                                android.util.Log.i("CGJ_DIAG", "card code=" + s.code + " hit=" + (tr != null) + " trendSize=" + (tr?.first?.size ?: -1))
-                                MiniMinuteChart(
-                                    trends = tr?.first ?: emptyList(),
-                                    preClose = tr?.second ?: 0.0,
-                                    reset = resetCard,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(46.dp)
-                                )
-                            } else {
-                                val kl = klineMap[s.code] ?: emptyList()
-                                MiniKLineChart(
-                                    points = kl,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(46.dp)
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = if (resetCard) "--" else String.format(java.util.Locale.CHINA, "%.2f", s.price),
-                                color = if (resetCard) COLOR_FLAT else colorOf(s.changePct), fontSize = 20.sp,
-                                fontWeight = FontWeight.Bold, fontFamily = NumFont
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = if (resetCard) "--"
-                                else String.format(java.util.Locale.CHINA, "%+.2f  %+.2f%%", s.change, s.changePct),
-                                color = if (resetCard) COLOR_FLAT else colorOf(s.changePct),
-                                fontSize = 12.sp, fontFamily = NumFont
-                            )
-                        }
+                        MultiColCard(
+                            s = s,
+                            period = period,
+                            trends = trendMap[s.code]?.first ?: emptyList(),
+                            preClose = trendMap[s.code]?.second ?: 0.0,
+                            kline = klineMap[s.code] ?: emptyList(),
+                            cost = costMap[s.code] ?: 0.0
+                        )
                     }
                 }
             }
@@ -2133,28 +2074,254 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                     Text("选择周期", color = Color(0xFF333333), fontSize = 14.sp,
                         fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        listOf("5分", "15分", "30分", "120分").forEach { p ->
-                            val on = p == period
-                            Text(
-                                text = p,
-                                color = if (on) Color.White else Color(0xFF333333),
-                                fontSize = 14.sp,
-                                modifier = Modifier
-                                    .background(
-                                        if (on) RED_UP else Color(0xFFF2F2F2),
-                                        RoundedCornerShape(6.dp)
-                                    )
-                                    .clickable { period = p; showMore = false }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
-                            )
-                        }
+                    listOf("5分", "15分", "30分", "120分").forEach { p ->
+                        val on = p == period
+                        Text(
+                            text = p,
+                            color = if (on) Color.White else Color(0xFF333333),
+                            fontSize = 14.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .width(100.dp)
+                                .background(
+                                    if (on) RED_UP else Color(0xFFF2F2F2),
+                                    RoundedCornerShape(6.dp)
+                                )
+                                .clickable { period = p; showMore = false }
+                                .padding(vertical = 10.dp)
+                        )
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
         }
     }
 }
+/** ==================== 多股同列：一行一卡片（同花顺风格） ==================== */
+@Composable
+private fun MultiColCard(
+    s: StockItem,
+    period: String,
+    trends: List<DetailTrend>,
+    preClose: Double,
+    kline: List<KLinePoint>,
+    cost: Double
+) {
+    val reset = isPreOpenReset()
+    val pctColor = if (reset) COLOR_FLAT else colorOf(s.changePct)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(Color.White, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 10.dp)
+    ) {
+        // ---- 标题行：名称 + 代码 + 现价 + 涨跌幅 + 涨跌额 ----
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = watchNameDisplay(s.name),
+                color = Color(0xFF292929),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = s.code,
+                color = Color(0xFFADADAD),
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.weight(1f))
+            if (!reset) {
+                Text(
+                    text = String.format(Locale.CHINA, "%.2f", s.price),
+                    color = pctColor, fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = NumFont
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = String.format(Locale.CHINA, "%+.2f%%", s.changePct),
+                    color = pctColor, fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = NumFont
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = String.format(Locale.CHINA, "%+.2f", s.change),
+                    color = pctColor, fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = NumFont
+                )
+            } else {
+                Text("--", color = COLOR_FLAT, fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold, fontFamily = NumFont)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        // ---- 走势区：分时（4×4 表格 + 均价/现价/成本线）；K 周期用迷你蜡烛 ----
+        if (period == "分时") {
+            MultiColMinuteChart(
+                trends = trends,
+                preClose = preClose,
+                cost = cost,
+                reset = reset,
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+            )
+        } else {
+            MiniKLineChart(
+                points = kline,
+                modifier = Modifier.fillMaxWidth().height(120.dp)
+            )
+        }
+    }
+}
+
+/** Canvas 内画文字：起点=左端（左对齐） */
+private fun DrawScope.drawTextLeft(text: String, x: Float, baselineY: Float, color: Color) {
+    val p = android.graphics.Paint().apply {
+        this.color = color.toArgb()
+        textSize = 9.sp.toPx()
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.LEFT
+    }
+    drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
+}
+
+/** Canvas 内画文字：终点=右端（右对齐） */
+private fun DrawScope.drawTextRight(text: String, x: Float, baselineY: Float, color: Color) {
+    val p = android.graphics.Paint().apply {
+        this.color = color.toArgb()
+        textSize = 9.sp.toPx()
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.RIGHT
+    }
+    drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
+}
+
+/** Canvas 内画文字：中点=x（居中对齐） */
+private fun DrawScope.drawTextCenter(text: String, x: Float, baselineY: Float, color: Color) {
+    val p = android.graphics.Paint().apply {
+        this.color = color.toArgb()
+        textSize = 9.sp.toPx()
+        isAntiAlias = true
+        textAlign = android.graphics.Paint.Align.CENTER
+    }
+    drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
+}
+
+/**
+ * 多股同列卡片里的分时图（同花顺风格）。
+ * 网格：横向 3 条竖线（9:30 / 11:30 / 15:00 位置）+ 纵向 3 条横线（4 等分），浅灰实线。
+ * 四角文字压在网格内：左上=上轨价、右上=+y%、中左=昨收、中右=0.00%、左下=下轨价、右下=-y%。
+ * 曲线：分时线（黑，粗）+ 均价线（橙黄）；持仓股额外画成本线（紫）；昨收零轴（灰色实线）。
+ */
+@Composable
+private fun MultiColMinuteChart(
+    trends: List<DetailTrend>,
+    preClose: Double,
+    cost: Double,
+    reset: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val clean = cleanMinuteTrends(trends)
+    val hasData = clean.isNotEmpty() && preClose > 0
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val padL = 64.dp.toPx()
+        val padR = 64.dp.toPx()
+        val padT = 4.dp.toPx()
+        val padB = 18.dp.toPx()   // 底部留给时间轴
+        val gw = w - padL - padR
+        val gh = h - padT - padB
+
+        val gridColor = Color(0xFFEDEDED)   // 浅灰细线
+        // 4×4 网格（实线）：横竖各 4 格。内线 3 条 + 外框，共 5 条竖线、5 条横线。
+        for (i in 0..4) {
+            val x = padL + gw * i / 4f
+            drawLine(gridColor, Offset(x, padT), Offset(x, padT + gh), strokeWidth = 0.7f)
+        }
+        for (i in 0..4) {
+            val y = padT + gh * i / 4f
+            drawLine(gridColor, Offset(padL, y), Offset(padL + gw, y), strokeWidth = 0.7f)
+        }
+        if (!hasData) {
+            // 时间轴
+            drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+            drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+            drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+            return@Canvas
+        }
+
+        // 区间：昨收居中，上下对称
+        val (hi, lo) = minuteRange(clean, preClose, 0.0, 0.0, symmetric = true)
+        val span = (hi - lo).coerceAtLeast(1e-6)
+        fun yOf(p: Double): Float = padT + gh - (((p - lo) / span) * gh).toFloat()
+
+        val yz = yOf(preClose)  // 昨收零轴
+
+        // 昨收零轴（灰色实线，稍微深一点）
+        drawLine(Color(0xFFBBBBBB), Offset(padL, yz), Offset(padL + gw, yz), strokeWidth = 1.5f)
+
+        // x 映射：按交易分钟 0..240 铺满
+        fun xOf(min: Int): Float {
+            val m = min.coerceIn(0, 240)
+            return padL + gw * m / 240f
+        }
+
+        // ---- 分时走势线（黑，粗） ----
+        val pricePath = Path()
+        val vol = clean
+        var first = true
+        for (t in vol) {
+            val x = xOf(t.min)
+            val y = yOf(t.price)
+            if (first) { pricePath.moveTo(x, y); first = false } else pricePath.lineTo(x, y)
+        }
+        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.2f))
+
+        // ---- 均价线（橙黄） ----
+        val avgPath = Path()
+        first = true
+        for (t in vol) {
+            if (t.avg <= 0) continue
+            val x = xOf(t.min)
+            val y = yOf(t.avg)
+            if (first) { avgPath.moveTo(x, y); first = false } else avgPath.lineTo(x, y)
+        }
+        drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 1.8f))
+
+        // ---- 成本线（持仓股，紫色；非持仓 cost<=0 不画） ----
+        if (cost > 0 && cost in lo..hi) {
+            val yc = yOf(cost)
+            drawLine(Color(0xFF9C27B0), Offset(padL, yc), Offset(padL + gw, yc), strokeWidth = 1.4f)
+        }
+
+        // ---- 四角文字（压在网格内） ----
+        val upColor = RED_UP
+        val dnColor = GREEN_TEXT
+        val hiPct = (hi - preClose) / preClose * 100.0
+        val loPct = (lo - preClose) / preClose * 100.0
+        // 左上：上轨价（红）
+        drawTextLeft(String.format(Locale.CHINA, "%.2f", hi), padL, padT + 14.dp.toPx(), upColor)
+        // 右上：+y%
+        drawTextRight(String.format(Locale.CHINA, "%+.2f%%", hiPct), padL + gw, padT + 14.dp.toPx(), upColor)
+        // 中左：昨收（灰黑）
+        drawTextLeft(String.format(Locale.CHINA, "%.2f", preClose), padL, yz - 4.dp.toPx(), Color(0xFF666666))
+        // 中右：0.00%
+        drawTextRight("0.00%", padL + gw, yz - 4.dp.toPx(), Color(0xFF666666))
+        // 左下：下轨价（绿）
+        drawTextLeft(String.format(Locale.CHINA, "%.2f", lo), padL, padT + gh - 4.dp.toPx(), dnColor)
+        // 右下：-y%
+        drawTextRight(String.format(Locale.CHINA, "%+.2f%%", loPct), padL + gw, padT + gh - 4.dp.toPx(), dnColor)
+
+        // ---- 时间轴 ----
+        drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+        drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+        drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+    }
+}
+
 /** 周期名 → 取数用 k 值 */
 private fun periodToK(period: String): String = when (period) {
     "日K" -> "day"

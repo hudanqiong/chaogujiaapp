@@ -1402,7 +1402,7 @@ private fun minuteToClock(min: Int): String {
  *  - 仅保留 min ∈ [0,240] 的点（A股分时共 241 分钟），按 min 去重升序，
  *    保证 X 轴与 TimeAxis(9:30/10:30/11:30/13:00/14:00/15:00) 刻度严格对齐。
  */
-private fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
+internal fun cleanMinuteTrends(src: List<DetailTrend>): List<DetailTrend> {
     if (src.isEmpty()) return src
     val seen = HashMap<Int, DetailTrend>()
     for (t in src) {
@@ -2908,7 +2908,7 @@ private fun xMinuteAt(min: Float, w: Float, showAuction: Boolean): Float {
  * 避免 trends 里的脏点污染缩放；若 high/low 无效则回退到 trends 极值。
  * 边界必须包含昨收（保证 0% 基准线落在图内），仅留 1% 薄边贴近同花顺观感。
  */
-private fun minuteRange(
+internal fun minuteRange(
     trends: List<DetailTrend>,
     preClose: Double,
     dayHigh: Double = 0.0,
