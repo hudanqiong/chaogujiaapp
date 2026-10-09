@@ -2136,10 +2136,23 @@ private fun MiniMinuteChart(
         }
 
         val path = Path()
+        // 平滑曲线（中点二次贝塞尔）：消除分钟级抖动尖角，观感对标同花顺 mini 图。
+        val xs = FloatArray(trends.size)
+        val ys = FloatArray(trends.size)
         trends.forEachIndexed { i, p ->
-            val x = xOf(i)
-            val y = yOf(p.price)
-            if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            xs[i] = xOf(i)
+            ys[i] = yOf(p.price)
+        }
+        if (trends.size == 1) {
+            path.moveTo(xs[0], ys[0])
+        } else {
+            path.moveTo(xs[0], ys[0])
+            for (i in 1 until trends.size) {
+                val midX = (xs[i - 1] + xs[i]) / 2f
+                val midY = (ys[i - 1] + ys[i]) / 2f
+                path.quadraticBezierTo(xs[i - 1], ys[i - 1], midX, midY)
+            }
+            path.lineTo(xs[trends.size - 1], ys[trends.size - 1])
         }
 
         // 线下方面积：竖向渐变“背景色”，上端浓、往下渐淡

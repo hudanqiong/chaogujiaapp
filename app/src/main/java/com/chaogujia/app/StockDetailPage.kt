@@ -3054,7 +3054,7 @@ private fun MinutePriceCanvas(
             val y = yOf(t.price)
             if (!pathStarted) { path.moveTo(x, y); pathStarted = true } else path.lineTo(x, y)
         }
-        drawPath(path, priceColor, style = Stroke(width = 3.0f))
+        drawPath(path, priceColor, style = Stroke(width = 4.6f))
 
         // ===== 现价水平虚线（本轮需求）=====
         // 取清洗后最后一个有效分时点的价格作为「最新价」，在其高度画一条水平虚线，右端止于走势线末端。
@@ -3064,12 +3064,8 @@ private fun MinutePriceCanvas(
             val lastPrice = lastTrend?.price
             if (lastTrend != null && lastPrice != null && lastPrice > 0.0) {
                 val yNow = yOf(lastPrice)
-                val nowColor = when {
-                    preClose <= 0.0 -> GRAY_FLAT
-                    lastPrice > preClose + 1e-9 -> RED_UP
-                    lastPrice < preClose - 1e-9 -> GREEN_TEXT
-                    else -> GRAY_FLAT
-                }
+                // 现价线固定色 #BCA88F（本轮需求：不再按涨跌上色）
+                val nowColor = Color(0xFFBCA88F)
                 // 右端止于走势线末端（最后一个有效点的 X），不再画满全宽，
                 // 否则盘中未到 15:00 时虚线会超出曲线末端、与走势线脱节。
                 val xEnd = xOf(lastTrend).coerceIn(0f, w)
@@ -3749,7 +3745,7 @@ private fun FiveDayPriceCanvas(days: List<DetailDay>, maxP: Double, minP: Double
                 val y = yOf(t.price)
                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
-            drawPath(path, lineColor, style = Stroke(width = 2.0f))
+            drawPath(path, lineColor, style = Stroke(width = 4.0f))
             // 均价线（黄色）
             val avgPath = Path()
             var started = false
