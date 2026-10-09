@@ -1830,13 +1830,19 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
     var groups by remember { mutableStateOf<List<WatchGroup>>(emptyList()) }
     // 股票列表
     var stocks by remember { mutableStateOf<List<StockItem>>(emptyList()) }
-    // 每行显示几列（1 / 2 / 3 / 4）
+    // 每行显示几列（放大→列数多，缩小→列数少；范围 1 / 2 / 3 / 4）
     var columns by remember { mutableStateOf(2) }
+    // 当前周期：分时 / 日K / 周K / 月K / 60分 / 5分 / 15分 / 30分 / 120分
+    var period by remember { mutableStateOf("分时") }
+    // 「更多」周期弹窗
+    var showMore by remember { mutableStateOf(false) }
     // 刷新
     var loading by remember { mutableStateOf(false) }
     var lastUpdate by remember { mutableStateOf("") }
     // 分时走势缓存： code -> (trends, preClose)
     var trendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
+    // K线缓存： code -> K线点
+    var klineMap by remember { mutableStateOf<Map<String, List<KLinePoint>>>(emptyMap()) }
 
     // 加载分组
     LaunchedEffect(token) {
@@ -1879,7 +1885,28 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             kotlinx.coroutines.delay(3000)
         }
     }
-
+    // K线数据：周期为分时时不拉（用分时走势）；切到 K 周期或股票变化时并发拉取
+    LaunchedEffect(token, gid, period) {
+        if (period == "分时") { klineMap = emptyMap(); return@LaunchedEffect }
+        val k = periodToK(period)
+        val list = stocks
+        if (list.isEmpty()) return@LaunchedEffect
+        try {
+            val results = withContext(Dispatchers.IO) {
+                list.map { s ->
+                    async {
+                        try {
+                            val kl = Api.kline(s.code, k)
+                            if (kl.isNotEmpty()) s.code to kl else null
+                        } catch (e: Exception) { null }
+                    }
+                }.awaitAll()
+            }
+            val m = HashMap<String, List<KLinePoint>>()
+            for (r in results) if (r != null) m[r.first] = r.second
+            if (m.isNotEmpty()) klineMap = m
+        } catch (e: Exception) { }
+    }
     // 全屏铺满
     Box(Modifier.fillMaxSize().background(Color.White)) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
@@ -1906,7 +1933,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 )
             }
 
-            // ---------- 分组标签 + 列数切换 ----------
+            // ---------- 分组标签 + 放大/缩小 ----------
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -1934,28 +1961,72 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.width(6.dp))
-                // 列数切换 1/2/3/4
+                // 放大 / 缩小：缩小=列数少（卡片大），放大=列数多（卡片小）
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    listOf(1, 2, 3, 4).forEach { n ->
-                        val on = n == columns
+                    Text(
+                        text = "−",
+                        color = if (columns > 1) Color(0xFF333333) else Color(0xFFBBBBBB),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(Color(0xFFF2F2F2), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                            .clickable { if (columns > 1) columns -= 1 }
+                            .padding(top = 1.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "＋",
+                        color = if (columns < 4) Color(0xFF333333) else Color(0xFFBBBBBB),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .size(28.dp)
+                            .background(Color(0xFFF2F2F2), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+                            .clickable { if (columns < 4) columns += 1 }
+                            .padding(top = 1.dp)
+                    )
+                }
+            }
+            // ---------- 周期条：分时 | 日K | 周K | 月K | 60分 | 更多 ----------
+            val basePeriods = listOf("分时", "日K", "周K", "月K", "60分")
+            val morePeriods = listOf("5分", "15分", "30分", "120分")
+            Box {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    basePeriods.forEach { p ->
+                        val on = p == period
                         Text(
-                            text = "$n",
-                            color = if (on) Color.White else Color(0xFF666666),
+                            text = p,
+                            color = if (on) RED_UP else Color(0xFF333333),
                             fontSize = 13.sp,
                             fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier
-                                .background(
-                                    if (on) RED_UP else Color(0xFFF2F2F2),
-                                    androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                                )
-                                .clickable { columns = n }
+                                .clickable { period = p }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         )
-                        Spacer(Modifier.width(4.dp))
+                        if (p != basePeriods.last()) {
+                            Text("|", color = Color(0xFFDDDDDD), fontSize = 12.sp)
+                        }
                     }
+                    Text("|", color = Color(0xFFDDDDDD), fontSize = 12.sp)
+                    // 更多：若当前周期属于更多档，则高亮「更多▾」
+                    val moreOn = period in morePeriods
+                    Text(
+                        text = if (moreOn) period + " ▾" else "更多 ▾",
+                        color = if (moreOn) RED_UP else Color(0xFF333333),
+                        fontSize = 13.sp,
+                        fontWeight = if (moreOn) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .clickable { showMore = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             }
-
             HorizontalDivider(color = Color(0xFFEEEEEE))
 
             // ---------- 网格 ----------
@@ -1985,18 +2056,28 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             Spacer(Modifier.height(2.dp))
                             Text(s.code, color = Color(0xFF888888), fontSize = 11.sp)
                             Spacer(Modifier.height(6.dp))
-                            // 分时走势：从左向右逐点延伸的折线（涨红跌绿 + 昨收基准线）
+                            // 走势区：分时用分时折线；K 周期用迷你蜡烛图
                             val resetCard = isPreOpenReset()
-                            val tr = trendMap[s.code]
-                            android.util.Log.i("CGJ_DIAG", "card code=" + s.code + " hit=" + (tr != null) + " trendSize=" + (tr?.first?.size ?: -1))
-                            MiniMinuteChart(
-                                trends = tr?.first ?: emptyList(),
-                                preClose = tr?.second ?: 0.0,
-                                reset = resetCard,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp)
-                            )
+                            if (period == "分时") {
+                                val tr = trendMap[s.code]
+                                android.util.Log.i("CGJ_DIAG", "card code=" + s.code + " hit=" + (tr != null) + " trendSize=" + (tr?.first?.size ?: -1))
+                                MiniMinuteChart(
+                                    trends = tr?.first ?: emptyList(),
+                                    preClose = tr?.second ?: 0.0,
+                                    reset = resetCard,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                )
+                            } else {
+                                val kl = klineMap[s.code] ?: emptyList()
+                                MiniKLineChart(
+                                    points = kl,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(46.dp)
+                                )
+                            }
                             Spacer(Modifier.height(6.dp))
                             Text(
                                 text = if (resetCard) "--" else String.format(java.util.Locale.CHINA, "%.2f", s.price),
@@ -2015,9 +2096,123 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 }
             }
         }
+        // ---------- 「更多」周期弹窗：5分/15分/30分/120分 ----------
+        if (showMore) {
+            Box(
+                Modifier.fillMaxSize()
+                    .background(Color(0x66000000))
+                    .clickable { showMore = false },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    Modifier
+                        .background(Color.White, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("选择周期", color = Color(0xFF333333), fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf("5分", "15分", "30分", "120分").forEach { p ->
+                            val on = p == period
+                            Text(
+                                text = p,
+                                color = if (on) Color.White else Color(0xFF333333),
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .background(
+                                        if (on) RED_UP else Color(0xFFF2F2F2),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .clickable { period = p; showMore = false }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
-
+/** 周期名 → 取数用 k 值 */
+private fun periodToK(period: String): String = when (period) {
+    "日K" -> "day"
+    "周K" -> "week"
+    "月K" -> "month"
+    "60分" -> "m60"
+    "5分" -> "m5"
+    "15分" -> "m15"
+    "30分" -> "m30"
+    "120分" -> "m120"
+    else -> "day"
+}
+/**
+ * 多股同列卡片里的迷你 K 线（蜡烛图）。
+ * 涨红跌绿、无均线/十字光标；取最近 N 根，自适应高低点。
+ */
+@Composable
+private fun MiniKLineChart(
+    points: List<KLinePoint>,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        if (w <= 0f || h <= 0f) return@Canvas
+        if (points.isEmpty()) {
+            drawLine(
+                color = Color(0xFFEEEEEE),
+                start = Offset(0f, h / 2f),
+                end = Offset(w, h / 2f),
+                strokeWidth = 1.6f
+            )
+            return@Canvas
+        }
+        // 取最近 60 根，太多在小卡片里看不清
+        val data = if (points.size > 60) points.subList(points.size - 60, points.size) else points
+        var maxP = Double.MIN_VALUE
+        var minP = Double.MAX_VALUE
+        data.forEach { p ->
+            if (p.high > maxP) maxP = p.high
+            if (p.low < minP) minP = p.low
+        }
+        if (maxP <= 0.0 || minP <= 0.0) { maxP = 1.0; minP = 0.0 }
+        var range = maxP - minP
+        if (range <= 0.0) range = maxP * 0.01
+        val pad = range * 0.06
+        val top = maxP + pad
+        val bot = minP - pad
+        val span = (top - bot).let { if (it <= 0.0) 1.0 else it }
+        fun yOf(p: Double): Float = (h * (1.0 - (p - bot) / span)).toFloat()
+        val n = data.size
+        val slot = w / n.toFloat()
+        val bodyW = (slot * 0.62f).coerceAtLeast(1f)
+        for (i in 0 until n) {
+            val p = data[i]
+            val cx = slot * i + slot / 2f
+            val up = p.close >= p.open
+            val c = if (up) RED_UP else GREEN_DOWN
+            // 影线
+            drawLine(
+                color = c,
+                start = Offset(cx, yOf(p.high)),
+                end = Offset(cx, yOf(p.low)),
+                strokeWidth = 1f
+            )
+            // 实体
+            val yOpen = yOf(p.open)
+            val yClose = yOf(p.close)
+            val yTop = minOf(yOpen, yClose)
+            val bh = kotlin.math.max(kotlin.math.abs(yOpen - yClose), 1f)
+            drawRect(
+                color = c,
+                topLeft = Offset(cx - bodyW / 2f, yTop),
+                size = Size(bodyW, bh)
+            )
+        }
+    }
+}
 /**
  * 多股同列卡片里的迷你分时走势图。
  * 一条从左向右逐点延伸的折线：开盘时点少、靠左；随交易推进逐步铺满整栏。

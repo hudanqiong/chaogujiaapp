@@ -1956,22 +1956,26 @@ suspend fun placeOrder(
             val market = o.optString("market", "")
             run {
                 val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
-                val thsCode = when (k) { "week" -> "11"; "month" -> "21"; else -> "01" }
-                // 优先取全历史（all.js 的 sortYear 逐年 {year}.js 拼接），失败回退 last.js 最近一段
-                val ths = if (k == "day" || k == "week" || k == "month") {
-                    parseThsKlineFull(pure, thsCode)
-                } else ArrayList<KLinePoint>()
-                if (ths.isNotEmpty()) {
-                    line = ths
-                } else {
-                    val thsUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/last.js"
-                    val rawThs = Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/")
-                    val thsLast = parseThsKline(rawThs)
-                    if (thsLast.isNotEmpty()) line = thsLast
-                }
-                // ===== 多源 fallback：同花顺拿不到数据时切东财 / 腾讯 / 新浪，保证 K 线稳定出数据 =====
-                if (line.isEmpty()) {
+                // 分钟档（m5/m15/m30/m60/m120）：同花顺主链路不支持，直接走 fallback（腾讯 mkline），
+                // 否则 thsCode 默认落到 "01"（日K）会误取日K数据。
+                if (k == "m5" || k == "m15" || k == "m30" || k == "m60" || k == "m120") {
                     line = fetchKlineFallback(market, pure, k)
+                } else {
+                    val thsCode = when (k) { "week" -> "11"; "month" -> "21"; else -> "01" }
+                    // 优先取全历史（all.js 的 sortYear 逐年 {year}.js 拼接），失败回退 last.js 最近一段
+                    val ths = parseThsKlineFull(pure, thsCode)
+                    if (ths.isNotEmpty()) {
+                        line = ths
+                    } else {
+                        val thsUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/last.js"
+                        val rawThs = Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/")
+                        val thsLast = parseThsKline(rawThs)
+                        if (thsLast.isNotEmpty()) line = thsLast
+                    }
+                    // ===== 多源 fallback：同花顺拿不到数据时切东财 / 腾讯 / 新浪，保证 K 线稳定出数据 =====
+                    if (line.isEmpty()) {
+                        line = fetchKlineFallback(market, pure, k)
+                    }
                 }
             }
             // ===== BST 买卖标记（marks）：每交易日至多一条，共用一个聚合函数 =====
@@ -2135,6 +2139,32 @@ suspend fun placeOrder(
         }
     }
 
+    /**
+     * 独立取 K 线（供「多股同列」等小尺寸场景使用，不经过 detail.php）。
+     * 日/周/月走同花顺（全历史）→腾讯→新浪；分钟档 m5/m15/m30/m60/m120 走腾讯 mkline。
+     * @param code 6 位股票代码
+     * @param k 周期：day/week/month/m5/m15/m30/m60/m120
+     */
+    fun kline(code: String, k: String = "day"): List<KLinePoint> {
+        return try {
+            val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
+            if (k == "m5" || k == "m15" || k == "m30" || k == "m60" || k == "m120") {
+                fetchKlineFallback("", pure, k)
+            } else {
+                val thsCode = when (k) { "week" -> "11"; "month" -> "21"; else -> "01" }
+                var line = parseThsKlineFull(pure, thsCode)
+                if (line.isEmpty()) {
+                    val thsUrl = "https://d.10jqka.com.cn/v6/line/hs_" + pure + "/" + thsCode + "/last.js"
+                    line = parseThsKline(Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/"))
+                }
+                if (line.isEmpty()) line = fetchKlineFallback("", pure, k)
+                line
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("Api", "kline($code,$k) 失败: ${e.message}")
+            ArrayList()
+        }
+    }
     private fun fetchKlineFallback(market: String, pure: String, k: String): ArrayList<KLinePoint> {
         val prefix = when (market) {
             "sh" -> "sh"
@@ -2143,6 +2173,51 @@ suspend fun placeOrder(
             else -> if (pure.startsWith("6") || pure.startsWith("5") || pure.startsWith("9")) "sh" else "sz"
         }
         val sym = prefix + pure
+        // ---- 源 0：腾讯分钟 K（m5/m15/m30/m60/m120）----
+        //   走 ifzq.gtimg.cn（注意：不能带 web. 会被 301），字段顺序 [时间戳,开,收,高,低,量]，
+        //   与下面日K的腾讯解析顺序一致（open/close/high/low）。
+        if (k == "m5" || k == "m15" || k == "m30" || k == "m60" || k == "m120") {
+            try {
+                val url = "https://ifzq.gtimg.cn/appstock/app/kline/mkline?param=" +
+                    sym + "," + k + ",,320"
+                val raw = Net.getRaw(url, referer = "https://gu.qq.com/")
+                if (!raw.isNullOrEmpty()) {
+                    val data = JSONObject(raw).optJSONObject("data")?.optJSONObject(sym)
+                    val arr = data?.optJSONArray(k)
+                    if (arr != null && arr.length() > 0) {
+                        val out = ArrayList<KLinePoint>(arr.length())
+                        for (i in 0 until arr.length()) {
+                            val row = arr.optJSONArray(i) ?: continue
+                            if (row.length() < 6) continue
+                            val ts = row.optString(0, "")
+                            // 12 位时间戳 202610091500 → 2026-10-09 15:00
+                            val date = if (ts.length >= 12)
+                                ts.substring(0, 4) + "-" + ts.substring(4, 6) + "-" + ts.substring(6, 8) +
+                                    " " + ts.substring(8, 10) + ":" + ts.substring(10, 12)
+                            else ts
+                            out.add(
+                                KLinePoint(
+                                    date = date,
+                                    open = row.optString(1, "0").toDoubleOrNull() ?: 0.0,
+                                    close = row.optString(2, "0").toDoubleOrNull() ?: 0.0,
+                                    high = row.optString(3, "0").toDoubleOrNull() ?: 0.0,
+                                    low = row.optString(4, "0").toDoubleOrNull() ?: 0.0,
+                                    vol = row.optString(5, "0").toDoubleOrNull() ?: 0.0,
+                                    amount = 0.0
+                                )
+                            )
+                        }
+                        if (out.isNotEmpty()) {
+                            android.util.Log.i("Api", "分钟K(腾讯 mkline) 成功: $sym $k ${out.size} 根")
+                            return out
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("Api", "分钟K(腾讯 mkline) 失败: ${e.message}")
+            }
+            return ArrayList()
+        }
         // ---- 源 1：腾讯（字段顺序与东财一致，成交量为「手」）----
         try {
             val tK = when (k) { "week" -> "week"; "month" -> "month"; else -> "day" }
