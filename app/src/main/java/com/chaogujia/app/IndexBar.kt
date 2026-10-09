@@ -71,6 +71,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -293,8 +295,17 @@ fun IndexBar(
     }
     // 切换分组/切换账户时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 用选中账户的持仓）
     LaunchedEffect(selectedGroup, selectedBrokerId, token) {
-        loadingStocks = true
-        stocks = emptyList()
+        val gid0 = if (selectedGroup >= 0) selectedGroup else -1
+        // ★ A1 性能优化：非持仓组时，若该组已有内存缓存，先立即渲染（秒出），再后台静默刷新。
+        //   消除「每次点开分组都空白重新加载」的体感。
+        val cached = if (selectedGroup != -2) Api.stockListCached(gid0) else null
+        if (cached != null && cached.isNotEmpty()) {
+            stocks = cached
+            loadingStocks = false
+        } else {
+            loadingStocks = true
+            stocks = emptyList()
+        }
         try {
             val gid = if (selectedGroup >= 0) selectedGroup else -1
             if (selectedGroup == -2) {
@@ -426,27 +437,36 @@ fun IndexBar(
     //   会绕过本地缓存把后端 detail.php（冷请求 ~5s）打饱和，导致详情页请求排队、体感卡顿。
     //   现改为：走本地磁盘缓存（forceRefresh=false，5 分钟 TTL），刷新间隔放宽到 15 秒。
     //   分时走势由详情页/预热负责更新缓存，此处只消费缓存，秒级延迟可接受。
+    // ★ A1 性能优化（本段）：①已画过的分时跨分组保留（merge，不清空）；②限并发 6，
+    //   避免换组后一次性对 N 只股票打冷请求把后端打爆；③只对「本地尚未有分时」的补拉。
     LaunchedEffect(stocks) {
         while (true) {
             try {
                 val codes = stocks.map { it.code }.filter { it.isNotBlank() }
                 if (codes.isNotEmpty()) {
-                    val m = HashMap<String, Pair<List<DetailTrend>, Double>>()
-                    val results = withContext(Dispatchers.IO) {
-                        codes.map { code ->
-                            async {
-                                try {
-                                    // ★ 走缓存：命中即秒回，不绕过缓存，避免打爆后端
-                                    val d = Api.detail(code, forceRefresh = false)
-                                    if (d != null && d.trends.isNotEmpty())
-                                        code to (d.trends to d.base.preClose)
-                                    else null
-                                } catch (e: Exception) { null }
-                            }
-                        }.awaitAll()
+                    // 已有分时的直接复用（跨分组保留），仅补拉缺失的
+                    val merged = HashMap<String, Pair<List<DetailTrend>, Double>>(watchTrendMap)
+                    val need = codes.filter { merged[it] == null }
+                    if (need.isNotEmpty()) {
+                        val sem = Semaphore(6)
+                        val results = withContext(Dispatchers.IO) {
+                            need.map { code ->
+                                async {
+                                    sem.withPermit {
+                                        try {
+                                            // ★ 走缓存：命中即秒回，不绕过缓存，避免打爆后端
+                                            val d = Api.detail(code, forceRefresh = false)
+                                            if (d != null && d.trends.isNotEmpty())
+                                                code to (d.trends to d.base.preClose)
+                                            else null
+                                        } catch (e: Exception) { null }
+                                    }
+                                }
+                            }.awaitAll()
+                        }
+                        for (r in results) if (r != null) merged[r.first] = r.second
                     }
-                    for (r in results) if (r != null) m[r.first] = r.second
-                    if (m.isNotEmpty()) watchTrendMap = m
+                    if (merged.isNotEmpty()) watchTrendMap = merged
                 }
             } catch (e: Exception) { /* 忽略 */ }
             android.util.Log.d("CGJ_DIAG", "watch stocks.size=" + stocks.size + " codes=" + stocks.map { it.code }.take(5) + " trendMap.size=" + watchTrendMap.size)

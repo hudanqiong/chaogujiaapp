@@ -1570,12 +1570,34 @@ suspend fun placeOrder(
             list
         }
     }
+    // ★ A1 性能优化：自选列表（watchlist.php?action=list）内存缓存。
+    //   背景：每次切换自选分组都会重新请求 watchlist.php，网络往返期间列表空白 → 体感「重复加载慢」。
+    //   现加一层内存缓存：切组时先秒出缓存，再后台静默刷新，消除切组空白。
+    private val stockListCache = HashMap<Int, Pair<Long, List<StockItem>>>()
+    private const val STOCKLIST_TTL_MS = 5 * 60 * 1000L
+    private val stockListLock = Any()
+
+    /** 读取自选列表内存缓存；未命中或过期返回 null。 */
+    fun stockListCached(gid: Int): List<StockItem>? {
+        synchronized(stockListLock) {
+            val e = stockListCache[gid] ?: return null
+            if (System.currentTimeMillis() - e.first > STOCKLIST_TTL_MS) return null
+            return e.second
+        }
+    }
+
     /** 某分组下的自选股列表（watchlist.php?action=list&gid=X）。gid<=0 取默认分组。 */
     fun stockList(token: String?, gid: Int): List<StockItem> {
         return try {
             val url = base("watchlist.php?action=list&gid=" + gid)
             val raw = Net.get(url, token)
-            attachTags(dataArrayOf(raw))
+            val list = attachTags(dataArrayOf(raw))
+            if (list.isNotEmpty()) {
+                synchronized(stockListLock) {
+                    stockListCache[gid] = System.currentTimeMillis() to list
+                }
+            }
+            list
         } catch (e: Exception) {
             emptyList()
         }

@@ -385,6 +385,26 @@ fun StockDetailPage(
     LaunchedEffect(current?.code, period, tradeVer) {
         val code = current?.code ?: return@LaunchedEffect
         loading = true
+        // ★ A1 首帧秒出：进入详情页时，列表里已带该股实时行情（StockItem 有 price/change/changePct/amount）。
+        //   先用它造一个「壳 detail」立即渲染顶部基础信息，避免冷缓存时白屏等 ~4s。
+        //   仅当当前无 detail（首次进入/换股）或 detail 不是同一只时才造壳，防止闪烁回退。
+        val c0 = current
+        if (c0 != null && c0.price > 0 && detail?.code != code) {
+            detail = StockDetail(
+                code = code,
+                name = c0.name,
+                k = if (period == "minute") "day" else period,
+                base = StockBase(
+                    code = code,
+                    name = c0.name,
+                    price = c0.price,
+                    change = c0.change,
+                    changePct = c0.changePct,
+                    amount = c0.amount
+                )
+            )
+            loading = false   // 已有基础行情可显示 → 立即撤掉 loading 骨架
+        }
         // 分时用 day 数据（同一份 trends）；五日分时 → k=fiveday；其余照原周期
         val k = if (period == "minute") "day" else period
         // ★ 带上 token：detail.php 的 marks（BST 买卖标记）依赖 current_user()，
