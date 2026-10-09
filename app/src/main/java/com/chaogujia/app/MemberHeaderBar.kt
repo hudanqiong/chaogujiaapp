@@ -182,7 +182,9 @@ private fun DetailHeaderRow(
 
         // 中间：◀ 名称/代码 ▶
         Row(
-            modifier = Modifier.align(Alignment.Center),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .widthIn(max = 200.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -193,26 +195,44 @@ private fun DetailHeaderRow(
                     .clickable(enabled = canPrev) { onPrev() }
                     .padding(horizontal = 6.dp)
             )
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.widthIn(max = 170.dp)
+            ) {
+                // 名称：长名按字符数动态缩小（超长 ETF 名不撑开 ◀▶）
+                val nameFont = when {
+                    name.length <= 6 -> 17.sp
+                    name.length <= 8 -> 15.sp
+                    name.length <= 10 -> 13.sp
+                    name.length <= 12 -> 12.sp
+                    name.length <= 14 -> 11.sp
+                    else -> 10.sp
+                }
                 Text(
                     text = name,
                     color = Color.White,
-                    fontSize = 17.sp,
+                    fontSize = nameFont,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.widthIn(max = 170.dp)
+                ) {
                     Text(
                         text = code,
                         color = Color.White.copy(alpha = 0.85f),
                         fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
                         fontFamily = HSpNumFont,
                         maxLines = 1
                     )
                     if (tags.isNotEmpty()) {
-                        Spacer(Modifier.width(4.dp))
-                        DetailHeaderTagRow(tags = tags, maxShow = 2, fontSize = 9f)
+                        Spacer(Modifier.width(3.dp))
+                        // 标签字号：名称越长标签同步缩小，避免整行撑宽
+                        val tagFont = if (name.length <= 8) 9f else if (name.length <= 12) 8f else 7.5f
+                        DetailHeaderTagRow(tags = tags, maxShow = 2, fontSize = tagFont)
                     }
                 }
             }

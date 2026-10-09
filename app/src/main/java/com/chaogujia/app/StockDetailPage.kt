@@ -1,5 +1,6 @@
 package com.chaogujia.app
 
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -2228,8 +2229,8 @@ private val PRICE_CANVAS_HEIGHT = 259.dp       // 259dp
 private val VOLUME_CANVAS_HEIGHT = 101.dp      // 101dp
 // ===== 盘口栏（右侧）实测尺寸复刻 =====
 private val ORDERBOOK_TOP_HEIGHT = 294.dp      // 294dp
-private val ORDERBOOK_FONT = 14.sp             // 五档标签字号（保持）
-private val ORDERBOOK_FONT_VAL = 11.sp
+private val ORDERBOOK_FONT = 13.sp             // 五档标签字号（缩小，防大价格挤压）
+private val ORDERBOOK_FONT_VAL = 10.sp          // 五档价格字号（缩小，保证 1263.00 完整显示）
 private val LIMIT_FONT_SMALL = 10.sp        // 五档价格/手数 & 涨跌停面板专用字号（缩小，保证标签完整显示）
 private val ORDERBOOK_FONT_DEAL = 11.sp        // 明细数字字号（缩小加粗）
 private val OB_TEXT_GRAY = Color(0xFF555555)   // 五档字体黑灰色
@@ -2614,14 +2615,14 @@ private fun OrderLevelRow(label: String, lv: OrderLevel?, preClose: Double, isAs
             label, color = labelColor, fontSize = ORDERBOOK_FONT,
             fontFamily = DSpNumFont, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false,
-            modifier = Modifier.width(26.dp), textAlign = TextAlign.Start
+            modifier = Modifier.width(22.dp), textAlign = TextAlign.Start
         )
         Text(
             if (price > 0) fmtNum2(price) else "--",
             color = priceColor, fontSize = ORDERBOOK_FONT_VAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
-            maxLines = 1, softWrap = false,
-            modifier = Modifier.weight(1f).padding(start = 6.dp), textAlign = TextAlign.Start
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
+            modifier = Modifier.weight(1.15f).padding(start = 3.dp), textAlign = TextAlign.Start
         )
         Text(
             if (vol > 0) { if (showAmount) fmtOrderAmount(price * vol * 100.0) else fmtVol(vol) } else "--",
@@ -2822,16 +2823,19 @@ private fun DealRow(d: DealItem, pc: Double, rowHeight: Dp = 15.dp) {
             d.time.substringBeforeLast(':'),
             color = TEXT_SUB, fontSize = ORDERBOOK_FONT_DEAL, fontWeight = FontWeight.SemiBold,
             fontFamily = DSpNumFont,
-            modifier = Modifier.weight(0.9f), textAlign = TextAlign.Start
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
+            modifier = Modifier.weight(0.85f), textAlign = TextAlign.Start
         )
         Text(
             fmtNum2(d.price), color = color, fontSize = ORDERBOOK_FONT_DEAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.weight(1f), textAlign = TextAlign.End
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
+            modifier = Modifier.weight(1.15f), textAlign = TextAlign.End
         )
         Text(
             fmtVol(d.vol), color = dirColor, fontSize = ORDERBOOK_FONT_DEAL,
             fontFamily = DSpNumFont, fontWeight = FontWeight.SemiBold,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Visible,
             modifier = Modifier.weight(1f), textAlign = TextAlign.End
         )
     }

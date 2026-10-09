@@ -1420,8 +1420,8 @@ private fun StockRow(
                     // 代码前：融/创/新/次新（橙底白字）
                     val preTags = s.tags.filter { it == "融" || it == "创" || it == "新" || it == "次新" }
                     if (preTags.isNotEmpty()) {
-                        StockTagRow(tags = preTags, maxShow = 0, fontSize = 9f, leftScroll = false)
-                        Spacer(Modifier.width(3.dp))
+                        StockTagRow(tags = preTags, maxShow = 0, fontSize = 7.5f, leftScroll = false)
+                        Spacer(Modifier.width(2.dp))
                     }
                     Text(
                         text = s.code,
@@ -1433,8 +1433,8 @@ private fun StockRow(
                     val postTags = s.tags.filter { it == "T+0" }.take(1)
                         .ifEmpty { s.tags.filter { it == "场内" }.take(1) }
                     if (postTags.isNotEmpty()) {
-                        Spacer(Modifier.width(3.dp))
-                        StockTagRow(tags = postTags, maxShow = 0, fontSize = 9f, leftScroll = false)
+                        Spacer(Modifier.width(2.dp))
+                        StockTagRow(tags = postTags, maxShow = 0, fontSize = 7.5f, leftScroll = false)
                     }
                 }
             }
@@ -2205,7 +2205,7 @@ private fun StockTagChip(tag: String, fontSize: Float = 9f) {
                 if (main) Modifier
                 else Modifier.border(0.8.dp, Color(Config.COLOR_TAG_GRAY_BORDER))
             )
-            .padding(horizontal = 3.dp, vertical = 1.dp),
+            .padding(horizontal = 2.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -2213,7 +2213,9 @@ private fun StockTagChip(tag: String, fontSize: Float = 9f) {
             color = fg,
             fontSize = fontSize.sp,
             fontWeight = FontWeight.Medium,
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Visible
         )
     }
 }
