@@ -288,6 +288,7 @@ fun ChaoGuJiaApp() {
                     onOpenSearch = { showSearch = true },
                     detailName = detailName,
                     detailCode = if (detailIdx in d.list.indices) d.list[detailIdx].code else "",
+                    detailTags = if (detailIdx in d.list.indices) d.list[detailIdx].tags else emptyList(),
                     detailCanPrev = detailIdx > 0,
                     detailCanNext = detailIdx < d.list.size - 1,
                     onDetailBack = { closeDetail() },

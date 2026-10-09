@@ -52,6 +52,7 @@ fun MemberHeaderBar(
     // ===== 详情页模式（current == "detail"）专用参数 =====
     detailName: String = "",
     detailCode: String = "",
+    detailTags: List<String> = emptyList(),
     detailCanPrev: Boolean = false,
     detailCanNext: Boolean = false,
     onDetailBack: () -> Unit = {},
@@ -119,6 +120,7 @@ fun MemberHeaderBar(
             current == "detail" -> DetailHeaderRow(
                 name = detailName,
                 code = detailCode,
+                tags = detailTags,
                 canPrev = detailCanPrev,
                 canNext = detailCanNext,
                 onBack = onDetailBack,
@@ -151,6 +153,7 @@ private val D_ICON_SMALL = 24.dp
 private fun DetailHeaderRow(
     name: String,
     code: String,
+    tags: List<String> = emptyList(),
     canPrev: Boolean,
     canNext: Boolean,
     onBack: () -> Unit,
@@ -197,13 +200,19 @@ private fun DetailHeaderRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = code,
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 11.sp,
-                    fontFamily = HSpNumFont,
-                    maxLines = 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = code,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontSize = 11.sp,
+                        fontFamily = HSpNumFont,
+                        maxLines = 1
+                    )
+                    if (tags.isNotEmpty()) {
+                        Spacer(Modifier.width(4.dp))
+                        DetailHeaderTagRow(tags = tags, maxShow = 2, fontSize = 9f)
+                    }
+                }
             }
             Text(
                 text = "▶",
@@ -568,6 +577,36 @@ private fun TradeHeaderRow(cur: String, onSelect: (String) -> Unit) {
                     ) { onSelect(t) }
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             )
+        }
+    }
+}
+/**
+ * 详情页顶栏标签行（唯一红条上的标签）。
+ * 视觉与详情页内部标签一致：白半透明圆角小块；主色标签（融/创/新/次新/T+0/场内）底色更亮。
+ * 红条上不滚动，最多显示 maxShow 个。
+ */
+@Composable
+private fun DetailHeaderTagRow(tags: List<String>, maxShow: Int = 2, fontSize: Float = 9f) {
+    if (tags.isEmpty()) return
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        tags.take(if (maxShow <= 0) tags.size else maxShow).forEach { t ->
+            val main = (t == "融" || t == "创" || t == "新" || t == "次新" || t == "T+0" || t == "场内")
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(if (main) Color.White.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.10f))
+                    .padding(horizontal = 3.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = t,
+                    color = if (main) Color.White else Color.White.copy(alpha = 0.8f),
+                    fontSize = fontSize.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
+            Spacer(Modifier.width(3.dp))
         }
     }
 }
