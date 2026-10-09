@@ -58,7 +58,7 @@ import androidx.compose.material3.OutlinedTextField
  *
  * 本轮只实现 A股 子页；基金/期货/黄金/模拟 先占位。
  */
-private val TP_RED = Color(0xFFE23B3B)     // 涨/盈利（红）
+private val TP_RED = Color(0xFFE83030)     // 涨/盈利（红）#E83030
 private val TP_BLUE = Color(0xFF2A7BFF)    // 跌/亏损（蓝）
 private val TP_GRAY = Color(0xFF888888)
 private val TP_BLACK = Color(0xFF222222)   // 总资产/总市值 数值色

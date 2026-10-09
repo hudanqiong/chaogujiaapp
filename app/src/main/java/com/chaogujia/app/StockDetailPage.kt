@@ -88,9 +88,9 @@ private val DSpNumFont = FontFamily(Font(R.font.ths_regular))
 
 // ===== 颜色 =====
 // 全站涨跌配色单一源头：改这两处，全软件（K线/分时/盘口/涨跌幅/列表）同步生效
-internal val RED_UP = Color(0xFFE64A3B)       // 涨：红
+internal val RED_UP = Color(0xFFE83030)       // 涨：红 #E83030（全局统一）
 internal val GREEN_DOWN = Color(0xFF009900)   // 跌：绿 #009900（图表柱体/影线/量柱/迷你图/顶部配色统一）
-internal val GREEN_TEXT = Color(0xFF00B42A)   // 跌：绿（涨跌文字，亮绿）
+internal val GREEN_TEXT = Color(0xFF009900)   // 跌：绿 #009900（涨跌文字，与 GREEN_DOWN 统一）
 private val GRAY_FLAT = Color(0xFF888888)    // 平：灰
 private val K_NARROW_COLOR = Color(0xFF111111)  // 缩放最小时柱子统一黑色（全历史黑波浪）
 // 缩放到最小（一屏约1400+根）时：蜡烛/量柱/均线全部转黑，整体成一条黑波浪线
@@ -1043,6 +1043,7 @@ private fun DetailCol(modifier: Modifier, rows: List<Pair<String, String>>, valu
                     modifier = Modifier.weight(1f),
                     color = valueColor,
                     fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = DSpNumFont,
                     maxLines = 1,
                     textAlign = TextAlign.End
@@ -1071,6 +1072,7 @@ private fun DetailColC(modifier: Modifier, rows: List<Triple<String, String, Col
                     modifier = Modifier.weight(1f),
                     color = vc,
                     fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = DSpNumFont,
                     maxLines = 1,
                     softWrap = false,
@@ -5905,8 +5907,8 @@ private fun DetailBottomBar(
         val pct = concept?.pct
         val pctColor = when {
             pct == null -> Color(0xFFBBBBBB)
-            pct > 0 -> Color(0xFFFF6B5B)
-            pct < 0 -> Color(0xFF3DDC60)
+            pct > 0 -> Color(0xFFE83030)
+            pct < 0 -> Color(0xFF009900)
             else -> Color(0xFFBBBBBB)
         }
         val pctTxt = when {
@@ -7100,7 +7102,7 @@ private fun OrderFormBlock(
     val grayBorder = Color(0xFFDDDDDD)
     // H7：标签外框细线（涨跌停 / 全仓等）——更细、更灰
     val thinBorder = Color(0xFFC8C8C8)
-    val greenText = Color(0xFF1AAE5A)
+    val greenText = Color(0xFF009900)
     // 数字黄偏橙
     val amberText = Color(0xFFE8A33D)
     var qtyText by remember { mutableStateOf("") }

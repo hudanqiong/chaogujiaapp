@@ -987,7 +987,7 @@ private fun PageTradeEdit(token: String?, brokerAccountId: Int, onBack: () -> Un
                         ) {
                             Text(
                                 if (t.direction == 1) "买入" else "卖出",
-                                color = if (t.direction == 1) Color(0xFFE53935) else Color(0xFF43A047),
+                                color = if (t.direction == 1) Color(0xFFE83030) else Color(0xFF009900),
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold
                             )
                             Spacer(Modifier.width(8.dp))

@@ -1123,7 +1123,7 @@ private fun BuySellPanel(
     var subTab by remember { mutableStateOf("持仓") } // 下半部分4标签
     val scope = rememberCoroutineScope()
     val red = PP_RED
-    val green = Color(0xFF00B800)
+    val green = Color(0xFF009900)
     val gray = PP_GRAY
     val labelGray = PP_LABEL
     val bgFill = PP_BG
@@ -1691,7 +1691,7 @@ private fun BSLevelRow(
     onPriceClick: (String) -> Unit = {}
 ) {
     val red = PP_RED
-    val green = Color(0xFF00B800)
+    val green = Color(0xFF009900)
     // 需求⑪：价格 涨红/跌绿/平黑（与前收比）
     val priceColor = when {
         price <= 0.0 -> PP_BLACK
@@ -1826,7 +1826,7 @@ private fun OrderListPanel(
                         Text(oName, color = black, fontSize = 12.sp)
                         Text(oCode, color = labelGray, fontSize = 10.sp)
                     }
-                    Text(oSide, color = if (oSide == "买") red else Color(0xFF00B800), fontSize = 12.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
+                    Text(oSide, color = if (oSide == "买") red else Color(0xFF009900), fontSize = 12.sp, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
                     Text(oPrice, color = black, fontSize = 12.sp, fontFamily = PPNumFont, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center)
                     Text(oQty, color = black, fontSize = 12.sp, fontFamily = PPNumFont, modifier = Modifier.weight(0.4f), textAlign = TextAlign.Center)
                     Text("撤单", color = red, fontSize = 12.sp,
