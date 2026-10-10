@@ -2299,7 +2299,7 @@ private fun MultiColMinuteChart(
             val y = yOf(t.price)
             if (first) { pricePath.moveTo(x, y); first = false } else pricePath.lineTo(x, y)
         }
-        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.8f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)))
+        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.8f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)))
 
         // ---- 均价线（橙黄） ----
         val avgPath = Path()
