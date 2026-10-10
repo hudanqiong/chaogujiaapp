@@ -2056,8 +2056,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 }
                 // ★ 持仓股分组：右侧账户切换入口（与自选页同源，可切换“加在哪个账户”）
                 if (gid == -2) {
-                    val curName = brokerAccounts.firstOrNull { it.id == selectedBid }?.name
-                        ?: brokerAccounts.firstOrNull()?.name ?: "账户"
+                    val curName = brokerAccounts.firstOrNull { it.id == selectedBid }?.broker
+                        ?: brokerAccounts.firstOrNull()?.broker ?: "账户"
                     Spacer(Modifier.width(6.dp))
                     Row(
                         Modifier.clickable { showBrokerMenu = true },
