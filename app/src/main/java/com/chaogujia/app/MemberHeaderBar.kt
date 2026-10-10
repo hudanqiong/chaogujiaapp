@@ -530,51 +530,75 @@ private val ICON_SMALL = 24.dp    // 图2
 
 @Composable
 private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "", onBack: () -> Unit = {}) {
+    val isColumns = overlayTitle.isNotBlank()   // ★ 多股同列页=true；普通自选页=false
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 12.dp, end = 12.dp, top = 13.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 图标1：靠最左侧 —— 返回箭头（矢量，白色，比标题稍大，与标题垂直居中）
-        Image(
-            painter = painterResource(R.drawable.ic_watch_back_v),
-            contentDescription = "返回",
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .size(22.dp)
-                .clickable { onBack() },   // ★ 点左箭头 → 返回上一页（关闭多股同列）
-            contentScale = ContentScale.Fit
-        )
+        // ===== 左侧图标 =====
+        if (isColumns) {
+            // 多股同列页：白色、尖头朝左的返回箭头（由交易页 ic_pnl_arrow 镜像染白而来）
+            Image(
+                painter = painterResource(R.drawable.ic_back_white),
+                contentDescription = "返回",
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(11.dp).height(17.dp)
+                    .clickable { onBack() },   // ★ 点左箭头 → 返回上一页（关闭多股同列）
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            // 自选页：左上角三横图标（还原原版）
+            Image(
+                painter = painterResource(R.drawable.ic_watch_left),
+                contentDescription = "菜单",
+                modifier = Modifier.align(Alignment.CenterStart).size(ICON_BIG),
+                contentScale = ContentScale.Fit
+            )
+        }
         // 居中文字
         Text(
-            text = if (overlayTitle.isNotBlank()) overlayTitle else "同花顺自选",
+            text = if (isColumns) overlayTitle else "同花顺自选",
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Center)
         )
-        // 图标2、3：靠右
+        // ===== 右侧图标 =====
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_watch_mid),
-                contentDescription = null,
-                modifier = Modifier.height(ICON_SMALL),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(Modifier.width(8.dp))
-            // 图标3：四个分离小方块组成的大方块（右图标 -> 搜索）
-            Image(
-                painter = painterResource(R.drawable.ic_watch_grid_v),
-                contentDescription = "搜索",
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable { onOpenSearch() },
-                contentScale = ContentScale.Fit
-            )
+            if (isColumns) {
+                // 多股同列页：仅保留空心四方块（已去掉前面的 mid 图标），点击=搜索
+                Image(
+                    painter = painterResource(R.drawable.ic_watch_grid_v),
+                    contentDescription = "搜索",
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clickable { onOpenSearch() },
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                // 自选页：mid + 搜索（还原原版）
+                Image(
+                    painter = painterResource(R.drawable.ic_watch_mid),
+                    contentDescription = null,
+                    modifier = Modifier.height(ICON_SMALL),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(Modifier.width(8.dp))
+                Image(
+                    painter = painterResource(R.drawable.ic_watch_right),
+                    contentDescription = "搜索",
+                    modifier = Modifier
+                        .size(ICON_BIG)
+                        .clickable { onOpenSearch() },
+                    contentScale = ContentScale.Fit
+                )
+            }
         }
     }
 }

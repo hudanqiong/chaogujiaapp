@@ -172,7 +172,9 @@ fun IndexBar(
     // 会员引导「立即开通」→ App 级打开「开通/续费会员」页
     onOpenVipPage: () -> Unit = {},
     // ★ 多股同列全屏页开关状态上抛（用于把全局红条标题改成「多股同列」）
-    onColumnsChanged: (Boolean) -> Unit = {}
+    onColumnsChanged: (Boolean) -> Unit = {},
+    // ★ 外部请求关闭多股同列（红条左箭头点击时 +1；>0 则关闭页内全屏）
+    closeColumnsTick: Int = 0
 ) {
     // 顶部当前选中指数
     var secid by remember { mutableStateOf("1.000001") }
@@ -186,6 +188,10 @@ fun IndexBar(
 
     // 「多股同列」全屏页是否显示
     var showColumns by remember { mutableStateOf(false) }
+    // ★ 外部（红条左箭头）请求关闭多股同列
+    LaunchedEffect(closeColumnsTick) {
+        if (closeColumnsTick > 0) { showColumns = false; onColumnsChanged(false) }
+    }
 
     // 「编辑表头」列勾选框是否显示
     var showColEditor by remember { mutableStateOf(false) }
@@ -1886,6 +1892,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
     var klineMap by remember { mutableStateOf<Map<String, List<KLinePoint>>>(emptyMap()) }
     // 持仓成本映射： code -> 成本价（仅持仓股有，用于画成本线）
     var costMap by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
+    // ★ 持仓股分组(-2)：当前选中券商账户 id（默认首账户）
+    var selectedBid by remember { mutableStateOf(0) }
 
     // 加载分组
     LaunchedEffect(token) {
@@ -1898,6 +1906,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
         try {
             val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
             val bid = bs.firstOrNull()?.id ?: 0
+            selectedBid = bid
             if (bid > 0) {
                 val ps = withContext(Dispatchers.IO) { Api.positions(token, bid) }
                 val m = HashMap<String, Double>()
@@ -1912,7 +1921,37 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
         while (true) {
             loading = true
             try {
-                val list = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
+                val list = withContext(Dispatchers.IO) {
+                    if (gid == -2) {
+                        // ★ 持仓股分组：拉当前选中账户的持仓，拼成 StockItem 列表（与自选页同源逻辑）
+                        val out = ArrayList<StockItem>()
+                        val quoteMap = HashMap<String, StockItem>()
+                        try {
+                            for (it in Api.stockList(token, -1)) if (it.code.isNotBlank()) quoteMap[it.code] = it
+                        } catch (e: Exception) { }
+                        val ps = try {
+                            if (selectedBid > 0) Api.positions(token, selectedBid)
+                            else Api.positions(token, Api.brokerList(token).firstOrNull()?.id ?: 0)
+                        } catch (e: Exception) { emptyList() }
+                        for (p in ps) {
+                            if (p.quantity <= 0 || p.code.isBlank()) continue
+                            val q = quoteMap[p.code]
+                            out.add(
+                                StockItem(
+                                    code = p.code,
+                                    name = p.name.ifBlank { q?.name ?: p.code },
+                                    price = if (q != null && q.price > 0.0) q.price else p.price,
+                                    change = q?.change ?: 0.0,
+                                    changePct = q?.changePct ?: p.pnlPct,
+                                    tags = q?.tags ?: emptyList()
+                                )
+                            )
+                        }
+                        out
+                    } else {
+                        Api.stockList(token, gid)
+                    }
+                }
                 stocks = list
                 android.util.Log.i("CGJ_DIAG", "stockList size=" + list.size + " firstCode=" + (list.firstOrNull()?.code ?: "null"))
                 // 拉取每只股票的分时走势（并发请求，失败跳过）——避免串行导致首屏长时间空白
@@ -1972,6 +2011,7 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
             // ---------- 分组标签条：白底，横向铺满整个屏幕，字体加大加粗 #323232 ----------
             val groupTabs = buildList {
                 add(-1 to "自选股")
+                add(-2 to "持仓股")
                 groups.forEach { add(it.id to it.name) }
             }
             Row(
@@ -1987,19 +2027,22 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 ) {
                     items(groupTabs) { (id, name) ->
                         val on = id == gid
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.clickable { gid = id }   // ★ 点分组即切换
+                        ) {
                             Text(
                                 text = name,
-                                color = if (on) RED_UP else Color(0xFF323232),
+                                color = Color(0xFF323232),   // ★ 选中也不变色（仅下划线区分）
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            // ★ 选中项下方加粗红线（#FF2536，宽度约一个半汉字）
+                            // ★ 选中项下方加粗红线（#FF2536，宽度缩短至约一汉字）
                             Spacer(Modifier.height(3.dp))
                             Box(
                                 Modifier
-                                    .width(if (on) 34.dp else 0.dp)   // 15sp 下 1.5 字 ≈ 34dp
-                                    .height(2.5.dp)
+                                    .width(if (on) 17.dp else 0.dp)   // ★ 缩短：34dp -> 17dp
+                                    .height(3.5.dp)                    // ★ 加粗：2.5 -> 3.5
                                     .background(if (on) Color(0xFFFF2536) else Color.Transparent, RoundedCornerShape(2.dp))
                             )
                         }
@@ -2007,6 +2050,8 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 }
             }
 
+            // ---------- 分组栏↔周期条：细浅灰分割线 ----------
+            HorizontalDivider(thickness = 0.7.dp, color = Color(0xFFEDEDED))
             // ---------- 周期切换条：白底铺满；按钮 #F7F7F7 色框 / #9F9F9F 字 / 选中红；「更多」固定最右 ----------
             val basePeriods = listOf("分时", "日K", "周K", "月K", "60分")
             val morePeriods = listOf("5分", "15分", "30分", "120分")
@@ -2268,9 +2313,9 @@ private fun MultiColMinuteChart(
         if (!hasData) {
             // 时间轴（用行情数字字体，与股价同套）
             val ty = padT + gh + 11.dp.toPx()
-            drawTextLeft("09:30", padL, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
-            drawTextCenter("11:30", padL + gw / 2f, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
-            drawTextRight("15:00", padL + gw, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
+            drawTextLeft("09:30", padL, ty, Color(0xFF999999), bold = true, sizeSp = 9f, typeface = numTf)
+            drawTextCenter("11:30", padL + gw / 2f, ty, Color(0xFF999999), bold = true, sizeSp = 9f, typeface = numTf)
+            drawTextRight("15:00", padL + gw, ty, Color(0xFF999999), bold = true, sizeSp = 9f, typeface = numTf)
             return@Canvas
         }
 
@@ -2282,7 +2327,7 @@ private fun MultiColMinuteChart(
         val yz = yOf(preClose)  // 昨收零轴
 
         // 昨收零轴（灰色实线，稍微深一点）
-        drawLine(Color(0xFFBBBBBB), Offset(padL, yz), Offset(padL + gw, yz), strokeWidth = 1.5f)
+        drawLine(Color(0xFFBBBBBB), Offset(padL, yz), Offset(padL + gw, yz), strokeWidth = 1.2f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f, 5f), 0f))
 
         // x 映射：按交易分钟 0..240 铺满
         fun xOf(min: Int): Float {
@@ -2299,7 +2344,7 @@ private fun MultiColMinuteChart(
             val y = yOf(t.price)
             if (first) { pricePath.moveTo(x, y); first = false } else pricePath.lineTo(x, y)
         }
-        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.8f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)))
+        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.8f))
 
         // ---- 均价线（橙黄） ----
         val avgPath = Path()
@@ -2310,7 +2355,7 @@ private fun MultiColMinuteChart(
             val y = yOf(t.avg)
             if (first) { avgPath.moveTo(x, y); first = false } else avgPath.lineTo(x, y)
         }
-        drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 2.4f))
+        drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 3.2f))
 
         // ---- 成本线（持仓股，紫色；非持仓 cost<=0 不画） ----
         if (cost > 0 && cost in lo..hi) {
@@ -2324,23 +2369,23 @@ private fun MultiColMinuteChart(
         val hiPct = (hi - preClose) / preClose * 100.0
         val loPct = (lo - preClose) / preClose * 100.0
         // 左上：上轨价（红）
-        drawTextLeft(String.format(Locale.CHINA, "%.2f", hi), padL, padT + 14.dp.toPx(), upColor)
+        drawTextLeft(String.format(Locale.CHINA, "%.2f", hi), padL, padT + 14.dp.toPx(), upColor, bold = true, typeface = numTf)
         // 右上：+y%
-        drawTextRight(String.format(Locale.CHINA, "%+.2f%%", hiPct), padL + gw, padT + 14.dp.toPx(), upColor)
+        drawTextRight(String.format(Locale.CHINA, "%+.2f%%", hiPct), padL + gw, padT + 14.dp.toPx(), upColor, bold = true, typeface = numTf)
         // 中左：昨收（灰黑）
-        drawTextLeft(String.format(Locale.CHINA, "%.2f", preClose), padL, yz - 4.dp.toPx(), Color(0xFF666666))
+        drawTextLeft(String.format(Locale.CHINA, "%.2f", preClose), padL, yz - 4.dp.toPx(), Color(0xFF666666), bold = true, typeface = numTf)
         // 中右：0.00%
-        drawTextRight("0.00%", padL + gw, yz - 4.dp.toPx(), Color(0xFF666666))
+        drawTextRight("0.00%", padL + gw, yz - 4.dp.toPx(), Color(0xFF666666), bold = true, typeface = numTf)
         // 左下：下轨价（绿）
-        drawTextLeft(String.format(Locale.CHINA, "%.2f", lo), padL, padT + gh - 4.dp.toPx(), dnColor)
+        drawTextLeft(String.format(Locale.CHINA, "%.2f", lo), padL, padT + gh - 4.dp.toPx(), dnColor, bold = true, typeface = numTf)
         // 右下：-y%
-        drawTextRight(String.format(Locale.CHINA, "%+.2f%%", loPct), padL + gw, padT + gh - 4.dp.toPx(), dnColor)
+        drawTextRight(String.format(Locale.CHINA, "%+.2f%%", loPct), padL + gw, padT + gh - 4.dp.toPx(), dnColor, bold = true, typeface = numTf)
 
         // ---- 时间轴（用行情数字字体，与股价同套；时间字小，与网格留少量上下间距）----
         val ty = padT + gh + 11.dp.toPx()
-        drawTextLeft("09:30", padL, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
-        drawTextCenter("11:30", padL + gw / 2f, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
-        drawTextRight("15:00", padL + gw, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
+        drawTextLeft("09:30", padL, ty, Color(0xFF999999), bold = true, sizeSp = 9f, typeface = numTf)
+        drawTextCenter("11:30", padL + gw / 2f, ty, Color(0xFF999999), bold = true, sizeSp = 9f, typeface = numTf)
+        drawTextRight("15:00", padL + gw, ty, Color(0xFF999999), bold = true, sizeSp = 9f, typeface = numTf)
     }
 }
 
