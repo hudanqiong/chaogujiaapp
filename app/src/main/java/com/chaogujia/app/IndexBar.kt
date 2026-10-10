@@ -151,6 +151,15 @@ private fun isPreOpenReset(): Boolean {
 // 行情数字字体（同花顺 THS 金融体，从「趣股道」APK 扒出）
 // 想换别的：改动下面的 R.font.xxx 即可，或换 ths_money / din_medium
 private val NumFont = FontFamily(Font(R.font.ths_regular))
+@Volatile private var NUM_TYPEFACE: android.graphics.Typeface? = null
+/** 惰性取 ths_regular 的 Typeface，供 Canvas 原生 Paint 用（与 NumFont 同字体）。 */
+private fun numTypeface(ctx: android.content.Context): android.graphics.Typeface? {
+    NUM_TYPEFACE?.let { return it }
+    return try {
+        val tf = androidx.core.content.res.ResourcesCompat.getFont(ctx, R.font.ths_regular)
+        if (tf != null) { NUM_TYPEFACE = tf; tf } else null
+    } catch (e: Exception) { null }
+}
 
 @Composable
 fun IndexBar(
@@ -1985,6 +1994,14 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                            // ★ 选中项下方加粗红线（#FF2536，宽度约一个半汉字）
+                            Spacer(Modifier.height(3.dp))
+                            Box(
+                                Modifier
+                                    .width(if (on) 34.dp else 0.dp)   // 15sp 下 1.5 字 ≈ 34dp
+                                    .height(2.5.dp)
+                                    .background(if (on) Color(0xFFFF2536) else Color.Transparent, RoundedCornerShape(2.dp))
+                            )
                         }
                     }
                 }
@@ -1998,41 +2015,45 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                     Modifier.fillMaxWidth()
                         .background(Color.White)
                         .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 可横滑的周期按钮组（占满剩余宽度）
-                    Row(
-                        Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        basePeriods.forEach { p ->
-                            val on = p == period
+                    // 周期按钮组：与「更多」在同一行均分（每项 weight(1f)）
+                    basePeriods.forEach { p ->
+                        val on = p == period
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .background(if (on) Color(0xFFFEEAEB) else Color(0xFFF7F7F7), RoundedCornerShape(6.dp))
+                                .clickable { period = p; showMore = false }
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Text(
                                 text = p,
                                 color = if (on) RED_UP else Color(0xFF9F9F9F),
                                 fontSize = 13.sp,
-                                fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier
-                                    .background(Color(0xFFF7F7F7), RoundedCornerShape(6.dp))
-                                    .clickable { period = p; showMore = false }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                fontWeight = if (on) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     }
-                    // 更多：固定最右；其下方弹出下拉列表
+                    // 更多：与周期按钮均分同一行；其下方弹出下拉列表
                     val moreOn = period in morePeriods
-                    Text(
-                        text = if (moreOn) period + " \u25be" else "更多 \u25be",
-                        color = if (moreOn) RED_UP else Color(0xFF9F9F9F),
-                        fontSize = 13.sp,
-                        fontWeight = if (moreOn) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .background(Color(0xFFF7F7F7), RoundedCornerShape(6.dp))
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .background(if (moreOn) Color(0xFFFEEAEB) else Color(0xFFF7F7F7), RoundedCornerShape(6.dp))
                             .clickable { showMore = !showMore }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
+                            .padding(vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (moreOn) period + " \u25be" else "更多 \u25be",
+                            color = if (moreOn) RED_UP else Color(0xFF9F9F9F),
+                            fontSize = 13.sp,
+                            fontWeight = if (moreOn) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 }
 
                 // ★ 「更多」下方弹出的下拉列表（非居中弹窗）
@@ -2128,7 +2149,7 @@ private fun MultiColCard(
             if (!reset) {
                 Text(
                     text = String.format(Locale.CHINA, "%.2f", s.price),
-                    color = pctColor, fontSize = 17.sp,
+                    color = pctColor, fontSize = 14.sp,
                     fontWeight = FontWeight.Bold, fontFamily = NumFont
                 )
                 Spacer(Modifier.width(8.dp))
@@ -2144,7 +2165,7 @@ private fun MultiColCard(
                     fontWeight = FontWeight.Bold, fontFamily = NumFont
                 )
             } else {
-                Text("--", color = COLOR_FLAT, fontSize = 17.sp,
+                Text("--", color = COLOR_FLAT, fontSize = 14.sp,
                     fontWeight = FontWeight.Bold, fontFamily = NumFont)
             }
         }
@@ -2168,37 +2189,40 @@ private fun MultiColCard(
 }
 
 /** Canvas 内画文字：起点=左端（左对齐） */
-private fun DrawScope.drawTextLeft(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true) {
+private fun DrawScope.drawTextLeft(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true, sizeSp: Float = 9f, typeface: android.graphics.Typeface? = null) {
     val p = android.graphics.Paint().apply {
         this.color = color.toArgb()
-        textSize = 9.sp.toPx()
+        textSize = sizeSp.sp.toPx()
         isAntiAlias = true
         isFakeBoldText = bold
         textAlign = android.graphics.Paint.Align.LEFT
+        if (typeface != null) this.typeface = typeface
     }
     drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
 }
 
 /** Canvas 内画文字：终点=右端（右对齐） */
-private fun DrawScope.drawTextRight(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true) {
+private fun DrawScope.drawTextRight(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true, sizeSp: Float = 9f, typeface: android.graphics.Typeface? = null) {
     val p = android.graphics.Paint().apply {
         this.color = color.toArgb()
-        textSize = 9.sp.toPx()
+        textSize = sizeSp.sp.toPx()
         isAntiAlias = true
         isFakeBoldText = bold
         textAlign = android.graphics.Paint.Align.RIGHT
+        if (typeface != null) this.typeface = typeface
     }
     drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
 }
 
 /** Canvas 内画文字：中点=x（居中对齐） */
-private fun DrawScope.drawTextCenter(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true) {
+private fun DrawScope.drawTextCenter(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true, sizeSp: Float = 9f, typeface: android.graphics.Typeface? = null) {
     val p = android.graphics.Paint().apply {
         this.color = color.toArgb()
-        textSize = 9.sp.toPx()
+        textSize = sizeSp.sp.toPx()
         isAntiAlias = true
         isFakeBoldText = bold
         textAlign = android.graphics.Paint.Align.CENTER
+        if (typeface != null) this.typeface = typeface
     }
     drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
 }
@@ -2219,13 +2243,15 @@ private fun MultiColMinuteChart(
 ) {
     val clean = cleanMinuteTrends(trends)
     val hasData = clean.isNotEmpty() && preClose > 0
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val numTf = androidx.compose.runtime.remember(ctx) { numTypeface(ctx) }
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         val padL = 2.dp.toPx()    // ★ 横向铺满卡片（仅留2dp防贴边）
         val padR = 2.dp.toPx()
         val padT = 4.dp.toPx()
-        val padB = 18.dp.toPx()   // 底部留给时间轴
+        val padB = 16.dp.toPx()   // 底部留给时间轴（时间字小，留一点上下间距即可，余下给网格）
         val gw = w - padL - padR
         val gh = h - padT - padB
 
@@ -2240,10 +2266,11 @@ private fun MultiColMinuteChart(
             drawLine(gridColor, Offset(padL, y), Offset(padL + gw, y), strokeWidth = 0.7f)
         }
         if (!hasData) {
-            // 时间轴
-            drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
-            drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
-            drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
+            // 时间轴（用行情数字字体，与股价同套）
+            val ty = padT + gh + 11.dp.toPx()
+            drawTextLeft("09:30", padL, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
+            drawTextCenter("11:30", padL + gw / 2f, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
+            drawTextRight("15:00", padL + gw, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
             return@Canvas
         }
 
@@ -2272,7 +2299,7 @@ private fun MultiColMinuteChart(
             val y = yOf(t.price)
             if (first) { pricePath.moveTo(x, y); first = false } else pricePath.lineTo(x, y)
         }
-        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.2f))
+        drawPath(pricePath, Color(0xFF111111), style = Stroke(width = 2.8f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)))
 
         // ---- 均价线（橙黄） ----
         val avgPath = Path()
@@ -2283,7 +2310,7 @@ private fun MultiColMinuteChart(
             val y = yOf(t.avg)
             if (first) { avgPath.moveTo(x, y); first = false } else avgPath.lineTo(x, y)
         }
-        drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 1.8f))
+        drawPath(avgPath, Color(0xFFFF8C00), style = Stroke(width = 2.4f))
 
         // ---- 成本线（持仓股，紫色；非持仓 cost<=0 不画） ----
         if (cost > 0 && cost in lo..hi) {
@@ -2309,10 +2336,11 @@ private fun MultiColMinuteChart(
         // 右下：-y%
         drawTextRight(String.format(Locale.CHINA, "%+.2f%%", loPct), padL + gw, padT + gh - 4.dp.toPx(), dnColor)
 
-        // ---- 时间轴 ----
-        drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
-        drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
-        drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
+        // ---- 时间轴（用行情数字字体，与股价同套；时间字小，与网格留少量上下间距）----
+        val ty = padT + gh + 11.dp.toPx()
+        drawTextLeft("09:30", padL, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
+        drawTextCenter("11:30", padL + gw / 2f, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
+        drawTextRight("15:00", padL + gw, ty, Color(0xFF999999), bold = false, sizeSp = 9f, typeface = numTf)
     }
 }
 

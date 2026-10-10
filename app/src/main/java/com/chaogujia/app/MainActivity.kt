@@ -310,7 +310,9 @@ fun ChaoGuJiaApp() {
                     // ★ 资讯页：红条压矮到 28dp，让网页频道栏接在下方；其他页不受影响。
                     compact = (current == "news"),
                     // ★ 多股同列全屏页打开时，红条标题切换为「多股同列」
-                    overlayTitle = if (showColumns && detail == null) "多股同列" else ""
+                    overlayTitle = if (showColumns && detail == null) "多股同列" else "",
+                    // ★ 点左上角返回箭头：关闭多股同列，回到普通自选
+                    onWatchBack = { showColumns = false }
                 )
             }
             }

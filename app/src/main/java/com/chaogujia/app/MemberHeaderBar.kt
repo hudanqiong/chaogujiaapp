@@ -76,7 +76,9 @@ fun MemberHeaderBar(
     //       腾出空间给网页自带的频道切换栏，与红条拼成一体。其他页保持 false 零影响。
     compact: Boolean = false,
     // ===== 自选页叠加层标题（如「多股同列」打开时，红条标题改为该文字）=====
-    overlayTitle: String = ""
+    overlayTitle: String = "",
+    // ===== 自选页左上角返回：多股同列打开时点箭头 -> 关闭回到普通自选 =====
+    onWatchBack: () -> Unit = {}
 ) {
     // ★ 只有详情页是 edge-to-edge（状态栏透明、由内容绘制），
     //   此时红条背景必须铺满到屏幕最顶（含状态栏区域），内容再下移该高度；
@@ -105,7 +107,7 @@ fun MemberHeaderBar(
             current == "index" -> MemberInfoRow(username, isMember, levelName, expireAt)
 
             // 自选页：同花顺自选 + 三图标
-            current == "watch" -> WatchHeaderRow(onOpenSearch, overlayTitle)
+            current == "watch" -> WatchHeaderRow(onOpenSearch, overlayTitle, onWatchBack)
             // ★ 交易页：红条内直接放「账户类型切换按钮」(A股/基金/期货/黄金/模拟)
             current == "trade" -> TradeHeaderRow(cur = tradeTab, onSelect = onTradeTabSelect)
 
@@ -527,23 +529,23 @@ private val ICON_BIG = 25.dp      // 图1、图3
 private val ICON_SMALL = 24.dp    // 图2
 
 @Composable
-private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "") {
+private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "", onBack: () -> Unit = {}) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 12.dp, end = 12.dp, top = 13.dp),   // ★整体下移(缩小下边距)
+            .padding(start = 12.dp, end = 12.dp, top = 13.dp),
         contentAlignment = Alignment.Center
     ) {
-        // 图标1：靠最左侧
+        // 图标1：靠最左侧 —— 返回箭头（矢量，白色，比标题稍大，与标题垂直居中）
         Image(
-            painter = painterResource(R.drawable.ic_watch_left),
-            contentDescription = null,
+            painter = painterResource(R.drawable.ic_watch_back_v),
+            contentDescription = "返回",
             modifier = Modifier
                 .align(Alignment.CenterStart)
-                .size(ICON_BIG),
-            contentScale = ContentScale.FillBounds
+                .size(22.dp)
+                .clickable { onBack() },   // ★ 点左箭头 → 返回上一页（关闭多股同列）
+            contentScale = ContentScale.Fit
         )
-
         // 居中文字
         Text(
             text = if (overlayTitle.isNotBlank()) overlayTitle else "同花顺自选",
@@ -552,11 +554,10 @@ private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "") 
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Center)
         )
-
         // 图标2、3：靠右
         Row(
             modifier = Modifier.align(Alignment.CenterEnd),
-            verticalAlignment = Alignment.CenterVertically   // ★ 中线对齐
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Image(
                 painter = painterResource(R.drawable.ic_watch_mid),
@@ -564,14 +565,15 @@ private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "") 
                 modifier = Modifier.height(ICON_SMALL),
                 contentScale = ContentScale.Fit
             )
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(8.dp))
+            // 图标3：四个分离小方块组成的大方块（右图标 -> 搜索）
             Image(
-                painter = painterResource(R.drawable.ic_watch_right),
+                painter = painterResource(R.drawable.ic_watch_grid_v),
                 contentDescription = "搜索",
                 modifier = Modifier
-                    .size(ICON_BIG)
-                    .clickable { onOpenSearch() },   // ★ 点最右图标 → 全屏搜索页
-                contentScale = ContentScale.FillBounds
+                    .size(20.dp)
+                    .clickable { onOpenSearch() },
+                contentScale = ContentScale.Fit
             )
         }
     }
