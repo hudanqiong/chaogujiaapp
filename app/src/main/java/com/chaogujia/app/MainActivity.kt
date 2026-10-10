@@ -82,6 +82,8 @@ fun ChaoGuJiaApp() {
     var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var showLogin by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    // ★ 多股同列全屏页是否显示（由 IndexBar 上抛，供红条标题联动）
+    var showColumns by remember { mutableStateOf(false) }
     // ★ 持仓页（第 34 轮新增）：独立页，不在底部导航上。入口 = 交易页「持仓」按钮。
     //   打开后红条切到 "position" 模式，内容区覆盖 PositionPage；返回 = 红条 [<] 或系统返回键。
     var showPosition by remember { mutableStateOf(false) }
@@ -306,7 +308,9 @@ fun ChaoGuJiaApp() {
                     tradeTab = tradeTab,
                     onTradeTabSelect = { tradeTab = it },
                     // ★ 资讯页：红条压矮到 28dp，让网页频道栏接在下方；其他页不受影响。
-                    compact = (current == "news")
+                    compact = (current == "news"),
+                    // ★ 多股同列全屏页打开时，红条标题切换为「多股同列」
+                    overlayTitle = if (showColumns && detail == null) "多股同列" else ""
                 )
             }
             }
@@ -389,7 +393,8 @@ fun ChaoGuJiaApp() {
                         perm = perm,
                         onOpenNews = { current = "news" },
                         onOpenDetail = { list, index -> openDetail("quote", list, index) },
-                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
+                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" },
+                        onColumnsChanged = { showColumns = it }
                     )
                 }
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
@@ -403,7 +408,8 @@ fun ChaoGuJiaApp() {
                         onOpenNews = { current = "news" },
                         // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页
                         onOpenDetail = { list, index -> openDetail("watch", list, index) },
-                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
+                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" },
+                        onColumnsChanged = { showColumns = it }
                     )
                 }
                 // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）

@@ -74,7 +74,9 @@ fun MemberHeaderBar(
     onPositionRefresh: () -> Unit = {}, // 刷新
     // ===== 资讯页紧凑模式（current == "news"）：红条压矮到仅盖状态栏，
     //       腾出空间给网页自带的频道切换栏，与红条拼成一体。其他页保持 false 零影响。
-    compact: Boolean = false
+    compact: Boolean = false,
+    // ===== 自选页叠加层标题（如「多股同列」打开时，红条标题改为该文字）=====
+    overlayTitle: String = ""
 ) {
     // ★ 只有详情页是 edge-to-edge（状态栏透明、由内容绘制），
     //   此时红条背景必须铺满到屏幕最顶（含状态栏区域），内容再下移该高度；
@@ -103,7 +105,7 @@ fun MemberHeaderBar(
             current == "index" -> MemberInfoRow(username, isMember, levelName, expireAt)
 
             // 自选页：同花顺自选 + 三图标
-            current == "watch" -> WatchHeaderRow(onOpenSearch)
+            current == "watch" -> WatchHeaderRow(onOpenSearch, overlayTitle)
             // ★ 交易页：红条内直接放「账户类型切换按钮」(A股/基金/期货/黄金/模拟)
             current == "trade" -> TradeHeaderRow(cur = tradeTab, onSelect = onTradeTabSelect)
 
@@ -525,7 +527,7 @@ private val ICON_BIG = 25.dp      // 图1、图3
 private val ICON_SMALL = 24.dp    // 图2
 
 @Composable
-private fun WatchHeaderRow(onOpenSearch: () -> Unit) {
+private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "") {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -544,7 +546,7 @@ private fun WatchHeaderRow(onOpenSearch: () -> Unit) {
 
         // 居中文字
         Text(
-            text = "同花顺自选",
+            text = if (overlayTitle.isNotBlank()) overlayTitle else "同花顺自选",
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,

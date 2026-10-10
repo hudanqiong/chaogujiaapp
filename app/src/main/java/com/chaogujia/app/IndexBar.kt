@@ -32,6 +32,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
@@ -69,6 +71,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -158,7 +161,9 @@ fun IndexBar(
     // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页（红条也由 MainActivity 渲染）
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
     // 会员引导「立即开通」→ App 级打开「开通/续费会员」页
-    onOpenVipPage: () -> Unit = {}
+    onOpenVipPage: () -> Unit = {},
+    // ★ 多股同列全屏页开关状态上抛（用于把全局红条标题改成「多股同列」）
+    onColumnsChanged: (Boolean) -> Unit = {}
 ) {
     // 顶部当前选中指数
     var secid by remember { mutableStateOf("1.000001") }
@@ -580,7 +585,10 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
                                     indication = null
-                                ) { showColumns = true }
+                                ) {
+                                    showColumns = true
+                                    onColumnsChanged(true)
+                                }
                                 .padding(end = 12.dp),
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
@@ -793,7 +801,10 @@ Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopStart) {
         if (showColumns) {
             MultiStockColumnsScreen(
                 token = token,
-                onClose = { showColumns = false }
+                onClose = {
+                    showColumns = false
+                    onColumnsChanged(false)
+                }
             )
         }
 
@@ -1945,94 +1956,110 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
         } catch (e: Exception) { }
     }
     // 全屏铺满（浅灰底，卡片白底）
+    // ★ 顶部不再自绘红条：标题由 MainActivity 的全局红条承载（已改为「多股同列」）
     Box(Modifier.fillMaxSize().background(Color(0xFFF2F3F5))) {
-        Column(Modifier.fillMaxSize().systemBarsPadding()) {
+        Column(Modifier.fillMaxSize()) {
 
-            // ---------- 顶栏：关闭 + 标题 + 刷新状态 ----------
+            // ---------- 分组标签条：白底，横向铺满整个屏幕，字体加大加粗 #323232 ----------
+            val groupTabs = buildList {
+                add(-1 to "自选股")
+                groups.forEach { add(it.id to it.name) }
+            }
             Row(
-                Modifier.fillMaxWidth().height(48.dp)
-                    .background(RED_UP).padding(horizontal = 8.dp),
+                Modifier.fillMaxWidth()
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "✕",
-                    color = Color.White,
-                    fontSize = 20.sp,
-                    modifier = Modifier.clickable { onClose() }.padding(8.dp)
-                )
-                Spacer(Modifier.width(4.dp))
-                Text("多股同列", color = Color.White, fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-            }
-
-            // ---------- 分组标签 + 放大/缩小 ----------
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 分组：自选股 + 用户自建组
-                val groupTabs = buildList {
-                    add(-1 to "自选股")
-                    groups.forEach { add(it.id to it.name) }
-                }
-                LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(groupTabs) { (id, name) ->
-                        val on = id == gid
-                        Text(
-                            text = name,
-                            color = if (on) Color.White else Color(0xFF666666),
-                            fontSize = 13.sp,
-                            modifier = Modifier
-                                .background(
-                                    if (on) RED_UP else Color(0xFFF2F2F2),
-                                    androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
-                                )
-                                .clickable { gid = id }
-                                .padding(horizontal = 12.dp, vertical = 5.dp)
-                        )
-                    }
-                }
-            }
-            // ---------- 周期条：分时 | 日K | 周K | 月K | 60分 | 更多 ----------
-            val basePeriods = listOf("分时", "日K", "周K", "月K", "60分")
-            val morePeriods = listOf("5分", "15分", "30分", "120分")
-            Box {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
+                LazyRow(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    basePeriods.forEach { p ->
-                        val on = p == period
-                        Text(
-                            text = p,
-                            color = if (on) RED_UP else Color(0xFF333333),
-                            fontSize = 13.sp,
-                            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier
-                                .clickable { period = p }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                        if (p != basePeriods.last()) {
-                            Text("|", color = Color(0xFFDDDDDD), fontSize = 12.sp)
+                    items(groupTabs) { (id, name) ->
+                        val on = id == gid
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = name,
+                                color = if (on) RED_UP else Color(0xFF323232),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
-                    Text("|", color = Color(0xFFDDDDDD), fontSize = 12.sp)
-                    // 更多：若当前周期属于更多档，则高亮「更多▾」
+                }
+            }
+
+            // ---------- 周期切换条：白底铺满；按钮 #F7F7F7 色框 / #9F9F9F 字 / 选中红；「更多」固定最右 ----------
+            val basePeriods = listOf("分时", "日K", "周K", "月K", "60分")
+            val morePeriods = listOf("5分", "15分", "30分", "120分")
+            Box(Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .background(Color.White)
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 可横滑的周期按钮组（占满剩余宽度）
+                    Row(
+                        Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        basePeriods.forEach { p ->
+                            val on = p == period
+                            Text(
+                                text = p,
+                                color = if (on) RED_UP else Color(0xFF9F9F9F),
+                                fontSize = 13.sp,
+                                fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier
+                                    .background(Color(0xFFF7F7F7), RoundedCornerShape(6.dp))
+                                    .clickable { period = p; showMore = false }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                    // 更多：固定最右；其下方弹出下拉列表
                     val moreOn = period in morePeriods
                     Text(
-                        text = if (moreOn) period + " ▾" else "更多 ▾",
-                        color = if (moreOn) RED_UP else Color(0xFF333333),
+                        text = if (moreOn) period + " \u25be" else "更多 \u25be",
+                        color = if (moreOn) RED_UP else Color(0xFF9F9F9F),
                         fontSize = 13.sp,
                         fontWeight = if (moreOn) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier
-                            .clickable { showMore = true }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(start = 4.dp)
+                            .background(Color(0xFFF7F7F7), RoundedCornerShape(6.dp))
+                            .clickable { showMore = !showMore }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     )
                 }
-            }
-            HorizontalDivider(color = Color(0xFFEEEEEE))
 
+                // ★ 「更多」下方弹出的下拉列表（非居中弹窗）
+                DropdownMenu(
+                    expanded = showMore,
+                    onDismissRequest = { showMore = false },
+                    modifier = Modifier.background(Color.White),
+                    offset = DpOffset(0.dp, 0.dp)
+                ) {
+                    listOf("5分", "15分", "30分", "120分").forEach { p ->
+                        val on = p == period
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = p,
+                                    color = if (on) RED_UP else Color(0xFF323232),
+                                    fontSize = 14.sp,
+                                    fontWeight = if (on) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            onClick = { period = p; showMore = false }
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Color(0xFFEEEEEE))
             // ---------- 列表：一行一支股（同花顺风格卡片） ----------
             if (stocks.isEmpty()) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
@@ -2053,44 +2080,6 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                             kline = klineMap[s.code] ?: emptyList(),
                             cost = costMap[s.code] ?: 0.0
                         )
-                    }
-                }
-            }
-        }
-        // ---------- 「更多」周期弹窗：5分/15分/30分/120分 ----------
-        if (showMore) {
-            Box(
-                Modifier.fillMaxSize()
-                    .background(Color(0x66000000))
-                    .clickable { showMore = false },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    Modifier
-                        .background(Color.White, RoundedCornerShape(10.dp))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("选择周期", color = Color(0xFF333333), fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(10.dp))
-                    listOf("5分", "15分", "30分", "120分").forEach { p ->
-                        val on = p == period
-                        Text(
-                            text = p,
-                            color = if (on) Color.White else Color(0xFF333333),
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .width(100.dp)
-                                .background(
-                                    if (on) RED_UP else Color(0xFFF2F2F2),
-                                    RoundedCornerShape(6.dp)
-                                )
-                                .clickable { period = p; showMore = false }
-                                .padding(vertical = 10.dp)
-                        )
-                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }
@@ -2130,10 +2119,12 @@ private fun MultiColCard(
                 text = s.code,
                 color = Color(0xFFADADAD),
                 fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.weight(1f))
+            // ★ 全部左起挨排，不再一左一右；数字加粗 + NumFont
+            Spacer(Modifier.width(10.dp))
             if (!reset) {
                 Text(
                     text = String.format(Locale.CHINA, "%.2f", s.price),
@@ -2146,7 +2137,7 @@ private fun MultiColCard(
                     color = pctColor, fontSize = 14.sp,
                     fontWeight = FontWeight.Bold, fontFamily = NumFont
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = String.format(Locale.CHINA, "%+.2f", s.change),
                     color = pctColor, fontSize = 14.sp,
@@ -2177,33 +2168,36 @@ private fun MultiColCard(
 }
 
 /** Canvas 内画文字：起点=左端（左对齐） */
-private fun DrawScope.drawTextLeft(text: String, x: Float, baselineY: Float, color: Color) {
+private fun DrawScope.drawTextLeft(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true) {
     val p = android.graphics.Paint().apply {
         this.color = color.toArgb()
         textSize = 9.sp.toPx()
         isAntiAlias = true
+        isFakeBoldText = bold
         textAlign = android.graphics.Paint.Align.LEFT
     }
     drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
 }
 
 /** Canvas 内画文字：终点=右端（右对齐） */
-private fun DrawScope.drawTextRight(text: String, x: Float, baselineY: Float, color: Color) {
+private fun DrawScope.drawTextRight(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true) {
     val p = android.graphics.Paint().apply {
         this.color = color.toArgb()
         textSize = 9.sp.toPx()
         isAntiAlias = true
+        isFakeBoldText = bold
         textAlign = android.graphics.Paint.Align.RIGHT
     }
     drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
 }
 
 /** Canvas 内画文字：中点=x（居中对齐） */
-private fun DrawScope.drawTextCenter(text: String, x: Float, baselineY: Float, color: Color) {
+private fun DrawScope.drawTextCenter(text: String, x: Float, baselineY: Float, color: Color, bold: Boolean = true) {
     val p = android.graphics.Paint().apply {
         this.color = color.toArgb()
         textSize = 9.sp.toPx()
         isAntiAlias = true
+        isFakeBoldText = bold
         textAlign = android.graphics.Paint.Align.CENTER
     }
     drawContext.canvas.nativeCanvas.drawText(text, x, baselineY, p)
@@ -2228,8 +2222,8 @@ private fun MultiColMinuteChart(
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val padL = 64.dp.toPx()
-        val padR = 64.dp.toPx()
+        val padL = 2.dp.toPx()    // ★ 横向铺满卡片（仅留2dp防贴边）
+        val padR = 2.dp.toPx()
         val padT = 4.dp.toPx()
         val padB = 18.dp.toPx()   // 底部留给时间轴
         val gw = w - padL - padR
@@ -2247,9 +2241,9 @@ private fun MultiColMinuteChart(
         }
         if (!hasData) {
             // 时间轴
-            drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999))
-            drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999))
-            drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+            drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
+            drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
+            drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
             return@Canvas
         }
 
@@ -2316,9 +2310,9 @@ private fun MultiColMinuteChart(
         drawTextRight(String.format(Locale.CHINA, "%+.2f%%", loPct), padL + gw, padT + gh - 4.dp.toPx(), dnColor)
 
         // ---- 时间轴 ----
-        drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999))
-        drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999))
-        drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999))
+        drawTextLeft("09:30", padL, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
+        drawTextCenter("11:30", padL + gw / 2f, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
+        drawTextRight("15:00", padL + gw, padT + gh + 4.dp.toPx(), Color(0xFF999999), bold = false)
     }
 }
 
