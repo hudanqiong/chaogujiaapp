@@ -545,7 +545,7 @@ private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "", 
                 contentDescription = "返回",
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .width(11.dp).height(17.dp)
+                    .width(15.dp).height(23.dp)
                     .clickable { onBack() },   // ★ 点左箭头 → 返回上一页（关闭多股同列）
                 contentScale = ContentScale.Fit
             )
@@ -577,7 +577,7 @@ private fun WatchHeaderRow(onOpenSearch: () -> Unit, overlayTitle: String = "", 
                     painter = painterResource(R.drawable.ic_watch_grid_v),
                     contentDescription = "搜索",
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(26.dp)
                         .clickable { onOpenSearch() },
                     contentScale = ContentScale.Fit
                 )

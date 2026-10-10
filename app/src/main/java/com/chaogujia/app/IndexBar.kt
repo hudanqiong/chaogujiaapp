@@ -1892,26 +1892,32 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
     var klineMap by remember { mutableStateOf<Map<String, List<KLinePoint>>>(emptyMap()) }
     // 持仓成本映射： code -> 成本价（仅持仓股有，用于画成本线）
     var costMap by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
-    // ★ 持仓股分组(-2)：当前选中券商账户 id（默认首账户）
-    var selectedBid by remember { mutableStateOf(0) }
-
+    // ★ 持仓股分组(-2)：券商账户与「自选页」严格同源——统一走 AccountStore（用户顶部切换器选择/持久化）
+    var selectedBid by remember { mutableStateOf(AccountStore.get(ctx)) }
+    // 券商账户列表（用于账户切换器 + 成本线）
+    var brokerAccounts by remember { mutableStateOf<List<MyBroker>>(emptyList()) }
+    // 账户切换弹层
+    var showBrokerMenu by remember { mutableStateOf(false) }
     // 加载分组
     LaunchedEffect(token) {
         try { groups = withContext(Dispatchers.IO) { Api.watchGroups(token) }.sortedBy { it.sort } }
         catch (e: Exception) { }
     }
-
-    // 加载持仓成本（仅用于画成本线；未登录/无账户时为空）
-    LaunchedEffect(token) {
+    // 加载券商账户 + 持仓成本（与自选页同源：优先 AccountStore 选中账户，失效则回退首账户）
+    LaunchedEffect(token, selectedBid) {
         try {
             val bs = withContext(Dispatchers.IO) { Api.brokerList(token) }
-            val bid = bs.firstOrNull()?.id ?: 0
-            selectedBid = bid
-            if (bid > 0) {
-                val ps = withContext(Dispatchers.IO) { Api.positions(token, bid) }
-                val m = HashMap<String, Double>()
-                for (p in ps) if (p.avgCost > 0) m[p.code] = p.avgCost
-                costMap = m
+            brokerAccounts = bs
+            if (bs.isNotEmpty()) {
+                val valid = bs.any { it.id == selectedBid }
+                val bid = if (valid && selectedBid > 0) selectedBid else (bs.firstOrNull()?.id ?: 0)
+                if (bid != selectedBid) { selectedBid = bid; AccountStore.set(ctx, bid) }
+                if (bid > 0) {
+                    val ps = withContext(Dispatchers.IO) { Api.positions(token, bid) }
+                    val m = HashMap<String, Double>()
+                    for (p in ps) if (p.avgCost > 0) m[p.code] = p.avgCost
+                    costMap = m
+                }
             }
         } catch (e: Exception) { }
     }
@@ -1929,9 +1935,9 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                         try {
                             for (it in Api.stockList(token, -1)) if (it.code.isNotBlank()) quoteMap[it.code] = it
                         } catch (e: Exception) { }
+                        // ★ 账户与自选页同源（AccountStore → selectedBid）
                         val ps = try {
-                            if (selectedBid > 0) Api.positions(token, selectedBid)
-                            else Api.positions(token, Api.brokerList(token).firstOrNull()?.id ?: 0)
+                            if (selectedBid > 0) Api.positions(token, selectedBid) else emptyList()
                         } catch (e: Exception) { emptyList() }
                         for (p in ps) {
                             if (p.quantity <= 0 || p.code.isBlank()) continue
@@ -2048,6 +2054,25 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                         }
                     }
                 }
+                // ★ 持仓股分组：右侧账户切换入口（与自选页同源，可切换“加在哪个账户”）
+                if (gid == -2) {
+                    val curName = brokerAccounts.firstOrNull { it.id == selectedBid }?.name
+                        ?: brokerAccounts.firstOrNull()?.name ?: "账户"
+                    Spacer(Modifier.width(6.dp))
+                    Row(
+                        Modifier.clickable { showBrokerMenu = true },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = curName,
+                            color = Color(0xFF9F9F9F),
+                            fontSize = 13.sp,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.width(3.dp))
+                        Text("▾", color = Color(0xFF9F9F9F), fontSize = 11.sp)
+                    }
+                }
             }
 
             // ---------- 分组栏↔周期条：细浅灰分割线 ----------
@@ -2150,6 +2175,15 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
                 }
             }
         }
+            // ★ 账户切换弹层（与自选页同源：切换写回 AccountStore，两边同步）
+            if (showBrokerMenu && brokerAccounts.isNotEmpty()) {
+                BrokerSwitchDialog(
+                    accounts = brokerAccounts,
+                    selectedId = selectedBid,
+                    onPick = { id -> selectedBid = id; AccountStore.set(ctx, id); showBrokerMenu = false },
+                    onDismiss = { showBrokerMenu = false }
+                )
+            }
     }
 }
 /** ==================== 多股同列：一行一卡片（同花顺风格） ==================== */
