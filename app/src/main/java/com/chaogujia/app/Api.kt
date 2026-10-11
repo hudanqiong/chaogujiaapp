@@ -962,7 +962,7 @@ suspend fun placeOrder(
         return try {
             val raw = Net.get(base("positions.php?broker_account_id=$brokerAccountId"), token)
             // ★ 页面本地缓存：网络成功后落盘，供下次进页秒显（SWR）
-            if (raw.isNotBlank() && raw.contains(""data"")) {
+            if (raw.isNotBlank() && raw.contains('"' + "data" + '"')) {
                 PageCache.save(Net.appContext, "positions_" + brokerAccountId, raw)
             }
             parsePositions(raw)
@@ -1197,7 +1197,7 @@ suspend fun placeOrder(
     fun account(token: String?, brokerAccountId: Int): AccountInfo {
         val raw = Net.get(base("account.php?broker_account_id=$brokerAccountId"), token)
         // ★ 页面本地缓存：网络成功后落盘，供下次进页秒显（SWR）
-        if (raw.isNotBlank() && raw.contains("\"data\"")) {
+        if (raw.isNotBlank() && raw.contains('"' + "data" + '"')) {
             PageCache.save(Net.appContext, "account_" + brokerAccountId, raw)
         }
         return parseAccount(raw)
