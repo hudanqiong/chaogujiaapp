@@ -290,10 +290,12 @@ fun IndexBar(
     // 现优化为：
     //   1) 复用上方 LaunchedEffect 一次性拉取的 brokerAccounts，不再每轮重拉券商列表；
     //   2) 轮询周期由 3s 放宽到 30s（持仓构成变化本就罕见）；
-    //   3) 首轮先 delay 30s，给首页 UI/行情让路。
+    //   3) SWR: 首轮立即执行(持仓集合秒出), 后续每 30s 刷新.
     LaunchedEffect(token) {
+        var hcFirst = true
         while (true) {
-            kotlinx.coroutines.delay(30000)
+            if (!hcFirst) kotlinx.coroutines.delay(30000)
+            hcFirst = false
             try {
                 val sets = withContext(Dispatchers.IO) {
                     val brokers = if (brokerAccounts.isNotEmpty()) brokerAccounts else Api.brokerList(token)
