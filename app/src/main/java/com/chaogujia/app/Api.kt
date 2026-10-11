@@ -1586,6 +1586,31 @@ suspend fun placeOrder(
         }
     }
 
+    // ★ 持仓股列表内存缓存（stale-while-revalidate）：
+    //   背景：每次点开/切回「持仓股」分组，网络返回前列表空白，好几秒才显示。
+    //   现按「券商账户 id」缓存上次结果，点开先秒显上一帧，再后台静默刷新。
+    private val posListCache = HashMap<Int, Pair<Long, List<StockItem>>>()
+    private const val POSLIST_TTL_MS = 10 * 60 * 1000L
+    private val posListLock = Any()
+
+    /** 读取持仓列表内存缓存；未命中或过期返回 null。brokerId<=0 表示未选定账户，不缓存。 */
+    fun positionsListCached(brokerId: Int): List<StockItem>? {
+        if (brokerId <= 0) return null
+        synchronized(posListLock) {
+            val e = posListCache[brokerId] ?: return null
+            if (System.currentTimeMillis() - e.first > POSLIST_TTL_MS) return null
+            return e.second
+        }
+    }
+
+    /** 写入持仓列表内存缓存。brokerId<=0 或空列表不写。 */
+    fun positionsCachePut(brokerId: Int, list: List<StockItem>) {
+        if (brokerId <= 0 || list.isEmpty()) return
+        synchronized(posListLock) {
+            posListCache[brokerId] = System.currentTimeMillis() to list
+        }
+    }
+
     /** 某分组下的自选股列表（watchlist.php?action=list&gid=X）。gid<=0 取默认分组。 */
     fun stockList(token: String?, gid: Int): List<StockItem> {
         return try {

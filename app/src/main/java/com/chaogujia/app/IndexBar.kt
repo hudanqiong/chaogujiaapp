@@ -325,11 +325,16 @@ fun IndexBar(
     // 切换分组/切换账户时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 用选中账户的持仓）
     LaunchedEffect(selectedGroup, selectedBrokerId, token) {
         val gid0 = if (selectedGroup >= 0) selectedGroup else -1
-        // ★ A1 性能优化：非持仓组时，若该组已有内存缓存，先立即渲染（秒出），再后台静默刷新。
-        //   消除「每次点开分组都空白重新加载」的体感。
-        val cached = if (selectedGroup != -2) Api.stockListCached(gid0) else null
-        if (cached != null && cached.isNotEmpty()) {
-            stocks = cached
+        // ★ 性能优化（stale-while-revalidate）：所有分组切换时，若已有内存缓存，
+        //   先立即渲染（秒出上一帧），再后台静默刷新，消除「每次点开分组都空白重新加载」。
+        //   - 自选组：缓存键 = 分组 gid；
+        //   - 持仓组（-2）：缓存按「当前选中券商账户 id」区分（不同账户持仓不同）。
+        val cached = if (selectedGroup == -2) Api.positionsListCached(selectedBrokerId)
+                     else Api.stockListCached(gid0)
+        val hadCache = cached != null && cached.isNotEmpty()
+        if (hadCache) {
+            // 先秒显上一帧（旧数据），后台静默刷新覆盖
+            stocks = cached!!
             loadingStocks = false
         } else {
             loadingStocks = true
@@ -355,6 +360,8 @@ fun IndexBar(
                     // 2) 仅取「当前选中账户」的持仓；选中账户无效时取首个账户
                     val brokers = try { Api.brokerList(token) } catch (e: Exception) { emptyList() }
                     val cur = brokers.firstOrNull { it.id == selectedBrokerId } ?: brokers.firstOrNull()
+                    // 实际用于缓存的账户 id（选中账户无效时回退首个账户）
+                    val selBrokerForCache = cur?.id ?: 0
                     Log.e("CGJ_POS", "token=" + (token?.length ?: -1) + " brokers.size=" + brokers.size + " selectedBrokerId=" + selectedBrokerId + " cur=" + (cur?.id ?: -1))
                     if (cur != null) {
                         try {
@@ -415,15 +422,27 @@ fun IndexBar(
                             }
                         } catch (e: Exception) { }
                     }
+                    // ★ 写入持仓内存缓存：下次点开/切回该账户持仓时先秒显（stale-while-revalidate）
+                    Api.positionsCachePut(selBrokerForCache, out)
                     out
                 }
                 stocks = list
                 Log.e("CGJ_POS", "FINAL stocks.size=" + list.size)
             } else {
                 val l = withContext(Dispatchers.IO) { Api.stockList(token, gid) }
-                stocks = l
+                if (l.isEmpty() && hadCache) {
+                    // 有旧数据但刷新拿到空 → 多半是网络抖动，保留旧数据并轻提示
+                    android.widget.Toast.makeText(ctx, "网络不稳定，已为你显示上次数据", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    stocks = l
+                }
             }
-        } catch (e: Exception) { Log.e("CGJ_POS", "outer catch: " + e) }
+        } catch (e: Exception) {
+            Log.e("CGJ_POS", "outer catch: " + e)
+            if (hadCache) {
+                android.widget.Toast.makeText(ctx, "网络不稳定，已为你显示上次数据", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
         loadingStocks = false
     }
 
