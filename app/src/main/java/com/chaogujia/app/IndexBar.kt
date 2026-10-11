@@ -507,13 +507,17 @@ fun IndexBar(
                     //   让 mini 分时图立即有东西可画，不再冷等 detail.php（~4.5s）→ 消除 1~2 秒延迟。
                     val need = codes.filter { merged[it] == null }
                     if (need.isNotEmpty()) {
+                        var staleHit = 0
                         for (code in need) {
                             try {
                                 val d = Api.detailStale(code)
-                                if (d != null && d.trends.isNotEmpty())
+                                if (d != null && d.trends.isNotEmpty()) {
                                     merged[code] = (d.trends to d.base.preClose)
+                                    staleHit++
+                                }
                             } catch (e: Exception) { /* 无缓存则跳过 */ }
                         }
+                        android.util.Log.d("CGJ_DIAG", "stale1 hit=" + staleHit + " need=" + need.size)
                         if (merged.isNotEmpty()) watchTrendMap = merged
                     }
                     // ★ 第二遍（后台、限并发 6）：补拉「首帧后仍有缺」或需要刷新的股票。
@@ -539,6 +543,7 @@ fun IndexBar(
                         val m2 = HashMap<String, Pair<List<DetailTrend>, Double>>(watchTrendMap)
                         for (r in results) if (r != null) m2[r.first] = r.second
                         if (m2.isNotEmpty()) watchTrendMap = m2
+                        android.util.Log.d("CGJ_DIAG", "stale2 netDone stillNeed=" + stillNeed.size + " got=" + results.count { it != null })
                     }
                 }
             } catch (e: Exception) { /* 忽略 */ }
