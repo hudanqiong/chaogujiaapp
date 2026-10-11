@@ -76,6 +76,8 @@ fun HomeScreen(
         try {
             val brokers = withContext(Dispatchers.IO) { Api.brokerList(token) }
             if (brokerAccountId == 0) brokerAccountId = brokers.firstOrNull()?.id ?: 0
+            val aS = withContext(Dispatchers.IO) { Api.accountStale(token, brokerAccountId) }
+            if (aS != null) account = aS
             val a = withContext(Dispatchers.IO) { Api.account(token, brokerAccountId) }
             val m = withContext(Dispatchers.IO) { Api.member(token) }
             val p = withContext(Dispatchers.IO) { Api.point(token) }

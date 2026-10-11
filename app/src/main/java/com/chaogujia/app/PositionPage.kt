@@ -152,6 +152,11 @@ fun PositionPage(
         // 第48轮：账户联动——切换/加载账户时同步写入全局存储
         AccountStore.set(ppCtx, b.id)
         cashAccount = b.account
+        // ★ 问题①：先读本地过期缓存秒显（零网络，首帧立刻有数据），再联网刷新覆盖。
+        val aStale = withContext(Dispatchers.IO) { Api.accountStale(token, b.id) }
+        val pStale = withContext(Dispatchers.IO) { Api.positionsStale(token, b.id) }
+        if (aStale != null) account = aStale
+        if (pStale != null) positions = pStale
         account = withContext(Dispatchers.IO) { Api.account(token, b.id) }
         positions = withContext(Dispatchers.IO) { Api.positions(token, b.id) }
     }
@@ -181,6 +186,8 @@ fun PositionPage(
             try {
                 val cur = brokerList.firstOrNull { it.id == brokerId }
                 if (cur != null) {
+                    val aStale2 = withContext(Dispatchers.IO) { Api.accountStale(token, cur.id) }
+                    if (aStale2 != null) account = aStale2
                     account = withContext(Dispatchers.IO) { Api.account(token, cur.id) }
                     positions = withContext(Dispatchers.IO) { Api.positions(token, cur.id) }
                 }

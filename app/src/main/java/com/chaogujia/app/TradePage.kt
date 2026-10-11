@@ -158,8 +158,15 @@ private fun ASharePage(
     // 账户统计（随切换账户 / 手动刷新重载；第29轮：改为每 5 秒自动刷新一次资产卡片）
     LaunchedEffect(brokerAccountId, reloadTick) {
         loading = true
+        var tpFirst = true
         while (true) {
             try {
+                if (tpFirst) {
+                    // ★ 问题①：首帧先读本地过期缓存秒显
+                    val aS = withContext(Dispatchers.IO) { Api.accountStale(token, brokerAccountId) }
+                    if (aS != null) account = aS
+                    tpFirst = false
+                }
                 account = withContext(Dispatchers.IO) { Api.account(token, brokerAccountId) }
             } catch (e: Exception) {
                 // 保持上次数据

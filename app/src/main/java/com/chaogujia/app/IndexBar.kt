@@ -2043,6 +2043,18 @@ fun MultiStockColumnsScreen(token: String?, onClose: () -> Unit) {
         val k = periodToK(period)
         val list = stocks
         if (list.isEmpty()) return@LaunchedEffect
+        // ★ 问题①：首帧先读本地过期缓存秒显 K 线
+        try {
+            val staleMap = withContext(Dispatchers.IO) {
+                val mm = HashMap<String, List<KLinePoint>>()
+                for (s in list) {
+                    val ks = Api.klineStale(s.code, k)
+                    if (ks != null && ks.isNotEmpty()) mm[s.code] = ks
+                }
+                mm
+            }
+            if (staleMap.isNotEmpty()) klineMap = staleMap
+        } catch (e: Exception) { }
         try {
             val results = withContext(Dispatchers.IO) {
                 list.map { s ->
