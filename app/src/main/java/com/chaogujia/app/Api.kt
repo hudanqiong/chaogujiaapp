@@ -138,6 +138,7 @@ data class MemberInfo(
     val isMember: Boolean = false,
     val levelName: String = "普通用户",
     val expireAt: String = "",
+    val watermark: String = "",   // 服务端下发的水印文字（非会员才有；空=不画）
     val plans: List<MemberPlan> = emptyList()
 )
 
@@ -1328,6 +1329,7 @@ suspend fun placeOrder(
             isMember = d.optBoolean("isMember", false),
             levelName = d.optString("levelName", "普通用户"),
             expireAt = d.optString("expireAt", ""),
+            watermark = d.optString("watermark", ""),
             plans = plans
         )
     }

@@ -510,9 +510,10 @@ fun ChaoGuJiaApp() {
                 perm = perm
             )
         }
-        // ★ 水印层：非会员显示斜排文字水印，会员自动隐藏。
-        // 放在最外层 Box 内、Scaffold 之后 → 叠在所有页面之上，且不拦截触摸。
-        WatermarkLayer(enabled = !member.isMember, text = if (uname.isNotEmpty()) "$uname 炒股家" else "炒股家")
+        // ★ 水印层：文字由服务端下发（member.php 的 watermark 字段）。
+        // 非会员才有文字、会员为空 → 拿不到就不画（安全默认）。
+        // 客户端不再本地拼接用户名，改客户端也拿不到“干净”版本。
+        WatermarkLayer(enabled = member.watermark.isNotEmpty(), text = member.watermark)
     }
 }
 // ============ 资讯 tab：WebView 加载资讯站（第十二轮建站） ============
