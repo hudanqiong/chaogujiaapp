@@ -39,6 +39,7 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         // 注入全局 Context，供 DetailCache（detail.php 本地磁盘缓存）使用
         Net.appContext = applicationContext
         setContent {
