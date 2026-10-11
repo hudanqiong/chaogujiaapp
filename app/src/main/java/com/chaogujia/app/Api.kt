@@ -915,40 +915,57 @@ suspend fun placeOrder(
         }
     }
     /** 拉取持仓列表（positions.php ?broker_account_id=） */
+    /**
+     * 读「持仓列表」本地磁盘缓存（不发网络）。命中返回解析后的持仓列表，否则 null。
+     * 用途：持仓页/交易页进页时先秒显上一帧，随后后台用 positions() 刷新。
+     * 缓存内容与 positions() 同格式（后端原始 JSON），走同一解析体。
+     */
+    fun positionsStale(token: String?, brokerAccountId: Int): List<PositionItem>? {
+        if (brokerAccountId <= 0) return null
+        val raw = PageCache.loadStale(Net.appContext, "positions_" + brokerAccountId) ?: return null
+        return try { parsePositions(raw) } catch (_: Exception) { null }
+    }
+
+    /** 把 positions.php 原始 JSON 解析为 List<PositionItem>（供 positions 主流程与 positionsStale 复用） */
+    private fun parsePositions(raw: String): List<PositionItem> {
+        val o = JSONObject(raw)
+        if (o.optInt("code", -1) != 0) return emptyList()
+        val arr = o.optJSONArray("data") ?: return emptyList()
+        val list = ArrayList<PositionItem>()
+        for (i in 0 until arr.length()) {
+            val p = arr.optJSONObject(i) ?: continue
+            list.add(
+                PositionItem(
+                    code = p.optString("code", ""),
+                    name = p.optString("name", ""),
+                    quantity = p.optInt("quantity", 0),
+                    avgCost = p.optDouble("avgCost", 0.0),
+                    price = p.optDouble("price", 0.0),
+                    marketValue = p.optDouble("marketValue", 0.0),
+                    pnl = p.optDouble("pnl", 0.0),
+                    pnlPct = p.optDouble("pnlPct", 0.0),
+                    dayPnl = p.optDouble("dayPnl", 0.0),
+                    holdDays = if (p.has("holdDays") && !p.isNull("holdDays")) p.optInt("holdDays") else null,
+                    amount = p.optString("amount", "0").toDoubleOrNull() ?: 0.0,
+                    change = p.optString("change", "0").toDoubleOrNull() ?: 0.0,
+                    changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0,
+                    aucPct = p.optString("aucPct", "0").toDoubleOrNull() ?: 0.0,
+                    aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0,
+                    raw = parseRaw(p.optJSONArray("raw"))
+                )
+            )
+        }
+        return list
+    }
+
     fun positions(token: String?, brokerAccountId: Int): List<PositionItem> {
         return try {
             val raw = Net.get(base("positions.php?broker_account_id=$brokerAccountId"), token)
-            val o = JSONObject(raw)
-            if (o.optInt("code", -1) != 0) return emptyList()
-            val arr = o.optJSONArray("data") ?: return emptyList()
-            val list = ArrayList<PositionItem>()
-            for (i in 0 until arr.length()) {
-                val p = arr.optJSONObject(i) ?: continue
-                list.add(
-                    PositionItem(
-                        code = p.optString("code", ""),
-                        name = p.optString("name", ""),
-                        quantity = p.optInt("quantity", 0),
-                        avgCost = p.optDouble("avgCost", 0.0),
-                        price = p.optDouble("price", 0.0),
-                        marketValue = p.optDouble("marketValue", 0.0),
-                        pnl = p.optDouble("pnl", 0.0),
-                        pnlPct = p.optDouble("pnlPct", 0.0),
-                        // R51：逐股当日盈亏（后端 dayPnl），列表「当日盈亏」列改用此字段
-                        dayPnl = p.optDouble("dayPnl", 0.0),
-                        // 第40轮修复：此前漏读 holdDays → 永远 null → 表格显示「--」
-                        holdDays = if (p.has("holdDays") && !p.isNull("holdDays")) p.optInt("holdDays") else null,
-                        // ★ V5: 解析全量行情字段，供隐藏表头列（raw 按腾讯索引对齐）
-                        amount = p.optString("amount", "0").toDoubleOrNull() ?: 0.0,
-                        change = p.optString("change", "0").toDoubleOrNull() ?: 0.0,
-                        changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0,
-                        aucPct = p.optString("aucPct", "0").toDoubleOrNull() ?: 0.0,
-                        aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0,
-                        raw = parseRaw(p.optJSONArray("raw"))
-                    )
-                )
+            // ★ 页面本地缓存：网络成功后落盘，供下次进页秒显（SWR）
+            if (raw.isNotBlank() && raw.contains(""data"")) {
+                PageCache.save(Net.appContext, "positions_" + brokerAccountId, raw)
             }
-            list
+            parsePositions(raw)
         } catch (e: Exception) {
             emptyList()
         }
@@ -1179,6 +1196,22 @@ suspend fun placeOrder(
     /** 拉取账户信息（account.php ?broker_account_id=） */
     fun account(token: String?, brokerAccountId: Int): AccountInfo {
         val raw = Net.get(base("account.php?broker_account_id=$brokerAccountId"), token)
+        // ★ 页面本地缓存：网络成功后落盘，供下次进页秒显（SWR）
+        if (raw.isNotBlank() && raw.contains("\"data\"")) {
+            PageCache.save(Net.appContext, "account_" + brokerAccountId, raw)
+        }
+        return parseAccount(raw)
+    }
+
+    /** 读「账户资金」本地磁盘缓存（不发网络）。命中返回 AccountInfo，否则 null。 */
+    fun accountStale(token: String?, brokerAccountId: Int): AccountInfo? {
+        if (brokerAccountId <= 0) return null
+        val raw = PageCache.loadStale(Net.appContext, "account_" + brokerAccountId) ?: return null
+        return try { parseAccount(raw) } catch (_: Exception) { null }
+    }
+
+    /** 账户资金 JSON 解析（供 account 主流程与 accountStale 复用） */
+    private fun parseAccount(raw: String): AccountInfo {
         val d = dataOf(raw) ?: return AccountInfo()
         return AccountInfo(
             cash = d.optDouble("cash", 0.0),
@@ -2231,6 +2264,59 @@ suspend fun placeOrder(
      * @param code 6 位股票代码
      * @param k 周期：day/week/month/m5/m15/m30/m60/m120
      */
+    /**
+     * 读「历史K线」本地磁盘缓存（不发网络）。命中返回 List<KLinePoint>，否则 null。
+     * 缓存内容为 JSON 数组字符串（[{date,open,close,high,low,vol,amount},...]）。
+     */
+    fun klineStale(code: String, k: String = "day"): List<KLinePoint>? {
+        val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
+        val raw = PageCache.loadStale(Net.appContext, "kline_" + pure + "_" + k) ?: return null
+        return try { parseKlineJson(raw) } catch (_: Exception) { null }
+    }
+
+    /** 把 KLinePoint 列表序列化为 JSON 字符串并落盘（供下次 klineStale 秒显）。 */
+    private fun klineSave(code: String, k: String, line: List<KLinePoint>) {
+        if (line.isEmpty()) return
+        try {
+            val arr = org.json.JSONArray()
+            for (pt in line) {
+                val o = org.json.JSONObject()
+                o.put("date", pt.date)
+                o.put("open", pt.open)
+                o.put("close", pt.close)
+                o.put("high", pt.high)
+                o.put("low", pt.low)
+                o.put("vol", pt.vol)
+                o.put("amount", pt.amount)
+                arr.put(o)
+            }
+            val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
+            PageCache.save(Net.appContext, "kline_" + pure + "_" + k, arr.toString())
+        } catch (_: Exception) {
+        }
+    }
+
+    /** K线 JSON 数组解析（供 klineStale 复用）。 */
+    private fun parseKlineJson(raw: String): List<KLinePoint> {
+        val arr = org.json.JSONArray(raw)
+        val out = ArrayList<KLinePoint>(arr.length())
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            out.add(
+                KLinePoint(
+                    date = o.optString("date", ""),
+                    open = o.optDouble("open", 0.0),
+                    close = o.optDouble("close", 0.0),
+                    high = o.optDouble("high", 0.0),
+                    low = o.optDouble("low", 0.0),
+                    vol = o.optDouble("vol", 0.0),
+                    amount = o.optDouble("amount", 0.0)
+                )
+            )
+        }
+        return out
+    }
+
     fun kline(code: String, k: String = "day"): List<KLinePoint> {
         return try {
             val pure = code.trim().let { if (it.length >= 6) it.takeLast(6) else it }
@@ -2244,6 +2330,7 @@ suspend fun placeOrder(
                     line = parseThsKline(Net.getRaw(thsUrl, referer = "https://stockpage.10jqka.com.cn/"))
                 }
                 if (line.isEmpty()) line = fetchKlineFallback("", pure, k)
+                klineSave(code, k, line)
                 line
             }
         } catch (e: Exception) {
