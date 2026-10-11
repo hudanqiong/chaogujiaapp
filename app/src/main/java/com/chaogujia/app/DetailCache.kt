@@ -64,8 +64,7 @@ object DetailCache {
             val f = fileOf(ctx, code, k, kn)
             if (!f.exists()) return null
             val text = f.readText()
-            val nl = text.indexOf('
-')
+            val nl = text.indexOf(10.toChar())
             if (nl <= 0) return null
             val body = text.substring(nl + 1)
             if (body.isBlank()) null else body
