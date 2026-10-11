@@ -1882,6 +1882,16 @@ suspend fun placeOrder(
      *              依赖 current_user() 解析用户，不带 token 时 marks 恒为空 → K 线不画徽标。
      * 行情本身免登录，失败返回 null。
      */
+    /**
+     * 仅从本地磁盘缓存读取 detail（无论是否过期），绝不发起网络请求。
+     * 命中即返回解析结果；无缓存返回 null。
+     * 用途：自选列表 mini 分时图快速首帧渲染，避免阻塞等待网络。
+     */
+    fun detailStale(code: String, k: String = "day", kn: Int = 1): StockDetail? {
+        val raw = DetailCache.loadStale(Net.appContext, code, k, kn) ?: return null
+        return try { parseDetail(raw, code, k) } catch (_: Exception) { null }
+    }
+
     fun detail(code: String, k: String = "day", kn: Int = 1, token: String? = null, forceRefresh: Boolean = false): StockDetail? {
         return try {
             // 1) 先查本地磁盘缓存：命中的是「原始 JSON 字符串」，直接走同一套解析。
@@ -1909,6 +1919,21 @@ suspend fun placeOrder(
                 "CGJ_DTL",
                 "code=$code k=$k kn=$kn force=$forceRefresh cached=$fromCache net=${if (fromCache) 0 else (android.os.SystemClock.elapsedRealtime() - t0)}ms ctx=${Net.appContext != null}"
             )
+            return parseDetail(raw, code, k)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * 将 detail.php 返回的原始 JSON 解析为 StockDetail（纯函数，无网络/无缓存副作用）。
+     * 抽出来供 detail() 与 detailStale() 复用，保证两条路径解析口径完全一致。
+     * @param raw  detail.php 原始响应体
+     * @param code 股票代码（兜底用）
+     * @param k    K线周期：day/week/month/m5/...
+     */
+    private fun parseDetail(raw: String, code: String, k: String = "day"): StockDetail? {
+        return try {
             val o = JSONObject(raw)
             if (!o.optBoolean("ok", false)) return null
             val b = o.optJSONObject("base") ?: JSONObject()

@@ -54,6 +54,27 @@ object DetailCache {
     }
 
     /**
+     * 读取“过期也可用”的缓存（忽略 TTL）：只要文件存在且内容合法就返回。
+     * 用途：自选列表 mini 分时图——宁可先画上一帧旧数据（秒级显示），
+     * 也不阻塞等网络（detail.php 冷请求 ~4.5s）。刷新由后台预热负责。
+     */
+    fun loadStale(ctx: Context?, code: String, k: String, kn: Int): String? {
+        if (ctx == null) return null
+        return try {
+            val f = fileOf(ctx, code, k, kn)
+            if (!f.exists()) return null
+            val text = f.readText()
+            val nl = text.indexOf('
+')
+            if (nl <= 0) return null
+            val body = text.substring(nl + 1)
+            if (body.isBlank()) null else body
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * 写入缓存（原始 JSON 字符串）。
      */
     fun save(ctx: Context?, code: String, k: String, kn: Int, raw: String) {

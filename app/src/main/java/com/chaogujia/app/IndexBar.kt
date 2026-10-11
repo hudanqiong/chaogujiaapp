@@ -501,17 +501,32 @@ fun IndexBar(
             try {
                 val codes = stocks.map { it.code }.filter { it.isNotBlank() }
                 if (codes.isNotEmpty()) {
-                    // 已有分时的直接复用（跨分组保留），仅补拉缺失的
+                    // 已有分时的直接复用（跨分组保留）
                     val merged = HashMap<String, Pair<List<DetailTrend>, Double>>(watchTrendMap)
+                    // ★ 第一遍（同步、纯本地、零网络）：对缺失的股票读「过期也认」的磁盘缓存，
+                    //   让 mini 分时图立即有东西可画，不再冷等 detail.php（~4.5s）→ 消除 1~2 秒延迟。
                     val need = codes.filter { merged[it] == null }
                     if (need.isNotEmpty()) {
+                        for (code in need) {
+                            try {
+                                val d = Api.detailStale(code)
+                                if (d != null && d.trends.isNotEmpty())
+                                    merged[code] = (d.trends to d.base.preClose)
+                            } catch (e: Exception) { /* 无缓存则跳过 */ }
+                        }
+                        if (merged.isNotEmpty()) watchTrendMap = merged
+                    }
+                    // ★ 第二遍（后台、限并发 6）：补拉「首帧后仍有缺」或需要刷新的股票。
+                    //   网络在后台跑，不阻塞 UI；拿到新数据后再更新一次 map。
+                    val stillNeed = codes.filter { merged[it] == null }
+                    if (stillNeed.isNotEmpty()) {
                         val sem = Semaphore(6)
                         val results = withContext(Dispatchers.IO) {
-                            need.map { code ->
+                            stillNeed.map { code ->
                                 async {
                                     sem.withPermit {
                                         try {
-                                            // ★ 走缓存：命中即秒回，不绕过缓存，避免打爆后端
+                                            // 无缓存才联网；有缓存则已在上面的 stale 中显示
                                             val d = Api.detail(code, forceRefresh = false)
                                             if (d != null && d.trends.isNotEmpty())
                                                 code to (d.trends to d.base.preClose)
@@ -521,9 +536,10 @@ fun IndexBar(
                                 }
                             }.awaitAll()
                         }
-                        for (r in results) if (r != null) merged[r.first] = r.second
+                        val m2 = HashMap<String, Pair<List<DetailTrend>, Double>>(watchTrendMap)
+                        for (r in results) if (r != null) m2[r.first] = r.second
+                        if (m2.isNotEmpty()) watchTrendMap = m2
                     }
-                    if (merged.isNotEmpty()) watchTrendMap = merged
                 }
             } catch (e: Exception) { /* 忽略 */ }
             android.util.Log.d("CGJ_DIAG", "watch stocks.size=" + stocks.size + " codes=" + stocks.map { it.code }.take(5) + " trendMap.size=" + watchTrendMap.size)
