@@ -224,7 +224,7 @@ fun IndexBar(
     var watchTrendMap by remember { mutableStateOf<Map<String, Pair<List<DetailTrend>, Double>>>(emptyMap()) }
     // 持仓代码集合：用于给「属于持仓」的股票名统一上紫色（与当前分组无关）
     var holdingCodes by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // 记录上一次已预热的持仓代码集合，仅在集合变化时触发一次 detail 预热（避免每 3 秒重复打）
+    // 记录上一次已预热的持仓代码集合，仅在集合变化时触发一次 detail 预热（避免每轮重复打）
     var lastWarmCodes by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // 时间滴答：每 20 秒触发一次重组，保证「08:45–09:15 重置时段」到点自动切换
@@ -283,14 +283,20 @@ fun IndexBar(
             }
         } catch (e: Exception) { /* 忽略 */ }
     }
-    // 持仓代码集合：每 3 秒刷新一次（进入持仓股分组时也复用同一集合）
-    // 同时在后台对持仓股明细做「预热」：detail.php 冷缓存约 4.3s、热缓存 0.2~0.5s，
-    // 这里提前并发打一遍 detail，把后端缓存捂热，用户点持仓分组/进详情页时即为热数据。
+    // 持仓代码集合 + 持仓股明细「预热」。
+    // 后端已优化：positions.php 走「1 次批量行情 + MySQL 共享缓存」，热请求约 6ms（冷启动约 0.4s）；
+    // detail.php 已并发化（冷约 1.3s、热约 0.1s）。
+    // 本循环历史上为「每 3 秒重打 brokerList + 逐账户 positions」，是持仓接口的高频放大器。
+    // 现优化为：
+    //   1) 复用上方 LaunchedEffect 一次性拉取的 brokerAccounts，不再每轮重拉券商列表；
+    //   2) 轮询周期由 3s 放宽到 30s（持仓构成变化本就罕见）；
+    //   3) 首轮先 delay 30s，给首页 UI/行情让路。
     LaunchedEffect(token) {
         while (true) {
+            kotlinx.coroutines.delay(30000)
             try {
                 val sets = withContext(Dispatchers.IO) {
-                    val brokers = Api.brokerList(token)
+                    val brokers = if (brokerAccounts.isNotEmpty()) brokerAccounts else Api.brokerList(token)
                     val s = mutableSetOf<String>()
                     for (b in brokers) {
                         try {
@@ -313,7 +319,7 @@ fun IndexBar(
                     }
                 }
             } catch (e: Exception) { /* 忽略 */ }
-            kotlinx.coroutines.delay(3000)
+            kotlinx.coroutines.delay(30000)
         }
     }
     // 切换分组/切换账户时拉该组股票（自选股=-1 或自建组 id；持仓股=-2 用选中账户的持仓）
@@ -336,7 +342,7 @@ fun IndexBar(
                 // ★ 性能根治：watchlist(list) 一次请求即带回全部股票的完整实时行情
                 //   （price/change/changePct），且与 detail 数据一致。
                 //   故先并发拉 watchlist 建 code->行情 映射，命中即用（快），
-                //   未命中才 fallback detail（慢，冷缓存 ~4.3s）。避免逐只调 detail。
+                //   未命中才 fallback detail（冷约 1.3s、热约 0.1s）。避免逐只调 detail。
                 val list = withContext(Dispatchers.IO) {
                     val out = ArrayList<StockItem>()
                     // 1) 建批量行情映射（一次请求，~1.4s）
