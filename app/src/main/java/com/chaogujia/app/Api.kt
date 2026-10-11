@@ -37,7 +37,14 @@ data class PositionItem(
     val pnl: Double = 0.0,
     val pnlPct: Double = 0.0,
     val dayPnl: Double = 0.0,        // R51：当日盈亏（= (现价-昨收)×数量，Σ 后与顶部当日参考盈亏一致）
-    val holdDays: Int? = null        // 第40轮：持仓交易日数（后端 holdDays；null=暂无）
+    val holdDays: Int? = null,       // 第40轮：持仓交易日数（后端 holdDays；null=暂无）
+    // ★ V5: 持仓全量行情字段（后端 positions.php 已输出），供「隐藏表头」列取值
+    val amount: Double = 0.0,
+    val change: Double = 0.0,
+    val changePct: Double = 0.0,
+    val aucPct: Double = 0.0,
+    val aucAmount: Double = 0.0,
+    val raw: List<String> = emptyList()
 )
 /** 月度参考盈亏 - 单日数据点（pnl_history.php 的 data.points[]） */
 data class PnlPoint(
@@ -930,7 +937,14 @@ suspend fun placeOrder(
                         // R51：逐股当日盈亏（后端 dayPnl），列表「当日盈亏」列改用此字段
                         dayPnl = p.optDouble("dayPnl", 0.0),
                         // 第40轮修复：此前漏读 holdDays → 永远 null → 表格显示「--」
-                        holdDays = if (p.has("holdDays") && !p.isNull("holdDays")) p.optInt("holdDays") else null
+                        holdDays = if (p.has("holdDays") && !p.isNull("holdDays")) p.optInt("holdDays") else null,
+                        // ★ V5: 解析全量行情字段，供隐藏表头列（raw 按腾讯索引对齐）
+                        amount = p.optString("amount", "0").toDoubleOrNull() ?: 0.0,
+                        change = p.optString("change", "0").toDoubleOrNull() ?: 0.0,
+                        changePct = p.optString("changePct", "0").toDoubleOrNull() ?: 0.0,
+                        aucPct = p.optString("aucPct", "0").toDoubleOrNull() ?: 0.0,
+                        aucAmount = p.optString("aucAmount", "0").toDoubleOrNull() ?: 0.0,
+                        raw = parseRaw(p.optJSONArray("raw"))
                     )
                 )
             }

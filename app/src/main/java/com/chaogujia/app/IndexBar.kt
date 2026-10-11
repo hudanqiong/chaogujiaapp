@@ -379,14 +379,19 @@ fun IndexBar(
                             valid.forEach { p ->
                                 val q = quoteMap[p.code]
                                 if (q != null) {
-                                    // 命中：直接用 watchlist 的实时行情
+                                    // 命中：直接用 watchlist 的实时行情（raw 优先取持仓接口，其次 watchlist）
+                                    val rw = if (p.raw.isNotEmpty()) p.raw else q.raw
                                     out.add(
                                         StockItem(
                                             code = p.code,
                                             name = p.name.ifBlank { q.name },
                                             price = q.price,
                                             change = q.change,
-                                            changePct = q.changePct
+                                            changePct = q.changePct,
+                                            amount = if (p.amount != 0.0) p.amount else q.amount,
+                                            aucPct = if (p.aucPct != 0.0) p.aucPct else q.aucPct,
+                                            aucAmount = if (p.aucAmount != 0.0) p.aucAmount else q.aucAmount,
+                                            raw = rw
                                         )
                                     )
                                 } else {
@@ -405,7 +410,11 @@ fun IndexBar(
                                             name = p.name,
                                             price = price,
                                             change = chg,
-                                            changePct = pct
+                                            changePct = pct,
+                                            amount = p.amount,
+                                            aucPct = p.aucPct,
+                                            aucAmount = p.aucAmount,
+                                            raw = p.raw
                                         )
                                     )
                                 }
