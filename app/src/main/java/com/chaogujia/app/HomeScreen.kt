@@ -123,12 +123,7 @@ fun HomeScreen(
             NoticeBar(notices)
             Spacer(Modifier.height(12.dp))
         }
-        HomeMemberCard(
-            isMember = member.isMember,
-            levelName = if (member.levelName.isNotEmpty()) member.levelName else "普通用户",
-            expireAt = member.expireAt,
-            onOpen = { subPage = "recharge" }
-        )
+        // 会员状态已合并到顶部红条 MemberHeaderBar（头像/等级/到期时间/续费按钮），此处不再重复展示
         Spacer(Modifier.height(12.dp))
         HomeAssetCard { subPage = "initial" }
         Spacer(Modifier.height(12.dp))
@@ -205,7 +200,7 @@ fun CardBox(content: @Composable () -> Unit) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
-            .padding(14.dp)
+            .padding(10.dp)
     ) { content() }
 }
 
@@ -237,7 +232,7 @@ fun MenuRow(title: String, sub: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
-            .padding(vertical = 12.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -248,6 +243,21 @@ fun MenuRow(title: String, sub: String, onClick: () -> Unit) {
             }
         }
         Text("|", color = Color(Config.COLOR_TEXT_SUB), fontSize = 18.sp)
+    }
+}
+
+@Composable
+fun MenuCell(title: String, sub: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onClick() }
+            .padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(title, color = Color(Config.COLOR_TEXT_MAIN), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(3.dp))
+        Text(sub, color = Color(Config.COLOR_TEXT_SUB), fontSize = 10.sp)
     }
 }
 
@@ -349,6 +359,8 @@ private fun HomePointCard(points: Int, onNav: (String) -> Unit) {
             SmallBtn("积分明细") { onNav("points") }
             Spacer(Modifier.width(8.dp))
             SmallBtn("兑换会员") { onNav("exchange") }
+            Spacer(Modifier.width(8.dp))
+            SmallBtn("邀请好友") { onNav("invite") }
         }
     }
 }
@@ -357,21 +369,26 @@ private fun HomePointCard(points: Int, onNav: (String) -> Unit) {
 private fun HomeMenuCard(onNav: (String) -> Unit) {
     CardBox {
         Column {
-            MenuRow("邀请好友", "邀好友开卡得积分") { onNav("invite") }
-            HDivider()
-            MenuRow("券商账户", "绑定你的券商席位") { onNav("broker") }
-            HDivider()
-            MenuRow("自选分组设置", "管理自选股分组") { onNav("groups") }
-            HDivider()
-            MenuRow("添加自选股", "输入代码加入自选") { onNav("addstock") }
-            HDivider()
-            MenuRow("交易记录管理", "修改持仓记录日期与价格") { onNav("tradeedit") }
-            HDivider()
-            MenuRow("一键模拟", "批量生成买卖T记录") { onNav("simulate") }
-            HDivider()
-            MenuRow("意见反馈", "提交问题与建议") { onNav("feedback") }
-            HDivider()
-            MenuRow("修改密码", "修改登录密码") { onNav("pwd") }
+            // 两列网格：每格一个入口（邀请好友已合并到积分卡）
+            val items = listOf(
+                Triple("券商账户", "绑定券商席位", "broker"),
+                Triple("自选分组设置", "管理自选股分组", "groups"),
+                Triple("添加自选股", "输入代码加入自选", "addstock"),
+                Triple("交易记录管理", "改持仓日期价格", "tradeedit"),
+                Triple("一键模拟", "批量生成买卖T", "simulate"),
+                Triple("意见反馈", "提交问题与建议", "feedback"),
+                Triple("修改密码", "修改登录密码", "pwd")
+            )
+            items.chunked(2).forEachIndexed { rowIdx, rowItems ->
+                if (rowIdx > 0) HDivider()
+                Row(Modifier.fillMaxWidth()) {
+                    rowItems.forEachIndexed { colIdx, it ->
+                        if (colIdx > 0) Box(Modifier.width(1.dp).height(44.dp).background(Color(Config.COLOR_DIVIDER)))
+                        MenuCell(it.first, it.second, Modifier.weight(1f)) { onNav(it.third) }
+                    }
+                    if (rowItems.size == 1) Box(Modifier.weight(1f))
+                }
+            }
         }
     }
 }

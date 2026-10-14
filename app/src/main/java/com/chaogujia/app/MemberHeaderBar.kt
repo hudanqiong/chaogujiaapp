@@ -78,7 +78,9 @@ fun MemberHeaderBar(
     // ===== 自选页叠加层标题（如「多股同列」打开时，红条标题改为该文字）=====
     overlayTitle: String = "",
     // ===== 自选页左上角返回：多股同列打开时点箭头 -> 关闭回到普通自选 =====
-    onWatchBack: () -> Unit = {}
+    onWatchBack: () -> Unit = {},
+    // 首页红条右侧「续费」按钮 -> 打开充值页
+    onOpenRecharge: () -> Unit = {}
 ) {
     // ★ 只有详情页是 edge-to-edge（状态栏透明、由内容绘制），
     //   此时红条背景必须铺满到屏幕最顶（含状态栏区域），内容再下移该高度；
@@ -104,7 +106,7 @@ fun MemberHeaderBar(
         when {
             // ★ 资讯紧凑模式：红条只作为状态栏背景色块，不渲染任何内容
             compact -> Unit
-            current == "index" -> MemberInfoRow(username, isMember, levelName, expireAt)
+            current == "index" -> MemberInfoRow(username, isMember, levelName, expireAt, onOpenRecharge)
 
             // 自选页：同花顺自选 + 三图标
             current == "watch" -> WatchHeaderRow(onOpenSearch, overlayTitle, onWatchBack)
@@ -453,7 +455,8 @@ private fun MemberInfoRow(
     username: String,
     isMember: Boolean,
     levelName: String,
-    expireAt: String
+    expireAt: String,
+    onOpenRecharge: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -513,6 +516,16 @@ private fun MemberInfoRow(
                     fontWeight = FontWeight.Medium
                 )
             }
+        }
+        Spacer(Modifier.width(10.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(14.dp))
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onOpenRecharge() }
+                .padding(horizontal = 12.dp, vertical = 5.dp)
+        ) {
+            Text("续费", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

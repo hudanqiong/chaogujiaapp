@@ -370,7 +370,9 @@ fun ChaoGuJiaApp() {
                     // ★ 多股同列全屏页打开时，红条标题切换为「多股同列」
                     overlayTitle = if (showColumns && detail == null) "多股同列" else "",
                     // ★ 点左上角返回箭头：关闭多股同列，回到普通自选
-                    onWatchBack = { showColumns = false; closeColumnsTick++ }
+                    onWatchBack = { showColumns = false; closeColumnsTick++ },
+                    // ★ 首页红条右侧「续费」-> 打开会员充值页（复用子页机制）
+                    onOpenRecharge = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
                 )
             }
             }
