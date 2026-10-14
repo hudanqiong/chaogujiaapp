@@ -145,6 +145,47 @@ data class MemberInfo(
     val plans: List<MemberPlan> = emptyList()
 )
 
+
+/** 应用配置（app_config.php）—— 启动页/公告/用户协议/版本，无需登录 */
+data class NoticeItem(
+    val title: String = "",
+    val content: String = "",
+    val time: String = ""
+)
+/** 版本信息块 */
+data class AppVersionInfo(
+    val latestVersionCode: Int = 0,
+    val minVersionCode: Int = 0,
+    val latestVersionName: String = "",
+    val forceUpdate: Boolean = false,
+    val downloadUrl: String = "",
+    val updateLog: String = ""
+)
+/** 公告块 */
+data class AppNotice(
+    val list: List<NoticeItem> = emptyList()
+)
+/** 用户协议块 */
+data class AppAgreement(
+    val title: String = "用户协议与隐私政策",
+    val content: String = "",
+    val version: String = ""
+)
+/** 启动页块 */
+data class AppSplash(
+    val enabled: Boolean = false,
+    val image: String = "",
+    val link: String = "",
+    val seconds: Int = 3
+)
+/** 应用配置总包（app_config.php data 字段） */
+data class AppConfig(
+    val version: AppVersionInfo = AppVersionInfo(),
+    val notice: AppNotice = AppNotice(),
+    val agreement: AppAgreement = AppAgreement(),
+    val splash: AppSplash = AppSplash()
+)
+
 /** 权限网关返回（my_permissions.php）—— App 端功能门禁依据 */
 data class PermissionInfo(
     val isMember: Boolean = false,
@@ -569,7 +610,61 @@ suspend fun placeOrder(
     /** 通用结果 */
     data class Res(val ok: Boolean, val msg: String = "")
 
-    /** 大盘指数（上证/深证/创业板），无需登录 */
+        /**
+     * 拉取应用配置（app_config.php，无需登录）。
+     * 返回启动页/公告/用户协议/版本，失败时返回默认 AppConfig（不抛异常）。
+     */
+    fun appConfig(): AppConfig {
+        return try {
+            val raw = Net.get(base("app_config.php"))
+            val d = dataOf(raw) ?: return AppConfig()
+            // version
+            val vj = d.optJSONObject("version")
+            val ver = AppVersionInfo(
+                latestVersionCode = vj?.optInt("latestVersionCode", 0) ?: 0,
+                minVersionCode = vj?.optInt("minVersionCode", 0) ?: 0,
+                latestVersionName = vj?.optString("latestVersionName", "") ?: "",
+                forceUpdate = vj?.optBoolean("forceUpdate", false) ?: false,
+                downloadUrl = vj?.optString("downloadUrl", "") ?: "",
+                updateLog = vj?.optString("updateLog", "") ?: ""
+            )
+            // notice
+            val nj = d.optJSONObject("notice")
+            val narr = nj?.optJSONArray("list")
+            val notices = ArrayList<NoticeItem>()
+            if (narr != null) {
+                for (i in 0 until narr.length()) {
+                    val j = narr.optJSONObject(i) ?: continue
+                    notices.add(
+                        NoticeItem(
+                            title = j.optString("title", ""),
+                            content = j.optString("content", ""),
+                            time = j.optString("time", "")
+                        )
+                    )
+                }
+            }
+            // agreement
+            val aj = d.optJSONObject("agreement")
+            val agr = AppAgreement(
+                title = aj?.optString("title", "用户协议与隐私政策") ?: "用户协议与隐私政策",
+                content = aj?.optString("content", "") ?: "",
+                version = aj?.optString("version", "") ?: ""
+            )
+            // splash
+            val sj = d.optJSONObject("splash")
+            val splash = AppSplash(
+                enabled = sj?.optBoolean("enabled", false) ?: false,
+                image = sj?.optString("image", "") ?: "",
+                link = sj?.optString("link", "") ?: "",
+                seconds = sj?.optInt("seconds", 3) ?: 3
+            )
+            AppConfig(ver, AppNotice(notices), agr, splash)
+        } catch (e: Exception) {
+            AppConfig()
+        }
+    }
+/** 大盘指数（上证/深证/创业板），无需登录 */
     fun indexQuotes(): List<IndexQuote> {
         return try {
             val raw = Net.get(base("index_quote.php"))
