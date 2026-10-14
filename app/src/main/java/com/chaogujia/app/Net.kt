@@ -17,6 +17,12 @@ object Net {
 
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
+    /**
+     * 统一版本头：随包编译自动取值（BuildConfig.VERSION_CODE），无需人工维护。
+     * 服务端 version_gate.php 依据该头做版本门禁。
+     */
+    private val APP_VER: String = BuildConfig.VERSION_CODE.toString()
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -73,6 +79,7 @@ object Net {
     /** GET 请求，可带 token */
     fun get(url: String, token: String? = null): String {
         val b = Request.Builder().url(withToken(url, token))
+        b.header("X-App-Version", APP_VER)
         if (!token.isNullOrEmpty()) b.addHeader("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { resp ->
             updateServerTime(resp)
@@ -102,6 +109,7 @@ object Net {
     fun postJson(url: String, json: String, token: String? = null, withTokenParam: Boolean = true): String {
         val finalUrl = if (withTokenParam) withToken(url, token) else url
         val b = Request.Builder().url(finalUrl).post(json.toRequestBody(JSON))
+        b.header("X-App-Version", APP_VER)
         if (!token.isNullOrEmpty()) b.addHeader("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { resp ->
             updateServerTime(resp)

@@ -513,6 +513,35 @@ fun ChaoGuJiaApp() {
         // ★ 水印层：文字由服务端下发（member.php 的 watermark 字段）。
         // 非会员才有文字、会员为空 → 拿不到就不画（安全默认）。
         // 客户端不再本地拼接用户名，改客户端也拿不到“干净”版本。
+        // ★ 软提示升级：服务端 member.php 下发 version.latestVersionCode，
+        //   仅当大于当前包版本（BuildConfig.VERSION_CODE）时弹一次，不阻断使用。
+        if (member.latestVersionCode > BuildConfig.VERSION_CODE) {
+            var shown by remember(member.latestVersionCode) { mutableStateOf(false) }
+            if (!shown) {
+                AlertDialog(
+                    onDismissRequest = { shown = true },
+                    title = { Text("发现新版本") },
+                    text = { Text("当前版本 v" + BuildConfig.VERSION_NAME + "，已有 v" +
+                        member.latestVersionCode + "。升级后体验更佳，是否前往更新？") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            shown = true
+                            if (member.downloadUrl.isNotEmpty()) {
+                                runCatching {
+                                    startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(member.downloadUrl))
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                            }
+                        }) { Text("去更新") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { shown = true }) { Text("暂不") }
+                    }
+                )
+            }
+        }
         WatermarkLayer(enabled = member.watermark.isNotEmpty(), text = member.watermark)
     }
 }

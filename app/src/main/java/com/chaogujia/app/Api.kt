@@ -139,6 +139,9 @@ data class MemberInfo(
     val levelName: String = "普通用户",
     val expireAt: String = "",
     val watermark: String = "",   // 服务端下发的水印文字（非会员才有；空=不画）
+    val minVersionCode: Int = 0,      // 服务端要求的最低版本号（0=不限制）
+    val latestVersionCode: Int = 0,   // 服务端最新版本号（>当前则提示升级）
+    val downloadUrl: String = "",     // 升级下载地址
     val plans: List<MemberPlan> = emptyList()
 )
 
@@ -1325,11 +1328,15 @@ suspend fun placeOrder(
                 )
             }
         }
+        val ver = d.optJSONObject("version")
         return MemberInfo(
             isMember = d.optBoolean("isMember", false),
             levelName = d.optString("levelName", "普通用户"),
             expireAt = d.optString("expireAt", ""),
             watermark = d.optString("watermark", ""),
+            minVersionCode = ver?.optInt("minVersionCode", 0) ?: 0,
+            latestVersionCode = ver?.optInt("latestVersionCode", 0) ?: 0,
+            downloadUrl = ver?.optString("downloadUrl", "") ?: "",
             plans = plans
         )
     }
