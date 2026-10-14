@@ -771,11 +771,14 @@ fun SplashOverlay(image: String, brand: AppBrand, loading: Boolean) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(Modifier.weight(0.9f))
-                Image(
-                    painter = painterResource(R.mipmap.ic_launcher),
-                    contentDescription = "logo",
-                    modifier = Modifier.size(84.dp)
-                )
+                val logoTint = brandLogoBitmap(context = androidx.compose.ui.platform.LocalContext.current)
+                if (logoTint != null) {
+                    Image(
+                        bitmap = logoTint,
+                        contentDescription = "logo",
+                        modifier = Modifier.size(84.dp)
+                    )
+                }
                 Spacer(Modifier.height(22.dp))
                 Text(
                     text = brand.slogan,
@@ -936,6 +939,26 @@ fun AgreementDialog(title: String, content: String, onAgree: () -> Unit, onRejec
                     Text("同意并继续", color = Color.White, fontSize = 15.sp)
                 }
             }
+        }
+    }
+}
+
+// LOGO-BITMAP-PATCHED: 自适应图标不能直接 painterResource 加载，需转 Bitmap
+@Composable
+fun brandLogoBitmap(context: android.content.Context): androidx.compose.ui.graphics.ImageBitmap? {
+    return remember {
+        try {
+            val d = androidx.core.content.ContextCompat.getDrawable(context, R.mipmap.ic_launcher)
+            if (d == null) return@remember null
+            val w = if (d.intrinsicWidth > 0) d.intrinsicWidth else 192
+            val h = if (d.intrinsicHeight > 0) d.intrinsicHeight else 192
+            val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(bmp)
+            d.setBounds(0, 0, c.width, c.height)
+            d.draw(c)
+            bmp.asImageBitmap()
+        } catch (e: Throwable) {
+            null
         }
     }
 }
