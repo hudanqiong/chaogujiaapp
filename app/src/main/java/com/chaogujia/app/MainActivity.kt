@@ -148,30 +148,48 @@ fun ChaoGuJiaApp() {
     // 这样用户第一次点进自选列表/个股详情页时，detail 已是热的（0.2~0.5s 或直接命中本地缓存），
     // 达到"零点几秒打开"的体感。预热失败静默忽略，不影响任何主流程。
     LaunchedEffect(Unit) {
+        val t0 = System.currentTimeMillis()
         withContext(Dispatchers.IO) {
             try {
                 val tk = token
-                if (tk.isNullOrEmpty()) return@withContext
-                // 1) 收集自选 + 持仓的全部代码
-                val codes = LinkedHashSet<String>()
-                runCatching { Api.stockList(tk, -1).forEach { if (it.code.isNotBlank()) codes.add(it.code) } }
-                runCatching {
-                    val brokers = Api.brokerList(tk)
-                    for (b in brokers) {
-                        runCatching {
-                            Api.positions(tk, b.id).forEach { p -> if (p.quantity > 0 && p.code.isNotBlank()) codes.add(p.code) }
+                if (tk.isNullOrEmpty()) {
+                    // 未登录：无需预热，直接放行
+                    Log.e("CGJ_WARM", "no token, skip warm")
+                } else {
+                    // startup warm: watch + position + quote
+                    val codes = LinkedHashSet<String>()
+                    val jobs = mutableListOf<kotlinx.coroutines.Deferred<*>>()
+                    // 1) 并行拉：自选列表 + 持仓列表
+                    jobs.add(async(Dispatchers.IO) { runCatching {
+                        Api.stockList(tk, -1).forEach { if (it.code.isNotBlank()) codes.add(it.code) }
+                    } })
+                    val brokerCodes = async(Dispatchers.IO) { runCatching {
+                        val out = LinkedHashSet<String>()
+                        val brokers = Api.brokerList(tk)
+                        for (b in brokers) {
+                            runCatching {
+                                Api.positions(tk, b.id).forEach { p -> if (p.quantity > 0 && p.code.isNotBlank()) out.add(p.code) }
+                            }
                         }
+                        out
+                    }.getOrElse { LinkedHashSet<String>() } }
+                    jobs.add(brokerCodes)
+                    jobs.awaitAll()
+                    codes.addAll(brokerCodes.await())
+                    // 2) 并发预热全部 detail（同时写本地磁盘缓存）
+                    if (codes.isNotEmpty()) {
+                        codes.map { c -> async(Dispatchers.IO) { runCatching { Api.detail(c, token = tk) } } }.awaitAll()
                     }
                 }
-                if (codes.isEmpty()) return@withContext
-                val t0 = System.currentTimeMillis()
-                // 2) 并发预热全部 detail（同时写本地磁盘缓存）
-                codes.map { c -> async(Dispatchers.IO) { runCatching { Api.detail(c, token = tk) } } }.awaitAll()
-                Log.e("CGJ_WARM", "startup warm done codes=" + codes.size + " costMs=" + (System.currentTimeMillis() - t0))
             } catch (e: Exception) {
                 Log.e("CGJ_WARM", "startup warm failed: " + e.message)
             }
         }
+        // 最短展示 800ms，避免一闪而过；数据就绪（min 800ms）后放行
+        val elapsed = System.currentTimeMillis() - t0
+        if (elapsed < 800L) kotlinx.coroutines.delay(800L - elapsed)
+        splashReady = true
+        Log.e("CGJ_WARM", "splash ready, totalMs=" + (System.currentTimeMillis() - t0))
     }
 
     // ★ 返回键处理：
@@ -233,6 +251,8 @@ fun ChaoGuJiaApp() {
     var appCfg by remember { mutableStateOf(AppConfig()) }
     // 启动页是否正在显示（仅当后台开启 splash.enabled 且有图时短暂显示）
     var showSplash by remember { mutableStateOf(false) }
+    // ★ 启动页改造：数据预热是否就绪（就绪后才允许关闭启动页）
+    var splashReady by remember { mutableStateOf(false) }
     // 首次启动公告弹窗
     var showNoticeDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -565,12 +585,14 @@ fun ChaoGuJiaApp() {
             }
         }
         WatermarkLayer(enabled = member.watermark.isNotEmpty(), text = member.watermark)
-        // ★ 第5步：启动页全屏层（盖在最上层，倒计时后可跳过）
+        // ★ 第5步：启动页全屏层（同花顺式：转圈 + 数据预热，就绪后自动进入，无跳过）
+        if (showSplash && splashReady) {
+            LaunchedEffect(Unit) { showSplash = false }
+        }
         if (showSplash) {
             SplashOverlay(
                 image = appCfg.splash.image,
-                seconds = appCfg.splash.seconds,
-                onFinish = { showSplash = false }
+                loading = !splashReady
             )
         }
         // ★ 第5步：首次启动公告弹窗
@@ -675,19 +697,17 @@ fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
         contentScale = ContentScale.Fit
     )
 }
-// ============ 第5步：启动页覆盖层 ============
+// ============ 第5步：启动页覆盖层（同花顺式：转圈，无跳过） ============
 @Composable
-fun SplashOverlay(image: String, seconds: Int, onFinish: () -> Unit) {
+fun SplashOverlay(image: String, loading: Boolean) {
     val url = when {
         image.isBlank() -> ""
         image.startsWith("http") -> image
         else -> "http://121.43.178.214:8080" + image
     }
     var bmp by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    var failed by remember(url) { mutableStateOf(false) }
-    var left by remember { mutableStateOf(if (seconds > 0) seconds else 3) }
     LaunchedEffect(url) {
-        if (url.isEmpty()) { failed = true; return@LaunchedEffect }
+        if (url.isEmpty()) return@LaunchedEffect
         bmp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
                 val resp = Net.rawClient.newCall(
@@ -700,24 +720,11 @@ fun SplashOverlay(image: String, seconds: Int, onFinish: () -> Unit) {
                 null
             }
         }
-        if (bmp == null) failed = true
-    }
-    LaunchedEffect(left) {
-        if (left > 0) {
-            kotlinx.coroutines.delay(1000)
-            left -= 1
-        } else {
-            onFinish()
-        }
     }
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF111111))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) { onFinish() },
+            .background(Color(0xFF111111)),
         contentAlignment = Alignment.Center
     ) {
         val b = bmp
@@ -728,23 +735,22 @@ fun SplashOverlay(image: String, seconds: Int, onFinish: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit
             )
-        } else {
-            Text(
-                if (failed) "启动图加载失败" else "加载中…",
-                color = Color.White,
-                fontSize = 14.sp
-            )
         }
-        Text(
-            text = if (left > 0) "跳过 " + left + "s" else "跳过",
-            color = Color.White,
-            fontSize = 13.sp,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = 20.dp)
-                .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                .padding(horizontal = 14.dp, vertical = 6.dp)
-        )
+        // ★ 数据未就绪：在底部中央显示转圈 + 文案（彪在启动图上方）
+        if (loading || b == null) {
+            Column(
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(Modifier.height(14.dp))
+                Text("正在加载…", color = Color(0xCCFFFFFF), fontSize = 13.sp)
+            }
+        }
     }
 }
 
