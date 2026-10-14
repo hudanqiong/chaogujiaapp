@@ -261,17 +261,24 @@ fun ChaoGuJiaApp() {
     // ★ 启动页改造：数据预热是否就绪（就绪后才允许关闭启动页）
     // 首次启动公告弹窗
     var showNoticeDialog by remember { mutableStateOf(false) }
+    // 首次启动用户协议弹窗（未同意则强制阅读）
+    var showAgreementDialog by remember { mutableStateOf(false) }
+    var agreementAgreed by remember { mutableStateOf(prefs.getBoolean("agreement_agreed_v1", false)) }
     LaunchedEffect(Unit) {
         val cfg = withContext(Dispatchers.IO) { runCatching { Api.appConfig() }.getOrElse { AppConfig() } }
         appCfg = cfg
-        // 启动页：后台开启 + 有图 → 显示
-        if (cfg.splash.enabled && cfg.splash.image.isNotEmpty()) {
+        // 启动页：后台开启即显示（有图用图，无图回退为品牌页）
+        if (cfg.splash.enabled) {
             showSplash = true
         }
         // 公告：仅首次启动弹一次（用 SharedPreferences 记标记）
         if (cfg.notice.list.isNotEmpty() && !prefs.getBoolean("notice_shown_v1", false)) {
             showNoticeDialog = true
             prefs.edit().putBoolean("notice_shown_v1", true).apply()
+        }
+        // 用户协议：后台已配置且用户未同意过 → 首屏强制弹窗
+        if (cfg.agreement.content.isNotEmpty() && !agreementAgreed) {
+            showAgreementDialog = true
         }
     }
     // 功能权限（个股详情页等共用，由 MainActivity 统一拉）
@@ -609,6 +616,19 @@ fun ChaoGuJiaApp() {
                 onClose = { showNoticeDialog = false }
             )
         }
+        // AGREE-UI-PATCHED: 首屏用户协议弹窗
+        if (showAgreementDialog && appCfg.agreement.content.isNotEmpty()) {
+            AgreementDialog(
+                title = appCfg.agreement.title,
+                content = appCfg.agreement.content,
+                onAgree = {
+                    agreementAgreed = true
+                    prefs.edit().putBoolean("agreement_agreed_v1", true).apply()
+                    showAgreementDialog = false
+                },
+                onReject = { showAgreementDialog = false }
+            )
+        }
     }
 }
 // ============ 资讯 tab：WebView 加载资讯站（第十二轮建站） ============
@@ -859,6 +879,62 @@ fun NoticeDialog(notices: List<NoticeItem>, onClose: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text("我知道了", color = Color.White, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+
+// ============ 第5步：首屏用户协议弹窗 ============
+@Composable
+fun AgreementDialog(title: String, content: String, onAgree: () -> Unit, onReject: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xAA000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                .padding(20.dp)
+        ) {
+            Text(
+                text = if (title.isNotEmpty()) title else "用户协议与隐私政策",
+                color = Color(Config.COLOR_TEXT_MAIN),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = content,
+                color = Color(Config.COLOR_TEXT_SUB),
+                fontSize = 13.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(onClick = onReject, modifier = Modifier.weight(1f)) {
+                    Text("不同意", color = Color(Config.COLOR_TEXT_SUB), fontSize = 14.sp)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .background(Color(Config.COLOR_PRIMARY), androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+                        .clickable { onAgree() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("同意并继续", color = Color.White, fontSize = 15.sp)
+                }
             }
         }
     }
