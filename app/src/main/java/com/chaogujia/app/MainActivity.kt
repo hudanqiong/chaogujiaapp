@@ -9,12 +9,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -691,7 +694,7 @@ fun SplashOverlay(image: String, seconds: Int, onFinish: () -> Unit) {
                     okhttp3.Request.Builder().url(url).build()
                 ).execute()
                 resp.body?.byteStream()?.use { ins ->
-                    android.graphics.BitmapFactory.decodeStream(ins)?.androidx.compose.ui.graphics.asImageBitmap()
+                    android.graphics.BitmapFactory.decodeStream(ins)?.asImageBitmap()
                 }
             } catch (e: Exception) {
                 null
@@ -786,7 +789,7 @@ fun NoticeDialog(notices: List<NoticeItem>, onClose: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 320.dp)
-                    .androidx.compose.foundation.verticalScroll(androidx.compose.foundation.rememberScrollState())
+                    .verticalScroll(rememberScrollState())
             )
             if (notices.size > 1) {
                 Spacer(Modifier.height(14.dp))
