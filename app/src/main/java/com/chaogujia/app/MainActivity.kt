@@ -183,6 +183,8 @@ fun ChaoGuJiaApp() {
                     // 2) 并发预热全部 detail（同时写本地磁盘缓存）
                     if (codes.isNotEmpty()) {
                         codes.map { c -> async(Dispatchers.IO) { runCatching { Api.detail(c, token = tk) } } }.awaitAll()
+                    } else {
+                        Unit
                     }
                 }
             } catch (e: Exception) {
