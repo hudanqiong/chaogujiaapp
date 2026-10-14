@@ -33,6 +33,7 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun LoginScreen(
+    agreement: AppAgreement = AppAgreement(),
     onSuccess: (token: String, username: String) -> Unit,
     onClose: () -> Unit
 ) {
@@ -48,15 +49,18 @@ fun LoginScreen(
     var busy by remember { mutableStateOf(false) }
     var agreed by remember { mutableStateOf(false) }
     var showAgreement by remember { mutableStateOf(false) }
-    var agreementTitle by remember { mutableStateOf("用户协议与隐私政策") }
-    var agreementContent by remember { mutableStateOf("") }
+    var agreementTitle by remember { mutableStateOf(if (agreement.title.isNotBlank()) agreement.title else "用户协议与隐私政策") }
+    var agreementContent by remember { mutableStateOf(agreement.content) }
 
     LaunchedEffect(Unit) {
-        try {
-            val cfg = Api.appConfig()
-            if (cfg.agreement.title.isNotBlank()) agreementTitle = cfg.agreement.title
-            agreementContent = cfg.agreement.content
-        } catch (e: Exception) {
+        // 优先使用外部（App 启动时）已拉取的协议；仅当为空时才自行补拉
+        if (agreementContent.isBlank()) {
+            try {
+                val cfg = Api.appConfig()
+                if (cfg.agreement.title.isNotBlank()) agreementTitle = cfg.agreement.title
+                if (cfg.agreement.content.isNotBlank()) agreementContent = cfg.agreement.content
+            } catch (e: Exception) {
+            }
         }
     }
     var err by remember { mutableStateOf<String?>(null) }

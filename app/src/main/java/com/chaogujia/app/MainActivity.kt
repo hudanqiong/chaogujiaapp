@@ -542,6 +542,7 @@ fun ChaoGuJiaApp() {
 
             if (showLogin) {
                 LoginScreen(
+                    agreement = appCfg.agreement,
                     onSuccess = { tk, un ->
                         token = tk
                         uname = un
@@ -600,7 +601,12 @@ fun ChaoGuJiaApp() {
         WatermarkLayer(enabled = member.watermark.isNotEmpty(), text = member.watermark)
         // ★ 第5步：启动页全屏层（同花顺式：转圈 + 数据预热，就绪后自动进入，无跳过）
         if (showSplash && splashReady) {
-            LaunchedEffect(Unit) { showSplash = false }
+            LaunchedEffect(Unit) {
+                // 至少停留秒数（默认3秒），保证启动页/品牌页有足够展示时间
+                val secs = if (appCfg.splash.seconds > 0) appCfg.splash.seconds else 3
+                kotlinx.coroutines.delay(secs * 1000L)
+                showSplash = false
+            }
         }
         if (showSplash) {
             SplashOverlay(
