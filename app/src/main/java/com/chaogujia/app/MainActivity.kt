@@ -226,6 +226,25 @@ fun ChaoGuJiaApp() {
 
     // 会员信息（5 页共用，由 MainActivity 统一拉）
     var member by remember { mutableStateOf(MemberInfo()) }
+    // ★ 第5步：应用配置（启动页/公告/用户协议），冷启动拉一次（无需登录）
+    var appCfg by remember { mutableStateOf(AppConfig()) }
+    // 启动页是否正在显示（仅当后台开启 splash.enabled 且有图时短暂显示）
+    var showSplash by remember { mutableStateOf(false) }
+    // 首次启动公告弹窗
+    var showNoticeDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val cfg = withContext(Dispatchers.IO) { runCatching { Api.appConfig() }.getOrElse { AppConfig() } }
+        appCfg = cfg
+        // 启动页：后台开启 + 有图 → 显示
+        if (cfg.splash.enabled && cfg.splash.image.isNotEmpty()) {
+            showSplash = true
+        }
+        // 公告：仅首次启动弹一次（用 SharedPreferences 记标记）
+        if (cfg.notice.list.isNotEmpty() && !prefs.getBoolean("notice_shown_v1", false)) {
+            showNoticeDialog = true
+            prefs.edit().putBoolean("notice_shown_v1", true).apply()
+        }
+    }
     // 功能权限（个股详情页等共用，由 MainActivity 统一拉）
     var perm by remember { mutableStateOf(PermissionInfo()) }
 
@@ -543,6 +562,21 @@ fun ChaoGuJiaApp() {
             }
         }
         WatermarkLayer(enabled = member.watermark.isNotEmpty(), text = member.watermark)
+        // ★ 第5步：启动页全屏层（盖在最上层，倒计时后可跳过）
+        if (showSplash) {
+            SplashOverlay(
+                image = appCfg.splash.image,
+                seconds = appCfg.splash.seconds,
+                onFinish = { showSplash = false }
+            )
+        }
+        // ★ 第5步：首次启动公告弹窗
+        if (showNoticeDialog && appCfg.notice.list.isNotEmpty()) {
+            NoticeDialog(
+                notices = appCfg.notice.list,
+                onClose = { showNoticeDialog = false }
+            )
+        }
     }
 }
 // ============ 资讯 tab：WebView 加载资讯站（第十二轮建站） ============
@@ -637,4 +671,150 @@ fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
         modifier = Modifier.size(24.dp),
         contentScale = ContentScale.Fit
     )
+}
+// ============ 第5步：启动页覆盖层 ============
+@Composable
+fun SplashOverlay(image: String, seconds: Int, onFinish: () -> Unit) {
+    val url = when {
+        image.isBlank() -> ""
+        image.startsWith("http") -> image
+        else -> "http://121.43.178.214:8080" + image
+    }
+    var bmp by remember(url) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    var failed by remember(url) { mutableStateOf(false) }
+    var left by remember { mutableStateOf(if (seconds > 0) seconds else 3) }
+    LaunchedEffect(url) {
+        if (url.isEmpty()) { failed = true; return@LaunchedEffect }
+        bmp = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val resp = Net.rawClient.newCall(
+                    okhttp3.Request.Builder().url(url).build()
+                ).execute()
+                resp.body?.byteStream()?.use { ins ->
+                    android.graphics.BitmapFactory.decodeStream(ins)?.androidx.compose.ui.graphics.asImageBitmap()
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+        if (bmp == null) failed = true
+    }
+    LaunchedEffect(left) {
+        if (left > 0) {
+            kotlinx.coroutines.delay(1000)
+            left -= 1
+        } else {
+            onFinish()
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF111111))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onFinish() },
+        contentAlignment = Alignment.Center
+    ) {
+        val b = bmp
+        if (b != null) {
+            Image(
+                bitmap = b,
+                contentDescription = "app_splash",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Text(
+                if (failed) "启动图加载失败" else "加载中…",
+                color = Color.White,
+                fontSize = 14.sp
+            )
+        }
+        Text(
+            text = if (left > 0) "跳过 " + left + "s" else "跳过",
+            color = Color.White,
+            fontSize = 13.sp,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 48.dp, end = 20.dp)
+                .background(Color(0x66000000), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+        )
+    }
+}
+
+// ============ 第5步：首次启动公告弹窗 ============
+@Composable
+fun NoticeDialog(notices: List<NoticeItem>, onClose: () -> Unit) {
+    var idx by remember { mutableStateOf(0) }
+    if (notices.isEmpty()) return
+    val cur = notices[idx]
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xAA000000))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) { onClose() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.86f)
+                .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) { }
+                .padding(20.dp)
+        ) {
+            Text(
+                text = if (cur.title.isNotEmpty()) cur.title else "公告",
+                color = Color(Config.COLOR_TEXT_MAIN),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = cur.content,
+                color = Color(Config.COLOR_TEXT_SUB),
+                fontSize = 14.sp,
+                lineHeight = 21.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+                    .androidx.compose.foundation.verticalScroll(androidx.compose.foundation.rememberScrollState())
+            )
+            if (notices.size > 1) {
+                Spacer(Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { if (idx > 0) idx -= 1 }, enabled = idx > 0) {
+                        Text("上一条", fontSize = 13.sp)
+                    }
+                    Text("" + (idx + 1) + "/" + notices.size, color = Color(Config.COLOR_TEXT_SUB), fontSize = 12.sp)
+                    TextButton(onClick = { if (idx < notices.size - 1) idx += 1 }, enabled = idx < notices.size - 1) {
+                        Text("下一条", fontSize = 13.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .background(Color(Config.COLOR_PRIMARY), androidx.compose.foundation.shape.RoundedCornerShape(22.dp))
+                    .clickable { onClose() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("我知道了", color = Color.White, fontSize = 15.sp)
+            }
+        }
+    }
 }

@@ -51,6 +51,8 @@ fun HomeScreen(
     }
     // 首页资产卡取「默认券商账户」= 列表第一个；下拉切换在交易页
     var brokerAccountId by remember { mutableStateOf(0) }
+    // 会员中心公告（app_config.php 的 notice.list）
+    var notices by remember { mutableStateOf(listOf<NoticeItem>()) }
 
     /** 子页 key → 权限网关 feature_key 映射（null = 无需会员权限） */
     fun featureOf(key: String): String? = when (key) {
@@ -82,10 +84,12 @@ fun HomeScreen(
             val m = withContext(Dispatchers.IO) { Api.member(token) }
             val p = withContext(Dispatchers.IO) { Api.point(token) }
             val pm = withContext(Dispatchers.IO) { Api.permissions(token) }
+            val cfg = withContext(Dispatchers.IO) { Api.appConfig() }
             account = a
             member = m
             points = p.points
             perm = pm
+            notices = cfg.notice.list
             onMemberChanged(m)
         } catch (e: Exception) {
         }
@@ -114,6 +118,11 @@ fun HomeScreen(
             .verticalScroll(rememberScrollState())
             .padding(12.dp)
     ) {
+        // 公告条：有公告才显示（竖向滚动 / 上下翻）
+        if (notices.isNotEmpty()) {
+            NoticeBar(notices)
+            Spacer(Modifier.height(12.dp))
+        }
         HomeMemberCard(
             isMember = member.isMember,
             levelName = if (member.levelName.isNotEmpty()) member.levelName else "普通用户",
@@ -379,6 +388,68 @@ private fun HomeLogoutCard(onLogout: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Text("退出登录", color = Color(Config.COLOR_PRIMARY), fontSize = 15.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+/** 会员中心公告条：白卡 + 📢 + 竖向滚动公告（自动轮播 + 手动上下翻）。 */
+@Composable
+fun NoticeBar(notices: List<NoticeItem>) {
+    if (notices.isEmpty()) return
+    var idx by remember { mutableStateOf(0) }
+    // 自动轮播：每 3.5 秒切下一条
+    LaunchedEffect(notices.size) {
+        while (notices.size > 1) {
+            kotlinx.coroutines.delay(3500)
+            idx = (idx + 1) % notices.size
+        }
+    }
+    val cur = notices[idx.coerceIn(0, notices.size - 1)]
+    CardBox {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("\uD83D\uDCE2", fontSize = 15.sp)
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = cur.title.ifEmpty { "公告" },
+                    color = Color(Config.COLOR_TEXT_MAIN),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Text(
+                    text = cur.content,
+                    color = Color(Config.COLOR_TEXT_SUB),
+                    fontSize = 12.sp,
+                    maxLines = 2
+                )
+            }
+            if (notices.size > 1) {
+                Spacer(Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "\u25B2",
+                        color = Color(Config.COLOR_TEXT_SUB),
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                idx = if (idx <= 0) notices.size - 1 else idx - 1
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    Text(
+                        text = "\u25BC",
+                        color = Color(Config.COLOR_TEXT_SUB),
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                idx = (idx + 1) % notices.size
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
         }
     }
 }

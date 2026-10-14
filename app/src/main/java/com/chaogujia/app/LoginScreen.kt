@@ -46,6 +46,19 @@ fun LoginScreen(
     var inviteCode by remember { mutableStateOf("") }
 
     var busy by remember { mutableStateOf(false) }
+    var agreed by remember { mutableStateOf(false) }
+    var showAgreement by remember { mutableStateOf(false) }
+    var agreementTitle by remember { mutableStateOf("用户协议与隐私政策") }
+    var agreementContent by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        try {
+            val cfg = Api.appConfig()
+            if (cfg.agreement.title.isNotBlank()) agreementTitle = cfg.agreement.title
+            agreementContent = cfg.agreement.content
+        } catch (e: Exception) {
+        }
+    }
     var err by remember { mutableStateOf<String?>(null) }
 
     val scope = rememberCoroutineScope()
@@ -62,6 +75,11 @@ fun LoginScreen(
             if (p.length < 6) { err = "密码至少6位"; return }
             if (p != password2) { err = "两次密码不一致"; return }
         }
+        if (!isLogin && !agreed) {
+            err = "请先阅读并勾选同意《用户协议与隐私政策》"
+            return
+        }
+
         busy = true
         err = null
         val loginMode = isLogin
@@ -171,6 +189,34 @@ fun LoginScreen(
 
             Spacer(Modifier.height(18.dp))
 
+            // 协议勾选
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (agreed) "\u2611" else "\u2610",
+                    fontSize = 20.sp,
+                    color = if (agreed) Color(0xFFE53935) else Color(0xFF888888),
+                    modifier = Modifier.clickable {
+                        agreed = !agreed
+                    }
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "我已阅读并同意",
+                    fontSize = 13.sp,
+                    color = Color(0xFF999999)
+                )
+                Text(
+                    text = "\u300a" + agreementTitle + "\u300b",
+                    fontSize = 13.sp,
+                    color = Color(0xFF4A90D9),
+                    modifier = Modifier.clickable {
+                        showAgreement = true
+                    }
+                )
+            }
             // 主按钮
             Box(
                 modifier = Modifier
@@ -223,6 +269,82 @@ fun LoginScreen(
             }
 
             Spacer(Modifier.height(10.dp))
+        }
+
+        if (showAgreement) {
+            AgreementDialog(
+                title = agreementTitle,
+                content = agreementContent,
+                onClose = { showAgreement = false }
+            )
+        }
+    }
+}
+
+@Composable
+fun AgreementDialog(
+    title: String,
+    content: String,
+    onClose: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xAA000000))
+            .clickable(
+                interactionSource = MutableInteractionSource(),
+                indication = null
+            ) { onClose() },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.86f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color.White)
+                .clickable(
+                    interactionSource = MutableInteractionSource(),
+                    indication = null
+                ) { }
+                .padding(20.dp)
+        ) {
+            Text(
+                text = title,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF222222)
+            )
+            Spacer(Modifier.height(14.dp))
+            val body = if (content.isBlank()) "协议内容暂未发布，请联系管理员在后台录入。" else content
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = body,
+                    fontSize = 14.sp,
+                    color = Color(0xFF555555)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFFE53935))
+                    .clickable { onClose() }
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "我知道了",
+                    fontSize = 15.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
