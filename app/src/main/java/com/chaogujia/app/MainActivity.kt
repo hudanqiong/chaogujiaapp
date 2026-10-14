@@ -528,7 +528,7 @@ fun ChaoGuJiaApp() {
                             shown = true
                             if (member.downloadUrl.isNotEmpty()) {
                                 runCatching {
-                                    startActivity(
+                                    ctx.startActivity(
                                         Intent(Intent.ACTION_VIEW, Uri.parse(member.downloadUrl))
                                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                     )
