@@ -171,6 +171,11 @@ data class AppAgreement(
     val content: String = "",
     val version: String = ""
 )
+/** 品牌块 */
+data class AppBrand(
+    val name: String = "假装炒股",
+    val slogan: String = "模拟炒股，练手不亏钱"
+)
 /** 启动页块 */
 data class AppSplash(
     val enabled: Boolean = false,
@@ -183,7 +188,8 @@ data class AppConfig(
     val version: AppVersionInfo = AppVersionInfo(),
     val notice: AppNotice = AppNotice(),
     val agreement: AppAgreement = AppAgreement(),
-    val splash: AppSplash = AppSplash()
+    val splash: AppSplash = AppSplash(),
+    val brand: AppBrand = AppBrand()
 )
 
 /** 权限网关返回（my_permissions.php）—— App 端功能门禁依据 */
@@ -659,7 +665,13 @@ suspend fun placeOrder(
                 link = sj?.optString("link", "") ?: "",
                 seconds = sj?.optInt("seconds", 3) ?: 3
             )
-            AppConfig(ver, AppNotice(notices), agr, splash)
+            // brand
+            val bj = d.optJSONObject("brand")
+            val brand = AppBrand(
+                name = bj?.optString("name", "假装炒股") ?: "假装炒股",
+                slogan = bj?.optString("slogan", "模拟炒股，练手不亏钱") ?: "模拟炒股，练手不亏钱"
+            )
+            AppConfig(ver, AppNotice(notices), agr, splash, brand)
         } catch (e: Exception) {
             AppConfig()
         }

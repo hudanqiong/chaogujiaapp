@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -142,6 +144,8 @@ fun ChaoGuJiaApp() {
     // 详情页当前显示的名称（由 StockDetailPage 回吐，供红条显示）
     var detailName by remember { mutableStateOf("") }
 
+    // MA-SPLASH-PATCHED
+    var splashReady by remember { mutableStateOf(false) }
     // ============ ★ App 启动全局预热（方案 3） ============
     // 目的：detail.php 冷请求约 4.5s（后端等上游的固定延迟），App 一启动就在后台
     // 并发拉「自选 + 持仓」全部个股的 detail，把服务端缓存与本地磁盘缓存一并捂热。
@@ -189,6 +193,7 @@ fun ChaoGuJiaApp() {
         val elapsed = System.currentTimeMillis() - t0
         if (elapsed < 800L) kotlinx.coroutines.delay(800L - elapsed)
         splashReady = true
+        Unit
         Log.e("CGJ_WARM", "splash ready, totalMs=" + (System.currentTimeMillis() - t0))
     }
 
@@ -252,7 +257,6 @@ fun ChaoGuJiaApp() {
     // 启动页是否正在显示（仅当后台开启 splash.enabled 且有图时短暂显示）
     var showSplash by remember { mutableStateOf(false) }
     // ★ 启动页改造：数据预热是否就绪（就绪后才允许关闭启动页）
-    var splashReady by remember { mutableStateOf(false) }
     // 首次启动公告弹窗
     var showNoticeDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -592,6 +596,7 @@ fun ChaoGuJiaApp() {
         if (showSplash) {
             SplashOverlay(
                 image = appCfg.splash.image,
+                brand = appCfg.brand,
                 loading = !splashReady
             )
         }
@@ -699,7 +704,8 @@ fun TabIcon(selected: Boolean, normalRes: Int, checkedRes: Int) {
 }
 // ============ 第5步：启动页覆盖层（同花顺式：转圈，无跳过） ============
 @Composable
-fun SplashOverlay(image: String, loading: Boolean) {
+fun SplashOverlay(image: String, brand: AppBrand, loading: Boolean) {
+    // SPLASH-BRAND-PATCHED: 白底品牌页（品牌名+标语），图片优先
     val url = when {
         image.isBlank() -> ""
         image.startsWith("http") -> image
@@ -721,39 +727,67 @@ fun SplashOverlay(image: String, loading: Boolean) {
             }
         }
     }
+    val brandFont = FontFamily(Font(R.font.shs_brand))
+    val hasImg = bmp != null
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF111111)),
+            .background(if (hasImg) Color(0xFF111111) else Color.White),
         contentAlignment = Alignment.Center
     ) {
-        val b = bmp
-        if (b != null) {
+        if (hasImg) {
             Image(
-                bitmap = b,
+                bitmap = bmp!!,
                 contentDescription = "app_splash",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit
             )
-        }
-        // ★ 数据未就绪：在底部中央显示转圈 + 文案（彪在启动图上方）
-        if (loading || b == null) {
+        } else {
+            // 白底品牌页：居中图标 + 红色大字标语 + 底部品牌名副文案
             Column(
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp),
+                modifier = Modifier.fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                CircularProgressIndicator(
-                    color = Color.White,
-                    strokeWidth = 3.dp,
-                    modifier = Modifier.size(30.dp)
+                Spacer(Modifier.weight(0.9f))
+                Image(
+                    painter = painterResource(R.mipmap.ic_launcher),
+                    contentDescription = "logo",
+                    modifier = Modifier.size(84.dp)
                 )
-                Spacer(Modifier.height(14.dp))
-                Text("正在加载…", color = Color(0xCCFFFFFF), fontSize = 13.sp)
+                Spacer(Modifier.height(22.dp))
+                Text(
+                    text = brand.slogan,
+                    color = Color(0xFFE53935),
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = brandFont
+                )
+                Spacer(Modifier.weight(1f))
+                if (loading) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFE53935),
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                }
+                Text(
+                    text = brand.name,
+                    color = Color(0xFF9E9E9E),
+                    fontSize = 14.sp,
+                    fontFamily = brandFont
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "假装炒股支持 IPv6 网络",
+                    color = Color(0xFFBDBDBD),
+                    fontSize = 11.sp
+                )
+                Spacer(Modifier.height(48.dp))
             }
         }
     }
 }
-
 // ============ 第5步：首次启动公告弹窗 ============
 @Composable
 fun NoticeDialog(notices: List<NoticeItem>, onClose: () -> Unit) {
