@@ -602,6 +602,13 @@ suspend fun placeOrder(
 }
 
 
+    /** 读取当前登录 token（与 MainActivity 共用 chaogujia 这个 SharedPreferences） */
+    private fun curToken(): String? =
+        Net.appContext
+            ?.getSharedPreferences("chaogujia", android.content.Context.MODE_PRIVATE)
+            ?.getString("token", "")
+            ?.takeIf { it.isNotEmpty() }
+
     private fun base(url: String) = Config.BASE_URL + url
 
     private fun jsonOf(vararg pairs: Pair<String, Any?>): String {
@@ -2589,7 +2596,7 @@ suspend fun placeOrder(
     fun orderbook(code: String, p: Int = 1, n: Int = 20): OrderBook? {
         return try {
             val url = base("orderbook.php?code=") + code + "&p=" + p + "&n=" + n
-            val raw = Net.get(url)
+            val raw = Net.get(url, curToken())
             val o = JSONObject(raw)
             if (o.optInt("code", -1) != 0) return null
             val d = o.optJSONObject("data") ?: return null
@@ -2656,7 +2663,7 @@ suspend fun placeOrder(
     fun orderbookDeals(code: String, p: Int, n: Int = 70): List<DealItem> {
         return try {
             val url = base("orderbook.php?code=") + code + "&p=" + p + "&n=" + n
-            val raw = Net.get(url)
+            val raw = Net.get(url, curToken())
             val d = JSONObject(raw).optJSONObject("data") ?: return emptyList()
             val out = ArrayList<DealItem>()
             d.optJSONArray("deals")?.let { arr ->
