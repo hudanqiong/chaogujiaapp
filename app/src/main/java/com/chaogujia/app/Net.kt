@@ -23,6 +23,33 @@ object Net {
      */
     private val APP_VER: String = BuildConfig.VERSION_CODE.toString()
 
+    /**
+     * 统一签名头：取本包签名证书的 SHA-256 摘要（小写 hex），随包固定。
+     * 服务端 sign_gate.php 依据该头识别是否官方包：
+     *   - 改 smali 重打包 → 签名变 → 服务端不认 → 关键接口 403
+     * 结果惰性计算并缓存；取不到时返回空串。
+     */
+    @Volatile private var _signCache: String? = null
+    private fun appSign(): String {
+        _signCache?.let { return it }
+        val v = try {
+            val ctx = appContext
+            if (ctx == null) "" else {
+                @Suppress("DEPRECATION")
+                val pi = ctx.packageManager.getPackageInfo(ctx.packageName, 64)
+                val cert = pi.signingInfo?.apkContentsSigners?.firstOrNull()
+                    ?: pi.signatures?.firstOrNull()
+                if (cert == null) "" else {
+                    val md = java.security.MessageDigest.getInstance("SHA-256")
+                    md.update(cert.toByteArray())
+                    md.digest().joinToString("") { b -> "%02x".format(b) }
+                }
+            }
+        } catch (_: Exception) { "" }
+        _signCache = v
+        return v
+    }
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -80,6 +107,7 @@ object Net {
     fun get(url: String, token: String? = null): String {
         val b = Request.Builder().url(withToken(url, token))
         b.header("X-App-Version", APP_VER)
+        b.header("X-App-Sign", appSign())
         if (!token.isNullOrEmpty()) b.addHeader("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { resp ->
             updateServerTime(resp)
@@ -110,6 +138,7 @@ object Net {
         val finalUrl = if (withTokenParam) withToken(url, token) else url
         val b = Request.Builder().url(finalUrl).post(json.toRequestBody(JSON))
         b.header("X-App-Version", APP_VER)
+        b.header("X-App-Sign", appSign())
         if (!token.isNullOrEmpty()) b.addHeader("Authorization", "Bearer $token")
         client.newCall(b.build()).execute().use { resp ->
             updateServerTime(resp)
