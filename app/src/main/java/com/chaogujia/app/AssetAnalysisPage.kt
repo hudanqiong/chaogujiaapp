@@ -574,406 +574,15 @@ fun AssetAnalysisPage(
                     AAAnalysisButton { }
                     Spacer(Modifier.height(8.dp))
                 }
-                /* ===== B2/B3 盈亏头 + 周期Tab ===== */
+                /* ===== [空壳] 持仓明细列表（照 mytradecapital_list.xml 还原，暂无数据） ===== */
                 item {
-                    Column(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(hLabel, fontSize = 12.sp, color = AA_GRAY)
-                            Spacer(Modifier.weight(1f))
-                            Text("收益率 $hPct", fontSize = 12.sp, color = hColor, fontFamily = AAFont)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text(hValue, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = hColor, fontFamily = AAFont)
-                            Spacer(Modifier.width(4.dp))
-                            Text("元", fontSize = 11.sp, color = AA_GRAY)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth()) {
-                            listOf("当日", "本月", "近三月", "今年", "全部", "自定义").forEach { p ->
-                                Column(
-                                    modifier = Modifier.weight(1f).clickable { period = p },
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        p,
-                                        fontSize = 12.sp,
-                                        color = if (period == p) AA_RED else AA_MAIN,
-                                        fontWeight = if (period == p) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                    Spacer(Modifier.height(3.dp))
-                                    Box(
-                                        Modifier.height(2.dp).width(20.dp)
-                                            .background(if (period == p) AA_RED else Color.Transparent, RoundedCornerShape(1.dp))
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B4 图例 + 曲线/K线切换 ===== */
-                item {
-                    Column(Modifier.fillMaxWidth().background(Color.White).padding(vertical = 8.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf("上证", "深证", "创业板", "上证50", "沪深300", "中证500").forEach { lg ->
-                                AAChip(lg, legend == lg) { legend = lg }
-                            }
+                    Column(Modifier.fillMaxWidth().background(Color.White)) {
+                        AAColHeader()
+                        repeat(3) {
+                            AAColEmptyRow()
                         }
                         Spacer(Modifier.height(8.dp))
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            AAChip("曲线收益率", chartStyle == "曲线收益率") { chartStyle = "曲线收益率" }
-                            Spacer(Modifier.width(6.dp))
-                            AAChip("K线收益率", chartStyle == "K线收益率") { chartStyle = "K线收益率" }
-                        }
                     }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B5 曲线卡（指标切换 + 图 + 四 chips） ===== */
-                item {
-                    AACard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AASectionTitle("盈亏走势")
-                            Spacer(Modifier.weight(1f))
-                            listOf("收益率", "盈亏金额", "总资产").forEach { ind ->
-                                AAChip(ind, indicator == ind) { indicator = ind }
-                                Spacer(Modifier.width(4.dp))
-                            }
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        AAChartView(
-                            points = chartPts,
-                            indicator = indicator,
-                            style = chartStyle,
-                            monthBase = pnlData.monthBase,
-                            useTotal = useTotal
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("仓位分析", "极值分析", "最大回撤", "标记买卖点").forEach { c ->
-                                AAChip(c, chartChip == c) { chartChip = if (chartChip == c) "" else c }
-                            }
-                        }
-                        if (chartHint != null) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(chartHint, fontSize = 10.sp, color = AA_GRAY)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B6 风格 + 跑赢/跑输 + 我/上证 ===== */
-                item {
-                    AACard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("我的交易风格", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AA_MAIN)
-                            Spacer(Modifier.weight(1f))
-                            Text("立即查看 ›", fontSize = 11.sp, color = AA_RED)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("长线", "短线", "中长线").forEach { s ->
-                                AAChip(s, styleSel == s) { styleSel = s }
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("本月" + (if (monthExcessV >= 0) "跑赢" else "跑输") + "上证指数 ", fontSize = 12.sp, color = AA_MAIN)
-                            Text(aaPct(monthExcessV), fontSize = 12.sp, color = aaPnColor(monthExcessV), fontFamily = AAFont)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text("我 ", fontSize = 11.sp, color = AA_GRAY)
-                            Text(aaPct(monthPctV), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = aaPnColor(monthPctV), fontFamily = AAFont)
-                            Spacer(Modifier.width(24.dp))
-                            Text("上证 ", fontSize = 11.sp, color = AA_GRAY)
-                            Text(aaPct(shPctV), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = aaPnColor(shPctV), fontFamily = AAFont)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B7 三指数卡 ===== */
-                item {
-                    AACard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AASectionTitle("指数")
-                            Spacer(Modifier.weight(1f))
-                            listOf("日收益", "月收益", "年收益", "阶段收益").forEach { p ->
-                                AAChip(p, idxPeriod == p) { idxPeriod = p }
-                                Spacer(Modifier.width(4.dp))
-                            }
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Row(Modifier.fillMaxWidth()) {
-                            AAAIndexCell("上证", idxVal("上证"), Modifier.weight(1f))
-                            AAAIndexCell("深证", idxVal("深证"), Modifier.weight(1f))
-                            AAAIndexCell("创业板", idxVal("创业"), Modifier.weight(1f))
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B8 日历卡 ===== */
-                item {
-                    AACard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AAChip("日历图", calMode == "日历图") { calMode = "日历图" }
-                            Spacer(Modifier.width(6.dp))
-                            AAChip("柱状图", calMode == "柱状图") { calMode = "柱状图" }
-                            Spacer(Modifier.weight(1f))
-                            val ym = pnlData.month.ifBlank { aaCurMonth() }
-                            val ymText = ym.substring(0, 4) + "年" + (ym.substring(5).toIntOrNull() ?: 0) + "月 ▾"
-                            Text(ymText, fontSize = 11.sp, color = AA_GRAY)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        if (calMode == "日历图") {
-                            Row(Modifier.fillMaxWidth()) {
-                                listOf("日", "一", "二", "三", "四", "五", "六").forEach { d ->
-                                    Text(d, Modifier.weight(1f), fontSize = 10.sp, color = AA_GRAY, textAlign = TextAlign.Center)
-                                }
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            calCells.chunked(7).forEach { week ->
-                                Row(Modifier.fillMaxWidth()) {
-                                    week.forEach { cell -> AACalCellView(cell, Modifier.weight(1f)) }
-                                    repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
-                                }
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text("休 = 非交易日（无成交记录）", fontSize = 9.sp, color = AA_GRAY)
-                        } else {
-                            AACalBars(calCells)
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B9 月度个股盈亏 ===== */
-                item {
-                    AACard {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            AASectionTitle("月度个股盈亏")
-                            Spacer(Modifier.weight(1f))
-                            AAChip("图表", monthMode == "图表") { monthMode = "图表" }
-                            Spacer(Modifier.width(6.dp))
-                            AAChip("列表", monthMode == "列表") { monthMode = "列表" }
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text((monthPrefix.substring(5).toIntOrNull() ?: 0).toString() + "月累计收益 ", fontSize = 11.sp, color = AA_GRAY)
-                            Text(aaSigned(monthTotal), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = aaPnColor(monthTotal), fontFamily = AAFont)
-                            Spacer(Modifier.weight(1f))
-                            Text("上证 " + aaPct(shPctV), fontSize = 11.sp, color = aaPnColor(shPctV), fontFamily = AAFont)
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        if (monthMode == "列表") {
-                            monthItems.forEachIndexed { i, it0 ->
-                                Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        Modifier.size(16.dp).clip(CircleShape)
-                                            .background(if (i < 3) AA_RED else Color(0xFFD8D8D8)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text("${i + 1}", fontSize = 9.sp, color = Color.White)
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(it0.name, fontSize = 13.sp, color = AA_MAIN)
-                                        Text(it0.code, fontSize = 10.sp, color = AA_GRAY)
-                                    }
-                                    Text(aaSigned(it0.pnl), fontSize = 13.sp, fontWeight = FontWeight.Medium, color = aaPnColor(it0.pnl), fontFamily = AAFont)
-                                }
-                            }
-                            Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Spacer(Modifier.width(24.dp))
-                                Text("其他收益", fontSize = 12.sp, color = AA_GRAY, modifier = Modifier.weight(1f))
-                                Text(aaSigned(othersPnl), fontSize = 13.sp, color = aaPnColor(othersPnl), fontFamily = AAFont)
-                            }
-                        } else {
-                            val maxAbs = monthItems.maxOfOrNull { abs(it.pnl) } ?: 1.0
-                            monthItems.forEach { it0 ->
-                                Row(Modifier.fillMaxWidth().height(36.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        it0.name, fontSize = 11.sp, color = AA_MAIN,
-                                        modifier = Modifier.width(72.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
-                                    )
-                                    Box(Modifier.weight(1f).height(10.dp)) {
-                                        val frac = (abs(it0.pnl) / maxAbs).toFloat().coerceIn(0.02f, 1f)
-                                        Box(
-                                            Modifier.fillMaxWidth(frac).height(10.dp)
-                                                .clip(RoundedCornerShape(5.dp)).background(aaPnColor(it0.pnl))
-                                        )
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        aaSigned(it0.pnl), fontSize = 11.sp, color = aaPnColor(it0.pnl),
-                                        fontFamily = AAFont, modifier = Modifier.width(76.dp), textAlign = TextAlign.End
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B10 个股K线 ===== */
-                item {
-                    AACard {
-                        val base = kline?.base
-                        val nm = kline?.name ?: (monthItems.firstOrNull { it.code == selectedCode }?.name ?: "个股K线")
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(nm, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = AA_MAIN)
-                            Spacer(Modifier.width(8.dp))
-                            if (base != null && base.price > 0) {
-                                Text(aaMoney(base.price), fontSize = 15.sp, color = aaPnColor(base.change), fontFamily = AAFont)
-                                Spacer(Modifier.width(6.dp))
-                                Text(String.format(Locale.CHINA, "%+.2f", base.change), fontSize = 11.sp, color = aaPnColor(base.change), fontFamily = AAFont)
-                                Spacer(Modifier.width(4.dp))
-                                Text(aaPct(base.changePct), fontSize = 11.sp, color = aaPnColor(base.changePct), fontFamily = AAFont)
-                            }
-                            Spacer(Modifier.weight(1f))
-                            Box(
-                                Modifier.border(1.dp, if (showBS) AA_RED else AA_DIV, RoundedCornerShape(50))
-                                    .clickable { showBS = !showBS }.padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text("BS点分析", fontSize = 10.sp, color = if (showBS) AA_RED else AA_GRAY)
-                            }
-                            Spacer(Modifier.width(6.dp))
-                            Box(Modifier.border(1.dp, AA_DIV, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp)) {
-                                Text("交易记录", fontSize = 10.sp, color = AA_GRAY)
-                            }
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        val line = (kline?.line ?: emptyList()).takeLast(60)
-                        if (line.isNotEmpty()) {
-                            val closes = line.map { it.close }
-                            val maAt = { n: Int -> if (closes.size >= n) closes.takeLast(n).average() else Double.NaN }
-                            Row {
-                                Text("MA5 " + fmtMa(maAt(5)), fontSize = 9.sp, color = AA_MA_COLORS[0], fontFamily = AAFont)
-                                Spacer(Modifier.width(8.dp))
-                                Text("MA10 " + fmtMa(maAt(10)), fontSize = 9.sp, color = AA_MA_COLORS[1], fontFamily = AAFont)
-                                Spacer(Modifier.width(8.dp))
-                                Text("MA30 " + fmtMa(maAt(30)), fontSize = 9.sp, color = AA_MA_COLORS[2], fontFamily = AAFont)
-                                Spacer(Modifier.weight(1f))
-                                Text(line.last().date, fontSize = 9.sp, color = AA_GRAY)
-                            }
-                            Spacer(Modifier.height(6.dp))
-                            AAKLineView(line = line, marks = if (showBS) (kline?.marks ?: emptyList()) else emptyList())
-                            Spacer(Modifier.height(6.dp))
-                        } else {
-                            Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                                Text(if (klineLoading) "K线加载中…" else "暂无K线数据", fontSize = 12.sp, color = AA_GRAY)
-                            }
-                            Spacer(Modifier.height(6.dp))
-                        }
-                        val pos = positions.firstOrNull { it.code == selectedCode && it.quantity > 0 }
-                        Row(Modifier.fillMaxWidth()) {
-                            Text("持仓股数 ", fontSize = 11.sp, color = AA_GRAY)
-                            Text(if (pos != null) pos.quantity.toString() else "--", fontSize = 11.sp, color = AA_MAIN, fontFamily = AAFont)
-                            Spacer(Modifier.width(24.dp))
-                            Text("当日盈亏 ", fontSize = 11.sp, color = AA_GRAY)
-                            val dayPnl = if (pos != null && base != null && base.preClose > 0)
-                                pos.quantity * (base.price - base.preClose) else null
-                            Text(
-                                if (dayPnl != null) aaSigned(dayPnl) else "--",
-                                fontSize = 11.sp,
-                                color = if (dayPnl != null) aaPnColor(dayPnl) else AA_GRAY,
-                                fontFamily = AAFont
-                            )
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B11 操作分析 ===== */
-                item {
-                    AACard {
-                        AASectionTitle("操作分析")
-                        Spacer(Modifier.height(8.dp))
-                        Text("操作统计", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AA_MAIN)
-                        Spacer(Modifier.height(6.dp))
-                        val opItems = listOf(
-                            "交易股票数" to stockCount.toString(),
-                            "平均持仓天数" to avgHoldStr,
-                            "建清仓次数" to (replay.openCount + replay.closeCount).toString(),
-                            "交易成功率" to winRateStr,
-                            "平均仓位" to posPctStr,
-                            "资金周转率" to "--",
-                            "打板次数" to "--",
-                            "封板率" to "--",
-                            "次日高开率" to "--",
-                            "次日平均涨幅" to "--"
-                        )
-                        opItems.chunked(2).forEach { row ->
-                            Row(Modifier.fillMaxWidth()) {
-                                AAStat(row[0].first, row[0].second, if (row[0].second == "--") AA_GRAY else AA_MAIN, 14, Modifier.weight(1f))
-                                if (row.size > 1) {
-                                    AAStat(row[1].first, row[1].second, if (row[1].second == "--") AA_GRAY else AA_MAIN, 14, Modifier.weight(1f))
-                                } else {
-                                    Spacer(Modifier.weight(1f))
-                                }
-                            }
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(AA_DIV))
-                        Spacer(Modifier.height(10.dp))
-                        Text("账户表现", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AA_MAIN)
-                        Spacer(Modifier.height(6.dp))
-                        Row(Modifier.fillMaxWidth()) {
-                            AAStat("做T次数", tCountStr, AA_MAIN, 14, Modifier.weight(1f))
-                            AAStat("做T成功率", tWinStr, if (tWinStr == "--") AA_GRAY else AA_MAIN, 14, Modifier.weight(1f))
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B12a 我的资产 ===== */
-                item {
-                    AACard {
-                        AASectionTitle("我的资产")
-                        Spacer(Modifier.height(8.dp))
-                        AARow("银证转入", "--", AA_GRAY)
-                        AARow("银证转出", "--", AA_GRAY)
-                        AARow("期初资产", aaMoney(acc.initial), AA_RED)
-                        AARow("净流入", aaSigned(netInflow), aaPnColor(netInflow))
-                        AARow("账户盈亏", aaSigned(acc.totalPn), aaPnColor(acc.totalPn))
-                    }
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                /* ===== B12b 期末资产 ===== */
-                item {
-                    AACard {
-                        Row(Modifier.fillMaxWidth()) {
-                            AAStat("期初资产", aaMoney(acc.initial), AA_MAIN, 13, Modifier.weight(1f))
-                            AAStat("净流入", aaSigned(netInflow), aaPnColor(netInflow), 13, Modifier.weight(1f))
-                            AAStat("账户盈亏", aaSigned(acc.totalPn), aaPnColor(acc.totalPn), 13, Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Box(Modifier.fillMaxWidth().height(1.dp).background(AA_DIV))
-                        Spacer(Modifier.height(12.dp))
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text("期末资产", fontSize = 13.sp, color = AA_MAIN)
-                            Spacer(Modifier.weight(1f))
-                            Text(aaMoney(acc.total), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AA_RED, fontFamily = AAFont)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Text("免责声明：本页数据来自模拟交易账户的实时统计，仅供学习研究参考，不构成任何投资建议。", fontSize = 10.sp, color = AA_GRAY)
-                        Spacer(Modifier.height(8.dp))
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            Text("水印设置 ›", fontSize = 11.sp, color = AA_GRAY)
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
                 }
             }
         }
@@ -1098,6 +707,40 @@ private fun aaShortTime(s: String): String {
     if (s.length >= 16) return s.substring(5, 16)
     if (s.length >= 10) return s.substring(5, 10)
     return s
+}
+
+/* ===== [空壳] 持仓列表列头 + 空行占位（照 weituo_column_dragable_list_header.xml 还原） ===== */
+@Composable
+private fun AAColHeader() {
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AA_DIV))
+        Row(
+            Modifier.fillMaxWidth().height(34.dp).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("名称", color = AA_GRAY, fontSize = 12.sp, modifier = Modifier.weight(1.6f))
+            Text("市值", color = AA_GRAY, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            Text("盈亏", color = AA_GRAY, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            Text("占比", color = AA_GRAY, fontSize = 12.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AA_DIV))
+    }
+}
+
+@Composable
+private fun AAColEmptyRow() {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().height(46.dp).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("--", color = AA_GRAY, fontSize = 14.sp, modifier = Modifier.weight(1.6f))
+            Text("--", color = AA_GRAY, fontSize = 14.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            Text("--", color = AA_GRAY, fontSize = 14.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            Text("--", color = AA_GRAY, fontSize = 14.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AA_DIV))
+    }
 }
 
 /* ========== 通用小件 ========== */

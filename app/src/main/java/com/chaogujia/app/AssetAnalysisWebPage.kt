@@ -65,10 +65,10 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
             @Suppress("DEPRECATION")
             it.statusBarColor = Color.TRANSPARENT
             @Suppress("DEPRECATION")
-            it.navigationBarColor = Color.BLACK
+            it.navigationBarColor = Color.WHITE
         }
         controller?.isAppearanceLightStatusBars = false
-        controller?.isAppearanceLightNavigationBars = false
+        controller?.isAppearanceLightNavigationBars = true
 
         onDispose {
             // 退出：恢复默认（沿用项目现有风格：状态栏红 + 深色图标，导航栏浅灰）
@@ -90,7 +90,7 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
         if (wv != null && wv.canGoBack()) wv.goBack() else onClose()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.White)) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
