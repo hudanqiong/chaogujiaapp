@@ -10,6 +10,8 @@ object Config {
     const val BASE_URL = "http://121.43.178.214:8080/stock_api/"
     // 资讯站地址（第十二轮建站，外网可访问）
     const val NEWS_URL = "http://121.43.178.214:8080/news/"
+    // 资产分析页（AA 页，WebView 内嵌版；部署在 80 端口）
+    const val AA_URL = "http://121.43.178.214/aa/"
     // 主题色（同花顺红 #F03036）
     const val COLOR_PRIMARY = 0xFFF03036.toInt()
     const val COLOR_TEXT_MAIN = 0xFF222222.toInt()
