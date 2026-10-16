@@ -42,7 +42,7 @@ import androidx.core.view.WindowInsetsControllerCompat
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun AssetAnalysisWebPage(onClose: () -> Unit) {
+fun AssetAnalysisWebPage(token: String, brokerAccountId: Int, onClose: () -> Unit) {
     val context = LocalContext.current
 
     // 状态栏高度（px），生成 JS 注入用
@@ -175,7 +175,12 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
                         }
                     }
 
-                    loadUrl(Config.AA_URL)
+                    // ★ 每用户看自己数据：把 token 与当前券商账户 id 作为 URL 参数传给 H5，
+                    //   H5 的 loadOA() 会读取 ?token=&broker_account_id= 去调 analysis.php。
+                    val aaUrl = Config.AA_URL +
+                        "?token=" + java.net.URLEncoder.encode(token, "UTF-8") +
+                        "&broker_account_id=" + brokerAccountId
+                    loadUrl(aaUrl)
                     webRef = this
                 }
             },
