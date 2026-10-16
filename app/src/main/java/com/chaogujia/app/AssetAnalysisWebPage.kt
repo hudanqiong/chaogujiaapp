@@ -102,8 +102,8 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
                     // ---- 基础 JS / 视口 ----
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
-                    settings.useWideViewPort = true
-                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = false
+                    settings.loadWithOverviewMode = false
                     settings.cacheMode = WebSettings.LOAD_NO_CACHE
 
                     // ---- 去网页感：禁缩放 / 禁滚动条 / 禁回弹 / 禁长按 ----
