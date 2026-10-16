@@ -88,6 +88,9 @@ fun ChaoGuJiaApp() {
     var uname by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
     var showLogin by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    // ★ 资产分析页开关（从交易页「月度参考盈亏」栏进入）
+    var showAssetAnalysis by remember { mutableStateOf(false) }
+    var assetBrokerId by remember { mutableStateOf(0) }
     // ★ 多股同列全屏页是否显示（由 IndexBar 上抛，供红条标题联动）
     var showColumns by remember { mutableStateOf(false) }
     // ★ 红条左箭头点击多股同列时 +1：通知 IndexBar 关闭页内全屏
@@ -200,6 +203,7 @@ fun ChaoGuJiaApp() {
     }
 
     // ★ 返回键处理：
+    //   0) 资产分析页打开 → 关资产分析
     //   1) 详情页打开 → 关详情（回到来源页）
     //   2) 搜索页打开 → 关搜索
     //   3) 登录页打开 → 关登录
@@ -207,6 +211,7 @@ fun ChaoGuJiaApp() {
     var lastBackAt by remember { mutableStateOf(0L) }
     BackHandler(enabled = true) {
         when {
+            showAssetAnalysis -> showAssetAnalysis = false
             detail != null -> {
                 val from = detail?.from
                 detail = null
@@ -497,7 +502,9 @@ fun ChaoGuJiaApp() {
                         memberPageTick++
                         current = "index"
                     },
-                    onLogout = { doLogout() }
+                    onLogout = { doLogout() },
+                    // ★ 资产分析页入口：点「月度参考盈亏」栏进入
+                    onOpenAssetAnalysis = { bid -> assetBrokerId = bid; showAssetAnalysis = true }
                 )
                 "news" -> NewsWebView()
             }
@@ -542,6 +549,15 @@ fun ChaoGuJiaApp() {
                 )
             }
 
+            // ★ 资产分析页：App 级覆盖层（内容区，位于红条下方）
+            if (showAssetAnalysis) {
+                AssetAnalysisPage(
+                    token = token,
+                    brokerAccountId = assetBrokerId,
+                    perm = perm,
+                    onClose = { showAssetAnalysis = false }
+                )
+            }
             if (showLogin) {
                 LoginScreen(
                     agreement = appCfg.agreement,

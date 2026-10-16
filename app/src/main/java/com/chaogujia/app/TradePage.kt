@@ -94,6 +94,7 @@ fun TradePage(
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit = { _, _ -> },
     onOpenMemberCenter: () -> Unit = {},
     onOpenVipPage: () -> Unit = {},
+    onOpenAssetAnalysis: (Int) -> Unit = {},
     onLogout: () -> Unit = {},
     perm: PermissionInfo = PermissionInfo(),
     // ★ 第 34 轮：「持仓」按钮 → 打开独立持仓页（上抛给 MainActivity）
@@ -113,6 +114,7 @@ fun TradePage(
                 onOpenDetail = onOpenDetail,
                 onOpenMemberCenter = onOpenMemberCenter,
                 onOpenVipPage = onOpenVipPage,
+                onOpenAssetAnalysis = onOpenAssetAnalysis,
                 onLogout = onLogout,
                 perm = perm,
                 onOpenPosition = onOpenPosition,
@@ -130,6 +132,7 @@ private fun ASharePage(
     onOpenDetail: (list: List<StockItem>, index: Int) -> Unit,
     onOpenMemberCenter: () -> Unit = {},
     onOpenVipPage: () -> Unit = {},
+    onOpenAssetAnalysis: (Int) -> Unit = {},
     onLogout: () -> Unit = {},
     perm: PermissionInfo = PermissionInfo(),
     // ★ 第 34 轮：「持仓」按钮 → 打开独立持仓页（上抛给 MainActivity）
@@ -269,7 +272,7 @@ private fun ASharePage(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (perm.has("tp_pnl")) Modifier else Modifier.clickable { gateTitle = "月度参考盈亏" })
+                .then(if (perm.has("tp_pnl")) Modifier.clickable { onOpenAssetAnalysis(brokerAccountId) } else Modifier.clickable { gateTitle = "月度参考盈亏" })
         ) {
             MonthlyPnlBar(token = token, brokerAccountId = brokerAccountId, reloadTick = reloadTick, totalAsset = account.total)
         }

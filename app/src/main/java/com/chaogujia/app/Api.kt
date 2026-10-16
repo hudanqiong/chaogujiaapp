@@ -64,6 +64,7 @@ data class PnlHistory(
     val month: String = "",          // yyyy-MM
     val monthTradeDays: Int = 0,     // 本月交易日总数（后端自动推算，用于横轴分格）
     val lastMonthEnd: Double = 0.0,  // 上月末基准
+    val monthBase: Double = 0.0,     // 本月基准资金（initial + 上月末累计，与 pnl_history 同口径）
     val monthPct: Double = 0.0,      // 月度收益率 %（顶层，口径C）
     val monthExcess: Double = 0.0,   // 月度跑赢上证 %（顶层，口径C）
     val points: List<PnlPoint> = emptyList(),
@@ -1023,6 +1024,7 @@ suspend fun placeOrder(
                 month = d.optString("month", ""),
                 monthTradeDays = d.optInt("month_trade_days", 0),
                 lastMonthEnd = d.optDouble("last_month_end", 0.0),
+                monthBase = d.optDouble("month_base", 0.0),
                 monthPct = d.optDouble("month_pct", 0.0),
                 monthExcess = d.optDouble("month_excess", 0.0),
                 points = list,
