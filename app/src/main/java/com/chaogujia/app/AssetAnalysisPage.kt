@@ -544,7 +544,36 @@ fun AssetAnalysisPage(
                 }
             }
             else -> LazyColumn(Modifier.fillMaxSize()) {
-
+                /* ===== [同花顺外壳] S1 盈亏卡 ===== */
+                item {
+                    AAYkCard(
+                        label = hLabel,
+                        value = hValue,
+                        valueColor = hColor,
+                        syncTime = "同步时间 " + (pnlData.today?.date?.let { aaShortTime(it) } ?: aaToday().substring(5)),
+                        onClick = { }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                /* ===== [同花顺外壳] S2 资金四宫格 ===== */
+                item {
+                    AAFourGrid(
+                        totalAsset = if (acc.total > 0) aaMoney(acc.total) else "--",
+                        totalAssetColor = AA_MAIN,
+                        floatPnl = if (acc.total > 0) aaSigned(acc.totalPn) else "--",
+                        floatPnlColor = if (acc.total > 0) aaPnColor(acc.totalPn) else AA_GRAY,
+                        marketValue = if (acc.total > 0) aaMoney(acc.marketValue) else "--",
+                        marketValueColor = AA_MAIN,
+                        balance = if (acc.total > 0) aaMoney(acc.available) else "--",
+                        balanceColor = AA_MAIN
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                /* ===== [同花顺外壳] S3 底部「资产分析」按钮 ===== */
+                item {
+                    AAAnalysisButton { }
+                    Spacer(Modifier.height(8.dp))
+                }
                 /* ===== B2/B3 盈亏头 + 周期Tab ===== */
                 item {
                     Column(Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 14.dp, vertical = 10.dp)) {
@@ -949,6 +978,126 @@ fun AssetAnalysisPage(
             }
         }
     }
+}
+
+/* ========== [同花顺外壳] 视觉组件 ========== */
+/** 盈亏卡：label + 数值 +（可选）问号 + 同步时间 + 右箭头。背景 #F5F5F5。 */
+@Composable
+private fun AAYkCard(
+    label: String,
+    value: String,
+    valueColor: Color,
+    syncTime: String,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFF5F5F5))
+            .clickable { onClick() }
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = AA_GRAY, fontSize = 13.sp)
+            Spacer(Modifier.width(4.dp))
+            Box(
+                modifier = Modifier.size(13.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, AA_GRAY, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("?", color = AA_GRAY, fontSize = 9.sp, fontFamily = AAFont)
+            }
+            Spacer(Modifier.weight(1f))
+            Text(syncTime, color = AA_GRAY, fontSize = 10.sp)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            Text(
+                value,
+                color = valueColor,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = AAFont
+            )
+            Spacer(Modifier.width(3.dp))
+            Text("元", color = AA_GRAY, fontSize = 11.sp)
+            Spacer(Modifier.weight(1f))
+            Text("›", color = AA_GRAY, fontSize = 20.sp)
+        }
+    }
+}
+
+/** 资金四宫格：2×2，中缝竖线 + 行间横线。 */
+@Composable
+private fun AAFourGrid(
+    totalAsset: String, totalAssetColor: Color,
+    floatPnl: String, floatPnlColor: Color,
+    marketValue: String, marketValueColor: Color,
+    balance: String, balanceColor: Color
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .padding(vertical = 14.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            AAGridCell("总资产", totalAsset, totalAssetColor, Modifier.weight(1f))
+            Box(Modifier.width(1.dp).height(38.dp).background(AA_DIV))
+            AAGridCell("浮动盈亏", floatPnl, floatPnlColor, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(14.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(AA_DIV))
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            AAGridCell("总市值", marketValue, marketValueColor, Modifier.weight(1f))
+            Box(Modifier.width(1.dp).height(38.dp).background(AA_DIV))
+            AAGridCell("资金余额", balance, balanceColor, Modifier.weight(1f))
+        }
+    }
+}
+
+/** 四宫格单元格：标题 12sp 灰 + 数值 16sp。 */
+@Composable
+private fun AAGridCell(title: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(title, color = AA_GRAY, fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            value,
+            color = valueColor,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = AAFont
+        )
+    }
+}
+
+/** 底部「资产分析」按钮：白底 46dp 圆角，文字 + 右箭头居中。 */
+@Composable
+private fun AAAnalysisButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+            .height(46.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("资产分析", color = AA_MAIN, fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = AAFont)
+            Spacer(Modifier.width(4.dp))
+            Text("›", color = AA_GRAY, fontSize = 18.sp)
+        }
+    }
+}
+
+/** "yyyy-MM-dd HH:mm:ss" -> "MM-dd HH:mm"。 */
+private fun aaShortTime(s: String): String {
+    if (s.length >= 16) return s.substring(5, 16)
+    if (s.length >= 10) return s.substring(5, 10)
+    return s
 }
 
 /* ========== 通用小件 ========== */
