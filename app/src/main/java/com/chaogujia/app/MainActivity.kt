@@ -559,6 +559,8 @@ fun ChaoGuJiaApp() {
             // ★ 资产分析页：App 级覆盖层（WebView 内嵌版，沉浸式铺满到状态栏；页面自带蓝条顶栏）
             if (showAssetAnalysis) {
                 AssetAnalysisWebPage(
+                    token = token,
+                    brokerAccountId = assetBrokerId,
                     onClose = { showAssetAnalysis = false }
                 )
             }
