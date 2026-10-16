@@ -90,7 +90,7 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
         if (wv != null && wv.canGoBack()) wv.goBack() else onClose()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Box(modifier = Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.White)) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
