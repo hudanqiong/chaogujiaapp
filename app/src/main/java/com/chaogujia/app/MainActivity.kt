@@ -549,12 +549,9 @@ fun ChaoGuJiaApp() {
                 )
             }
 
-            // ★ 资产分析页：App 级覆盖层（内容区，位于红条下方）
+            // ★ 资产分析页：App 级覆盖层（WebView 内嵌版，沉浸式铺满到状态栏；页面自带蓝条顶栏）
             if (showAssetAnalysis) {
-                AssetAnalysisPage(
-                    token = token,
-                    brokerAccountId = assetBrokerId,
-                    perm = perm,
+                AssetAnalysisWebPage(
                     onClose = { showAssetAnalysis = false }
                 )
             }
