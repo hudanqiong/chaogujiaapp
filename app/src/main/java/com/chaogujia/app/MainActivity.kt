@@ -326,7 +326,10 @@ fun ChaoGuJiaApp() {
             // ★ 详情页打开时，红条切换为 detail 模式（全 App 唯一一条详情红条），
             //   内容 = [←返回] ◀名称/代码▶ [图二][图三]，不再出现第二条红条。
             // ★ 持仓页打开时（第 34 轮），红条切换为 position 模式，优先级高于 detail/普通页。
-            if (showPosition) {
+            // ★ AA 页(showAssetAnalysis)打开时：隐藏整条红条，让 WebView 自带蓝条顶栏直接铺到状态栏。
+            if (showAssetAnalysis) {
+                // 空：不渲染红条
+            } else if (showPosition) {
                 MemberHeaderBar(
                     current = "position",
                     username = uname,
@@ -383,8 +386,8 @@ fun ChaoGuJiaApp() {
             }
         },
         bottomBar = {
-            // 个股详情页 / 独立持仓页打开时隐藏底部导航栏
-            if (detail == null && !showPosition) {
+            // 个股详情页 / 独立持仓页 / AA 页打开时隐藏底部导航栏
+            if (detail == null && !showPosition && !showAssetAnalysis) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -432,7 +435,11 @@ fun ChaoGuJiaApp() {
         //   Scaffold 的 padding 默认已让出底部导航栏 inset；若详情页仍消费底部 inset，
         //   StockDetailPage 底边会停在按键区上方，黑底无法铺到底。
         //   故详情页时只消费顶部 inset（底部归零），其余页面保持原样。
-        val contentModifier = if (detail != null || showPosition) {
+        val contentModifier = if (showAssetAnalysis) {
+            // ★ AA 页：不消费任何 inset，铺满整屏（WebView 被动铺到状态栏/导航栏）
+            Modifier
+                .fillMaxSize()
+        } else if (detail != null || showPosition) {
             Modifier
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
