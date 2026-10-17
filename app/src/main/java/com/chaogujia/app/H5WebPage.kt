@@ -173,7 +173,6 @@ fun H5WebPage(
     }
     Box(modifier = rootMod.background(UiColor(navBarColor))) {
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 WebView(ctx).apply {
                     layoutParams = ViewGroup.LayoutParams(
