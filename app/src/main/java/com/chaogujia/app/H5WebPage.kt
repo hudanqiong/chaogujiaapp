@@ -14,6 +14,9 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -80,6 +83,11 @@ fun H5WebPage(
     // ★ 第 32 轮：通用 H5 页面内带的底部 Tab 导航（App 自己有 bottomBar，否则双底栏）。
     //   传入 CSS 选择器（多个用逗号分隔），注入 display:none !important 隐藏。
     hideSelectors: String = "",
+    // ★ 第 33 轮：是否强制沉浸式（把整个 Activity 窗口设为 decorFits=false）。
+    //   子页（详情/持仓/资产分析）需要 -> true；
+    //   五个主 Tab 不能开，否则会把 Activity 的 Scaffold bottomBar 挤到屏幕外，
+    //   原生底栏整条消失（第 32 轮真机复现）。
+    immersive: Boolean = true,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -118,11 +126,13 @@ fun H5WebPage(
             d
         }
         window?.let {
-            WindowCompat.setDecorFitsSystemWindows(it, false)
-            @Suppress("DEPRECATION")
-            it.statusBarColor = 0x00000000
-            @Suppress("DEPRECATION")
-            it.navigationBarColor = navBarColor
+            // ★ 第 33 轮：主 Tab 页面不碰 decorFits，交给 Compose Scaffold 正常分配，
+            //   保证原生 bottomBar 不被挤掉；子页仍走沉浸式（红条铺到状态栏）。
+            if (immersive) {
+                WindowCompat.setDecorFitsSystemWindows(it, false)
+                it.statusBarColor = 0x00000000
+                it.navigationBarColor = navBarColor
+            }
         }
         // H5 各页顶栏均为深色（详情/持仓红条、资产分析蓝条）→ 状态栏白图标
         controller?.isAppearanceLightStatusBars = false
@@ -130,11 +140,11 @@ fun H5WebPage(
 
         onDispose {
             window?.let {
-                WindowCompat.setDecorFitsSystemWindows(it, true)
-                @Suppress("DEPRECATION")
-                it.statusBarColor = Config.COLOR_PRIMARY
-                @Suppress("DEPRECATION")
-                it.navigationBarColor = 0xFFF5F5F5.toInt()
+                if (immersive) {
+                    WindowCompat.setDecorFitsSystemWindows(it, true)
+                    it.statusBarColor = Config.COLOR_PRIMARY
+                    it.navigationBarColor = 0xFFF5F5F5.toInt()
+                }
                 if (savedDecorBg != null) it.decorView.background = savedDecorBg
             }
             controller?.isAppearanceLightStatusBars = false
@@ -148,7 +158,13 @@ fun H5WebPage(
         if (wv != null && wv.canGoBack()) wv.goBack() else onClose()
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(UiColor.White)) {
+    // ★ 第 33 轮：非沉浸式（主 Tab）时给内容让出系统栏，避免 H5 顶栏被状态栏压住。
+    val rootMod = if (immersive) {
+        Modifier.fillMaxSize()
+    } else {
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)
+    }
+    Box(modifier = rootMod.background(UiColor.White)) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
