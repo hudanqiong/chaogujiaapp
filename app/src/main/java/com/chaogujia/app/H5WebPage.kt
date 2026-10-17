@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -158,13 +159,19 @@ fun H5WebPage(
         if (wv != null && wv.canGoBack()) wv.goBack() else onClose()
     }
 
-    // ★ 第 33 轮：非沉浸式（主 Tab）时给内容让出系统栏，避免 H5 顶栏被状态栏压住。
-    val rootMod = if (immersive) {
-        Modifier.fillMaxSize()
-    } else {
+    // ★ 第 34 轮：底部虚拟按键区黑底渲染。
+    //   Android 15/16 已忽略 window.navigationBarColor，透明导航栏会露出窗口底层白底。
+    //   解决办法：根 Box 底色直接用 navBarColor（详情页=黑），并给内容区让出导航栏高度，
+    //   露出的那条就是 navBarColor，即虚拟按键区黑底。
+    val navBarOpaque = navBarColor != 0xFFFFFFFF.toInt()
+    val rootMod = if (!immersive) {
         Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)
+    } else if (navBarOpaque) {
+        Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)
+    } else {
+        Modifier.fillMaxSize()
     }
-    Box(modifier = rootMod.background(UiColor.White)) {
+    Box(modifier = rootMod.background(UiColor(navBarColor))) {
         AndroidView(
             factory = { ctx ->
                 WebView(ctx).apply {
