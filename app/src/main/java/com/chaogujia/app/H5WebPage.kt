@@ -1,7 +1,6 @@
 package com.chaogujia.app
 
 import android.annotation.SuppressLint
-import android.graphics.Color
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -77,7 +76,7 @@ fun H5WebPage(
     padSelector: String = "",
     // ★ 第 28 轮：导航栏区底色。详情页底部是黑色功能栏 -> 传 Black，
     //   使黑色从页面底一直铺到物理最底部；其余页面保持 White。
-    navBarColor: Int = Color.WHITE,
+    navBarColor: Int = 0xFFFFFFFF.toInt(),
     // ★ 第 32 轮：通用 H5 页面内带的底部 Tab 导航（App 自己有 bottomBar，否则双底栏）。
     //   传入 CSS 选择器（多个用逗号分隔），注入 display:none !important 隐藏。
     hideSelectors: String = "",
@@ -121,13 +120,13 @@ fun H5WebPage(
         window?.let {
             WindowCompat.setDecorFitsSystemWindows(it, false)
             @Suppress("DEPRECATION")
-            it.statusBarColor = Color.TRANSPARENT
+            it.statusBarColor = 0x00000000
             @Suppress("DEPRECATION")
             it.navigationBarColor = navBarColor
         }
         // H5 各页顶栏均为深色（详情/持仓红条、资产分析蓝条）→ 状态栏白图标
         controller?.isAppearanceLightStatusBars = false
-        controller?.isAppearanceLightNavigationBars = (navBarColor == Color.WHITE)
+        controller?.isAppearanceLightNavigationBars = (navBarColor == 0xFFFFFFFF.toInt())
 
         onDispose {
             window?.let {
@@ -178,7 +177,7 @@ fun H5WebPage(
                     isLongClickable = false
                     isHapticFeedbackEnabled = false
                     setOnLongClickListener { true }   // 吃掉长按（防"选择/复制"）
-                    setBackgroundColor(Color.WHITE)
+                    setBackgroundColor(0xFFFFFFFF.toInt())
                     setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
                     // H5 自带返回键在历史栈为空时 → 关页面
