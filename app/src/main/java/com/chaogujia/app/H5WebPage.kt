@@ -75,6 +75,9 @@ fun H5WebPage(
     url: String,
     satMode: H5SatMode = H5SatMode.NONE,
     padSelector: String = "",
+    // ★ 第 28 轮：导航栏区底色。详情页底部是黑色功能栏 -> 传 Black，
+    //   使黑色从页面底一直铺到物理最底部；其余页面保持 White。
+    navBarColor: Int = UiColor.WHITE,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -109,7 +112,7 @@ fun H5WebPage(
         // 这里把 decorView 背景刷白兜底，退出时恢复。
         val savedDecorBg = window?.decorView?.let {
             val d = it.background
-            it.setBackgroundColor(Color.WHITE)
+            it.setBackgroundColor(navBarColor)
             d
         }
         window?.let {
@@ -117,11 +120,11 @@ fun H5WebPage(
             @Suppress("DEPRECATION")
             it.statusBarColor = Color.TRANSPARENT
             @Suppress("DEPRECATION")
-            it.navigationBarColor = Color.WHITE
+            it.navigationBarColor = navBarColor
         }
         // H5 各页顶栏均为深色（详情/持仓红条、资产分析蓝条）→ 状态栏白图标
         controller?.isAppearanceLightStatusBars = false
-        controller?.isAppearanceLightNavigationBars = true
+        controller?.isAppearanceLightNavigationBars = (navBarColor == UiColor.WHITE)
 
         onDispose {
             window?.let {

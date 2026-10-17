@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -507,6 +508,9 @@ fun ChaoGuJiaApp() {
                     H5WebPage(
                         url = Config.H5_DETAIL + "?code=" + Uri.encode(code) + "&token=" + Uri.encode(token),
                         satMode = H5SatMode.NONE,
+                        // ★ 第 28 轮：底部是黑色功能栏，导航栏区同样用黑底铺满，
+                        //   使栏体与系统按键区连成一体（同花顺效果）
+                        navBarColor = Color.Black.toArgb(),
                         onClose = { closeDetail() }
                     )
                 }
