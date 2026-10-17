@@ -77,7 +77,10 @@ fun H5WebPage(
     padSelector: String = "",
     // ★ 第 28 轮：导航栏区底色。详情页底部是黑色功能栏 -> 传 Black，
     //   使黑色从页面底一直铺到物理最底部；其余页面保持 White。
-    navBarColor: Int = UiColor.WHITE,
+    navBarColor: Int = Color.WHITE,
+    // ★ 第 32 轮：通用 H5 页面内带的底部 Tab 导航（App 自己有 bottomBar，否则双底栏）。
+    //   传入 CSS 选择器（多个用逗号分隔），注入 display:none !important 隐藏。
+    hideSelectors: String = "",
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -124,7 +127,7 @@ fun H5WebPage(
         }
         // H5 各页顶栏均为深色（详情/持仓红条、资产分析蓝条）→ 状态栏白图标
         controller?.isAppearanceLightStatusBars = false
-        controller?.isAppearanceLightNavigationBars = (navBarColor == UiColor.WHITE)
+        controller?.isAppearanceLightNavigationBars = (navBarColor == Color.WHITE)
 
         onDispose {
             window?.let {
@@ -214,7 +217,7 @@ fun H5WebPage(
                             super.onPageFinished(view, loadedUrl)
                             canGoBack = view?.canGoBack() == true
                             view?.evaluateJavascript(
-                                buildInjectJs(satMode, statusBarPx, padTopCss, padSelector),
+                                buildInjectJs(satMode, statusBarPx, padTopCss, padSelector, hideSelectors),
                                 null
                             )
                         }
@@ -248,10 +251,19 @@ private fun buildInjectJs(
     satMode: H5SatMode,
     statusBarPx: Int,
     padTopCss: Int,
-    padSelector: String
+    padSelector: String,
+    hideSelectors: String
 ): String {
     val sb = StringBuilder()
     sb.append("(function(){")
+    // ①-0 隐藏 H5 自带底部 Tab（避免与 App 原生 bottomBar 双底栏）
+    if (hideSelectors.isNotEmpty()) {
+        val esc = hideSelectors.replace("'", "")
+        sb.append("try{var hd=document.getElementById('cgj-hide');")
+        sb.append("if(!hd){hd=document.createElement('style');hd.id='cgj-hide';")
+        sb.append("(document.head||document.documentElement).appendChild(hd);}")
+        sb.append("hd.textContent='$esc{display:none !important}';}catch(e){}")
+    }
     when (satMode) {
         H5SatMode.NONE -> Unit
         H5SatMode.VAR_DP ->
