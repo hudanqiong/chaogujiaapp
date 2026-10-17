@@ -89,6 +89,11 @@ fun H5WebPage(
     //   五个主 Tab 不能开，否则会把 Activity 的 Scaffold bottomBar 挤到屏幕外，
     //   原生底栏整条消失（第 32 轮真机复现）。
     immersive: Boolean = true,
+    // ★ 第 36 轮：H5 内部跳个股详情（watch.html 自己 location.href='detail.html?code=...'）时
+    //   截获并交给 App 打开真正的详情页，否则 App 不知道已经进详情，
+    //   原 bottomBar（首页/行情/自选/交易/资讯）会显示在 H5 详情页下面，
+    //   且虚拟按键区不会变黑。回调参数 = 股票代码。
+    onOpenDetail: ((String) -> Unit)? = null,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -221,6 +226,17 @@ fun H5WebPage(
                          */
                         private fun handle(target: String?): Boolean {
                             if (target.isNullOrEmpty()) return false
+                            // ★ 第 36 轮：H5 内部跳到个股详情 -> 交给 App 打开原生详情页
+                            //   （隐藏 bottomBar + 黑底导航栏 + 沉浸式一次性到位）
+                            val od = onOpenDetail
+                            if (od != null && target.contains("/aa/detail.html")) {
+                                val code = android.net.Uri.parse(target)
+                                    .getQueryParameter("code") ?: ""
+                                if (code.isNotEmpty()) {
+                                    od(code)
+                                    return true   // 吃掉，不再让 WebView 自己加载
+                                }
+                            }
                             val u = target.lowercase()
                             val internal = u.startsWith("http://121.43.178.214") ||
                                 u.startsWith("https://121.43.178.214") ||
