@@ -438,6 +438,7 @@ fun ChaoGuJiaApp() {
                     url = Config.H5_HOME + "?token=" + Uri.encode(token) +
                         "&mkey=" + Uri.encode(memberPageKey),
                     satMode = H5SatMode.VAR_DP,
+                    hideSelectors = "#tabbar",
                     onClose = {}
                 )
                 // ★ 行情页：暂复用自选页同款内容（待开盘后再单独定制行情页）
@@ -446,6 +447,7 @@ fun ChaoGuJiaApp() {
                     url = Config.H5_WATCH + "?tab=quote&token=" + Uri.encode(token),
                     satMode = H5SatMode.PAD_SELECTOR,
                     padSelector = ".head",
+                    hideSelectors = ".tabbar",
                     onClose = {}
                 )
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
@@ -455,6 +457,7 @@ fun ChaoGuJiaApp() {
                     url = Config.H5_WATCH + "?tab=watch&token=" + Uri.encode(token),
                     satMode = H5SatMode.PAD_SELECTOR,
                     padSelector = ".head",
+                    hideSelectors = ".tabbar",
                     onClose = {}
                 )
                 // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
@@ -464,6 +467,7 @@ fun ChaoGuJiaApp() {
                         "&token=" + Uri.encode(token),
                     satMode = H5SatMode.PAD_SELECTOR,
                     padSelector = "#topbar",
+                    hideSelectors = ".bottombar",
                     onClose = {}
                 )
                 // ★ 第 31 轮：资讯页改为 H5 内嵌（news/index.php）
