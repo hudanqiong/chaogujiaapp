@@ -345,28 +345,9 @@ fun ChaoGuJiaApp() {
             // ★ 第二十七轮（H5 全页面封装）：资产分析 / 持仓 / 个股详情三页已全部改为
             //   WebView 内嵌 H5（index.html / position.html / detail.html），
             //   三者各自都带顶栏（蓝条或红条），故统一抑制 App 红条，把整屏交给 WebView。
-            if (showAssetAnalysis || showPosition || detail != null) {
-                // 空：不渲染红条（H5 页面自带顶栏，沉浸式铺到状态栏）
-            } else {
-                MemberHeaderBar(
-                    current = current,
-                    username = uname,
-                    isMember = member.isMember,
-                    levelName = member.levelName,
-                    expireAt = member.expireAt,
-                    onOpenSearch = { showSearch = true },   // ★ 点自选页红条最右图标 → 全屏搜索页
-                    tradeTab = tradeTab,
-                    onTradeTabSelect = { tradeTab = it },
-                    // ★ 资讯页：红条压矮到 28dp，让网页频道栏接在下方；其他页不受影响。
-                    compact = (current == "news"),
-                    // ★ 多股同列全屏页打开时，红条标题切换为「多股同列」
-                    overlayTitle = if (showColumns) "多股同列" else "",
-                    // ★ 点左上角返回箭头：关闭多股同列，回到普通自选
-                    onWatchBack = { showColumns = false; closeColumnsTick++ },
-                    // ★ 首页红条右侧「续费」-> 打开会员充值页（复用子页机制）
-                    onOpenRecharge = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
-                )
-            }
+            // ★ R34：5个主 Tab（首页/行情/自选/交易/资讯）全部交给 H5 自带红顶栏。
+            //   原生 MemberHeaderBar 一律不再渲染，杜绝「两条红条两种颜色」；状态栏渲染保留。
+            Unit
         },
         bottomBar = {
             // 个股详情页 / 独立持仓页 / AA 页打开时隐藏底部导航栏
@@ -446,8 +427,8 @@ fun ChaoGuJiaApp() {
                 // ★ 第 31 轮：行情改为 H5 内嵌（watch.html）
                 "quote" -> H5WebPage(
                     url = Config.H5_WATCH + "?tab=quote&token=" + Uri.encode(token),
-                    satMode = H5SatMode.PAD_SELECTOR,
-                    padSelector = ".head",
+                    // ★ R34：主 Tab 已由根 Box 让出状态栏，不再重复打 padding-top
+                    satMode = H5SatMode.NONE,
                     hideSelectors = ".tabbar",
                     immersive = false,
                     onClose = {}
@@ -457,8 +438,8 @@ fun ChaoGuJiaApp() {
                 // ★ 第 31 轮：自选改为 H5 内嵌（watch.html）
                 "watch" -> H5WebPage(
                     url = Config.H5_WATCH + "?tab=watch&token=" + Uri.encode(token),
-                    satMode = H5SatMode.PAD_SELECTOR,
-                    padSelector = ".head",
+                    // ★ R34：主 Tab 已由根 Box 让出状态栏，不再重复打 padding-top
+                    satMode = H5SatMode.NONE,
                     hideSelectors = ".tabbar",
                     immersive = false,
                     onClose = {}
@@ -468,8 +449,8 @@ fun ChaoGuJiaApp() {
                 "trade" -> H5WebPage(
                     url = Config.H5_TRADE + "?tab=" + Uri.encode(tradeTab) +
                         "&token=" + Uri.encode(token),
-                    satMode = H5SatMode.PAD_SELECTOR,
-                    padSelector = "#topbar",
+                    // ★ R34：主 Tab 已由根 Box 让出状态栏，不再重复打 padding-top
+                    satMode = H5SatMode.NONE,
                     hideSelectors = ".bottombar",
                     immersive = false,
                     onClose = {}
@@ -478,7 +459,9 @@ fun ChaoGuJiaApp() {
                 //   页面已支持 --sat，故用 VAR_DP 注入状态栏高度
                 "news" -> H5WebPage(
                     url = Config.NEWS_URL + "?token=" + Uri.encode(token),
-                    satMode = H5SatMode.VAR_DP,
+                    // R34: 主 Tab 已由根 Box 让出状态栏，不再注入 --sat
+                    satMode = H5SatMode.NONE,
+                    immersive = false,
                     onClose = {}
                 )
             }
@@ -513,8 +496,8 @@ fun ChaoGuJiaApp() {
                 H5WebPage(
                     url = Config.H5_POSITION + "?tab=" + h5PositionTab(positionTab) +
                         "&token=" + Uri.encode(token),
-                    satMode = H5SatMode.PAD_SELECTOR,
-                    padSelector = "#topbar",
+                    // ★ R34：主 Tab 已由根 Box 让出状态栏，不再重复打 padding-top
+                    satMode = H5SatMode.NONE,
                     onClose = { showPosition = false }
                 )
             }
