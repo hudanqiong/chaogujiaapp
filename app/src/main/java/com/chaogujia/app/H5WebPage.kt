@@ -173,6 +173,7 @@ fun H5WebPage(
     }
     Box(modifier = rootMod.background(UiColor(navBarColor))) {
         AndroidView(
+            modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 WebView(ctx).apply {
                     layoutParams = ViewGroup.LayoutParams(
@@ -200,7 +201,10 @@ fun H5WebPage(
                     isLongClickable = false
                     isHapticFeedbackEnabled = false
                     setOnLongClickListener { true }   // 吃掉长按（防"选择/复制"）
-                    setBackgroundColor(0xFFFFFFFF.toInt())
+                    // ★ 第 35 轮：WebView 自身背景跟随 navBarColor。
+                    //   原先是硬编码白色，MATCH_PARENT 布局会顶到物理屏底，
+                    //   把根 Box 的黑底（详情页虚拟按键区）整个盖掉。
+                    setBackgroundColor(navBarColor)
                     setLayerType(View.LAYER_TYPE_HARDWARE, null)
 
                     // H5 自带返回键在历史栈为空时 → 关页面
