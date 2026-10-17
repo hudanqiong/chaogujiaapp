@@ -432,68 +432,47 @@ fun ChaoGuJiaApp() {
             modifier = contentModifier.background(Color.White)
         ) {
             when (current) {
-                "index" -> HomeScreen(
-                    token = token,
-                    username = uname,
-                    onLogout = { doLogout() },
-                    onMemberChanged = { member = it },
-                    openSubPageTick = memberPageTick,
-                    openSubPageKey = memberPageKey
+                // ★ 第 31 轮：首页改为 H5 内嵌（home.html，即会员中心）
+                //   页面红条用 padding-top:var(--sat)，需注入物理 px（VAR_DP）
+                "index" -> H5WebPage(
+                    url = Config.H5_HOME + "?token=" + Uri.encode(token) +
+                        "&mkey=" + Uri.encode(memberPageKey),
+                    satMode = H5SatMode.VAR_DP,
+                    onClose = {}
                 )
                 // ★ 行情页：暂复用自选页同款内容（待开盘后再单独定制行情页）
-                "quote" -> Box(Modifier.fillMaxSize().background(Color.White)) {
-                    IndexBar(
-                        token = token,
-                        perm = perm,
-                        onOpenNews = { current = "news" },
-                        onOpenDetail = { list, index -> openDetail("quote", list, index) },
-                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" },
-                        onColumnsChanged = { showColumns = it }, closeColumnsTick = closeColumnsTick
-                    )
-                }
+                // ★ 第 31 轮：行情改为 H5 内嵌（watch.html）
+                "quote" -> H5WebPage(
+                    url = Config.H5_WATCH + "?tab=quote&token=" + Uri.encode(token),
+                    satMode = H5SatMode.PAD_SELECTOR,
+                    padSelector = ".head",
+                    onClose = {}
+                )
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
                 // 点 ▼ 展开的「指数详情面板」悬浮在内容区之上（不挤压内容区高度）。
-                "watch" -> Box(Modifier.fillMaxSize().background(Color.White)) {
-                    // 纯白背景层（红条与分割线由 IndexBar 内部绘制，详情面板 overlay 悬浮其上）
-                    // 叠在最上方：顶部工具条 + 分割线 + （展开时）详情面板
-                    IndexBar(
-                        token = token,
-                        perm = perm,
-                        onOpenNews = { current = "news" },
-                        // ★ 点股票 → 状态提升到 App 级，由 MainActivity 统一打开详情页
-                        onOpenDetail = { list, index -> openDetail("watch", list, index) },
-                        onOpenVipPage = { memberPageKey = "recharge"; memberPageTick++; current = "index" },
-                        onColumnsChanged = { showColumns = it }, closeColumnsTick = closeColumnsTick
-                    )
-                }
-                // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
-                "trade" -> TradePage(
-                    token = token,
-                    perm = perm,
-                    subTab = tradeTab,
-                    onSubTabChange = { tradeTab = it },
-                    onOpenDetail = { list, index -> openDetail("trade", list, index) },
-                    // ★ 交易页「持仓」按钮 → 打开独立持仓页（第 34 轮）
-                    onOpenPosition = { positionTab = "持仓"; showPosition = true },
-                    // ★ 第 55 轮：五按钮统一跳转持仓页对应 tab（买入/卖出/撤单/持仓/查询）
-                    onOpenPositionTab = { tab -> positionTab = tab; showPosition = true },
-                    onOpenMemberCenter = {
-                        // 银证转账：切到首页并直达「资金设置」页
-                        memberPageKey = "initial"
-                        memberPageTick++
-                        current = "index"
-                    },
-                    // 会员引导「立即开通」：切到首页并直达「开通会员」页（勿复用资金设置）
-                    onOpenVipPage = {
-                        memberPageKey = "recharge"
-                        memberPageTick++
-                        current = "index"
-                    },
-                    onLogout = { doLogout() },
-                    // ★ 资产分析页入口：点「月度参考盈亏」栏进入
-                    onOpenAssetAnalysis = { bid -> assetBrokerId = bid; showAssetAnalysis = true }
+                // ★ 第 31 轮：自选改为 H5 内嵌（watch.html）
+                "watch" -> H5WebPage(
+                    url = Config.H5_WATCH + "?tab=watch&token=" + Uri.encode(token),
+                    satMode = H5SatMode.PAD_SELECTOR,
+                    padSelector = ".head",
+                    onClose = {}
                 )
-                "news" -> NewsWebView()
+                // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
+                // ★ 第 31 轮：交易页改为 H5 内嵌（trade.html，红条 + 买卖/持仓/撤单/查询）
+                "trade" -> H5WebPage(
+                    url = Config.H5_TRADE + "?tab=" + Uri.encode(tradeTab) +
+                        "&token=" + Uri.encode(token),
+                    satMode = H5SatMode.PAD_SELECTOR,
+                    padSelector = "#topbar",
+                    onClose = {}
+                )
+                // ★ 第 31 轮：资讯页改为 H5 内嵌（news/index.php）
+                //   页面已支持 --sat，故用 VAR_DP 注入状态栏高度
+                "news" -> H5WebPage(
+                    url = Config.NEWS_URL + "?token=" + Uri.encode(token),
+                    satMode = H5SatMode.VAR_DP,
+                    onClose = {}
+                )
             }
 
             // ★ 详情页：App 级覆盖层（位于红条下方的内容区）。
