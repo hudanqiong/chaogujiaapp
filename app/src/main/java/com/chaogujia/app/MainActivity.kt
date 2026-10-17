@@ -431,6 +431,11 @@ fun ChaoGuJiaApp() {
                     satMode = H5SatMode.NONE,
                     hideSelectors = ".tabbar",
                     immersive = false,
+                    // ★ 第 36 轮：H5 内点股票会自己 location.href 跳 detail.html，
+                    //   截获后走 App 自己 openDetail，详情页才能隐藏原生 bottomBar、黑底导航栏
+                    onOpenDetail = { c ->
+                        openDetail("quote", listOf(StockItem(code = c)), 0)
+                    },
                     onClose = {}
                 )
                 // 自选页：红条正下方紧贴两排工具条；下方是白色内容区。
@@ -442,6 +447,10 @@ fun ChaoGuJiaApp() {
                     satMode = H5SatMode.NONE,
                     hideSelectors = ".tabbar",
                     immersive = false,
+                    // ★ 第 36 轮：同上，自选页点股票交给 App 打开详情
+                    onOpenDetail = { c ->
+                        openDetail("watch", listOf(StockItem(code = c)), 0)
+                    },
                     onClose = {}
                 )
                 // ★ 交易页（持仓）：需登录（无 token 时底部导航已统一拦截并弹登录）
