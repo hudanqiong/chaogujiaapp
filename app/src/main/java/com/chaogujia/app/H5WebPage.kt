@@ -77,7 +77,7 @@ fun H5WebPage(
     padSelector: String = "",
     // ★ 第 28 轮：导航栏区底色。详情页底部是黑色功能栏 -> 传 Black，
     //   使黑色从页面底一直铺到物理最底部；其余页面保持 White。
-    navBarColor: Int = UiColor.WHITE,
+    navBarColor: Int = Color.WHITE,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
@@ -124,7 +124,7 @@ fun H5WebPage(
         }
         // H5 各页顶栏均为深色（详情/持仓红条、资产分析蓝条）→ 状态栏白图标
         controller?.isAppearanceLightStatusBars = false
-        controller?.isAppearanceLightNavigationBars = (navBarColor == UiColor.WHITE)
+        controller?.isAppearanceLightNavigationBars = (navBarColor == Color.WHITE)
 
         onDispose {
             window?.let {
