@@ -20,6 +20,13 @@ object Config {
     const val H5_POSITION = "http://121.43.178.214/aa/position.html"
     // 个股详情
     const val H5_DETAIL = "http://121.43.178.214/aa/detail.html"
+    // ---- 第 31 轮：首页/行情/自选/交易 四页全部改走 H5 ----
+    // 首页（= 会员中心，红条 + 功能卡 + 底部 tab）
+    const val H5_HOME = "http://121.43.178.214/aa/home.html"
+    // 行情 / 自选（当前共用一个 H5 页）
+    const val H5_WATCH = "http://121.43.178.214/aa/watch.html"
+    // 交易（红条 + 买卖/持仓/撤单/查询）
+    const val H5_TRADE = "http://121.43.178.214/aa/trade.html"
     // 主题色（同花顺红 #F03036）
     const val COLOR_PRIMARY = 0xFFF03036.toInt()
     const val COLOR_TEXT_MAIN = 0xFF222222.toInt()
