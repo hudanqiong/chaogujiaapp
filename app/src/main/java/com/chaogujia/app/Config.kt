@@ -12,6 +12,14 @@ object Config {
     const val NEWS_URL = "http://121.43.178.214:8080/news/"
     // 资产分析页（AA 页，WebView 内嵌版；部署在 80 端口）
     const val AA_URL = "http://121.43.178.214/aa/"
+
+    // ---- 第二十七轮：H5 全页面封装（三个 H5 页统一收口，WebView 内嵌）----
+    // 资产分析（蓝条首页）
+    const val H5_INDEX = "http://121.43.178.214/aa/index.html"
+    // 持仓/交易（红条五 tab）
+    const val H5_POSITION = "http://121.43.178.214/aa/position.html"
+    // 个股详情
+    const val H5_DETAIL = "http://121.43.178.214/aa/detail.html"
     // 主题色（同花顺红 #F03036）
     const val COLOR_PRIMARY = 0xFFF03036.toInt()
     const val COLOR_TEXT_MAIN = 0xFF222222.toInt()

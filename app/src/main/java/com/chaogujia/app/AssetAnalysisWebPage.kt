@@ -60,6 +60,14 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
         val window = activity?.window
         val controller = window?.let { WindowInsetsControllerCompat(it, it.decorView) }
         // 进入：铺满 + 状态栏透明 + 白图标（蓝底要白图标）
+        // ★ Android 15/16 起系统忽略 navigationBarColor，导航栏变透明后
+        //   会露出窗口底层背景（默认黑）。这里把 decorView 背景刷白做兜底，
+        //   退出时再恢复，避免出现底部黑条。
+        val savedDecorBg = window?.decorView?.let {
+            val d = it.background
+            it.setBackgroundColor(Color.WHITE)
+            d
+        }
         window?.let {
             WindowCompat.setDecorFitsSystemWindows(it, false)
             @Suppress("DEPRECATION")
@@ -78,6 +86,8 @@ fun AssetAnalysisWebPage(onClose: () -> Unit) {
                 it.statusBarColor = Config.COLOR_PRIMARY
                 @Suppress("DEPRECATION")
                 it.navigationBarColor = 0xFFF5F5F5.toInt()
+                // 恢复 decorView 原背景，避免影响其它页面
+                if (savedDecorBg != null) it.decorView.background = savedDecorBg
             }
             controller?.isAppearanceLightStatusBars = false
             controller?.isAppearanceLightNavigationBars = true

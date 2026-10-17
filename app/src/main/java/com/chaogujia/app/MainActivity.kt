@@ -70,6 +70,20 @@ data class DetailState(
     val index: Int
 )
 
+/**
+ * 中文 tab 名 -> position.html 的 data-tab 值。
+ *
+ * App 侧 positionTab 一直是中文（持仓/买入/卖出/撤单/查询），
+ * 而 position.html 的 switchTab() 认英文（position/buy/sell/cancel/query）。
+ */
+private fun h5PositionTab(tab: String): String = when (tab) {
+    "买入" -> "buy"
+    "卖出" -> "sell"
+    "撤单" -> "cancel"
+    "查询" -> "query"
+    else -> "position"
+}
+
 @Composable
 fun ChaoGuJiaApp() {
     val tabs = listOf(
@@ -327,42 +341,11 @@ fun ChaoGuJiaApp() {
             //   内容 = [←返回] ◀名称/代码▶ [图二][图三]，不再出现第二条红条。
             // ★ 持仓页打开时（第 34 轮），红条切换为 position 模式，优先级高于 detail/普通页。
             // ★ AA 页(showAssetAnalysis)打开时：隐藏整条红条，让 WebView 自带蓝条顶栏直接铺到状态栏。
-            if (showAssetAnalysis) {
-                // 空：不渲染红条
-            } else if (showPosition) {
-                MemberHeaderBar(
-                    current = "position",
-                    username = uname,
-                    isMember = member.isMember,
-                    levelName = member.levelName,
-                    expireAt = member.expireAt,
-                    positionName = positionName,
-                    positionAccount = positionAccount,
-                    onPositionBack = { showPosition = false },
-                    onPositionSwitch = { positionAccountPicker = true },   // 第55h-16：红条 ▼ → 显式置位账户选择器
-                    onPositionSquare = { /* TODO 方框箭头 */ },
-                    onPositionSearch = { showSearch = true },
-                    onPositionRefresh = { /* TODO 刷新持仓 */ }
-                )
-            } else {
-            val d = detail
-            if (d != null) {
-                MemberHeaderBar(
-                    current = "detail",
-                    username = uname,
-                    isMember = member.isMember,
-                    levelName = member.levelName,
-                    expireAt = member.expireAt,
-                    onOpenSearch = { showSearch = true },
-                    detailName = detailName,
-                    detailCode = if (detailIdx in d.list.indices) d.list[detailIdx].code else "",
-                    detailTags = if (detailIdx in d.list.indices) d.list[detailIdx].tags else emptyList(),
-                    detailCanPrev = detailIdx > 0,
-                    detailCanNext = detailIdx < d.list.size - 1,
-                    onDetailBack = { closeDetail() },
-                    onDetailPrev = { if (detailIdx > 0) detailIdx-- },
-                    onDetailNext = { if (detailIdx < d.list.size - 1) detailIdx++ }
-                )
+            // ★ 第二十七轮（H5 全页面封装）：资产分析 / 持仓 / 个股详情三页已全部改为
+            //   WebView 内嵌 H5（index.html / position.html / detail.html），
+            //   三者各自都带顶栏（蓝条或红条），故统一抑制 App 红条，把整屏交给 WebView。
+            if (showAssetAnalysis || showPosition || detail != null) {
+                // 空：不渲染红条（H5 页面自带顶栏，沉浸式铺到状态栏）
             } else {
                 MemberHeaderBar(
                     current = current,
@@ -376,13 +359,12 @@ fun ChaoGuJiaApp() {
                     // ★ 资讯页：红条压矮到 28dp，让网页频道栏接在下方；其他页不受影响。
                     compact = (current == "news"),
                     // ★ 多股同列全屏页打开时，红条标题切换为「多股同列」
-                    overlayTitle = if (showColumns && detail == null) "多股同列" else "",
+                    overlayTitle = if (showColumns) "多股同列" else "",
                     // ★ 点左上角返回箭头：关闭多股同列，回到普通自选
                     onWatchBack = { showColumns = false; closeColumnsTick++ },
                     // ★ 首页红条右侧「续费」-> 打开会员充值页（复用子页机制）
                     onOpenRecharge = { memberPageKey = "recharge"; memberPageTick++; current = "index" }
                 )
-            }
             }
         },
         bottomBar = {
@@ -435,14 +417,11 @@ fun ChaoGuJiaApp() {
         //   Scaffold 的 padding 默认已让出底部导航栏 inset；若详情页仍消费底部 inset，
         //   StockDetailPage 底边会停在按键区上方，黑底无法铺到底。
         //   故详情页时只消费顶部 inset（底部归零），其余页面保持原样。
-        val contentModifier = if (showAssetAnalysis) {
-            // ★ AA 页：不消费任何 inset，铺满整屏（WebView 被动铺到状态栏/导航栏）
+        // ★ 第二十七轮（H5 全页面封装）：资产分析 / 持仓 / 个股详情三个 H5 全屏页
+        //   都不消费任何 inset，铺满整屏（WebView 被动铺到状态栏/导航栏）。
+        val contentModifier = if (showAssetAnalysis || showPosition || detail != null) {
             Modifier
                 .fillMaxSize()
-        } else if (detail != null || showPosition) {
-            Modifier
-                .fillMaxSize()
-                .padding(top = padding.calculateTopPadding())
         } else {
             Modifier
                 .fillMaxSize()
@@ -520,45 +499,42 @@ fun ChaoGuJiaApp() {
             //   红条已由 MainActivity 的 detail 模式渲染，这里不再自绘红条。
             val d = detail
             if (d != null) {
-                StockDetailPage(
-                    token = token,
-                    perm = perm,
-                    list = d.list,
-                    index = detailIdx,
-                    showOwnHeader = false,
-                    onIndexChange = { detailIdx = it },
-                    onNameChange = { detailName = it },
-                    onClose = { closeDetail() },
-                    onOpenSearch = { showSearch = true },
-                    // 会员引导「立即开通」→ 首页会员中心「开通/续费」页
-                    onOpenVipPage = {
-                        memberPageKey = "recharge"
-                        memberPageTick++
-                        closeDetail()
-                        current = "index"
-                    }
-                )
+                // ★ 第二十七轮：个股详情改为 H5 内嵌（detail.html）
+                //   页面自带「状态栏 43px + 导航行 53px」同花顺红条（#hbar），
+                //   故 App 侧不渲染红条（见 topBar 分支）、也不注入 --sat（页面自绘）。
+                val code = if (detailIdx in d.list.indices) d.list[detailIdx].code else ""
+                if (code.isNotEmpty()) {
+                    H5WebPage(
+                        url = Config.H5_DETAIL + "?code=" + Uri.encode(code) + "&token=" + Uri.encode(token),
+                        satMode = H5SatMode.NONE,
+                        onClose = { closeDetail() }
+                    )
+                }
             }
 
             // ★ 持仓页（第 34 轮）：App 级覆盖层（位于红条下方的内容区）。
             //   红条已由 MainActivity 的 position 模式渲染，这里只铺内容。
             if (showPosition) {
-                PositionPage(
-                    token = token,
-                    defaultTab = positionTab,   // ★ 第 55 轮：由交易页按钮决定初始 tab
-                    showAccountPicker = positionAccountPicker,   // 第55h-16：外部控制的账户选择器开关
-                    onAccountPickerDismiss = { positionAccountPicker = false },   // 第55h-16：消费后归位
-                    onOpenDetail = { list, idx -> showPosition = false; openDetail("position", list, idx) },   // 需求④：先关持仓层避免遮挡
-                    onAccountChange = { nm, acc ->
-                        positionName = nm
-                        positionAccount = acc
-                    }
+                // ★ 第二十七轮：持仓/交易页改为 H5 内嵌（position.html）
+                //   页面用 #topbar{background:var(--red); padding-top:var(--sat)} 做红条，
+                //   但页面自己的 fit() 会把 --sat 重置成 0，注入变量无效 →
+                //   改用 PAD_SELECTOR 直接覆盖 #topbar 的 padding-top。
+                H5WebPage(
+                    url = Config.H5_POSITION + "?tab=" + h5PositionTab(positionTab) +
+                        "&token=" + Uri.encode(token),
+                    satMode = H5SatMode.PAD_SELECTOR,
+                    padSelector = "#topbar",
+                    onClose = { showPosition = false }
                 )
             }
 
             // ★ 资产分析页：App 级覆盖层（WebView 内嵌版，沉浸式铺满到状态栏；页面自带蓝条顶栏）
             if (showAssetAnalysis) {
-                AssetAnalysisWebPage(
+                // ★ 第二十七轮：统一走通用 H5 组件（index.html 自带 --sat/--sat-css 换算，
+                //   需注入物理 px，由页面内部除以 devicePixelRatio）
+                H5WebPage(
+                    url = Config.H5_INDEX + "?token=" + Uri.encode(token),
+                    satMode = H5SatMode.VAR_DP,
                     onClose = { showAssetAnalysis = false }
                 )
             }
